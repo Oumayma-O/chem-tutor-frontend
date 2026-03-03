@@ -181,7 +181,7 @@ export function MasteryBreakdown({ score, skillMap, errors, categoryScores, leve
             </div>
             {level3Unlocked ? (
               <p className="text-[10px] text-success mt-1 font-medium text-left">
-                ✓ Level 3 unlocked! (saved to your profile)
+                ✓ Level 3 unlocked!
               </p>
             ) : (
               <p className="text-[10px] text-muted-foreground mt-1 font-medium text-left">

@@ -1,9 +1,86 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTopicCompletion } from "@/hooks/useTopicCompletion";
 import { cn } from "@/lib/utils";
-import { CheckCircle, Clock, Circle, ArrowLeft, Home, Loader2 } from "lucide-react";
+import { ArrowLeft, Home } from "lucide-react";
 
 const TOPIC_STATE_STORAGE_KEY = "chemtutor_topic_state";
+
+type TopicStatus = "not-started" | "in-progress" | "completed";
+
+/** Returns 0–100 progress for the ring based on saved level state + overall status. */
+function getTopicProgress(
+  status: TopicStatus,
+  userId: string | undefined,
+  chapterId: string,
+  topicIndex: number,
+): number {
+  if (status === "completed") return 100;
+  if (status === "not-started") return 0;
+  // in-progress: read saved level from localStorage to get granular progress
+  if (userId) {
+    try {
+      const key = `${TOPIC_STATE_STORAGE_KEY}_${userId}_${chapterId}_${topicIndex}`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
+        const parsed = JSON.parse(raw) as { currentLevel?: number };
+        const level = parsed?.currentLevel ?? 1;
+        if (level >= 3) return 70;
+        if (level >= 2) return 40;
+        return 15;
+      }
+    } catch {}
+  }
+  return 20;
+}
+
+/** SVG circular progress ring — 16×16, advances clockwise from top. */
+function TopicRing({ progress }: { progress: number }) {
+  const size = 18;
+  const r = 7;
+  const cx = size / 2;
+  const cy = size / 2;
+  const circumference = 2 * Math.PI * r;
+  const dashOffset = circumference * (1 - Math.min(progress, 100) / 100);
+  const isComplete = progress >= 100;
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      className="shrink-0"
+      style={{ transition: "all 0.4s ease" }}
+    >
+      {/* Track */}
+      <circle
+        cx={cx} cy={cy} r={r}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className="text-border opacity-60"
+      />
+      {/* Progress arc */}
+      {progress > 0 && (
+        <circle
+          cx={cx} cy={cy} r={r}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${cx} ${cy})`}
+          className={isComplete ? "text-green-500" : "text-amber-500"}
+          style={{ transition: "stroke-dashoffset 0.5s ease" }}
+        />
+      )}
+      {/* Center fill dot when complete */}
+      {isComplete && (
+        <circle cx={cx} cy={cy} r={r * 0.38} fill="currentColor" className="text-green-500" />
+      )}
+    </svg>
+  );
+}
 
 /** True if we have any saved tutor state for this topic so we can resume in practice instead of simulation. */
 function hasSavedTutorState(userId: string | undefined, chapterId: string, topicIndex: number): boolean {
@@ -101,6 +178,8 @@ export function CourseSidebar({
               const isActive = i === currentTopicIndex;
               const status = getStatus(i);
 
+              const progress = getTopicProgress(status, userId, currentChapterId, i);
+
               return (
                 <button
                   key={`${currentChapterId}-${i}`}
@@ -120,15 +199,7 @@ export function CourseSidebar({
                           : "text-muted-foreground hover:bg-secondary/40",
                   )}
                 >
-                  {status === "completed" ? (
-                    <CheckCircle className="w-4 h-4 text-green-500 shrink-0" />
-                  ) : isActive ? (
-                    <Clock className="w-4 h-4 text-accent shrink-0" />
-                  ) : status === "in-progress" ? (
-                    <Loader2 className="w-4 h-4 text-amber-500 shrink-0" />
-                  ) : (
-                    <Circle className="w-4 h-4 text-muted-foreground shrink-0" />
-                  )}
+                  <TopicRing progress={progress} />
                   <span className="truncate">{topic}</span>
                 </button>
               );

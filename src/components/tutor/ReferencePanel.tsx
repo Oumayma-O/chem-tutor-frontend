@@ -33,10 +33,10 @@ export function ReferencePanel({ steps, hideContent, hint }: ReferencePanelProps
       <div
         className={cn(
           "transition-all duration-300 overflow-hidden",
-          isExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+          isExpanded ? "max-h-[1200px] opacity-100" : "max-h-0 opacity-0"
         )}
       >
-        <div className="p-4 pt-0 space-y-3">
+        <div className="p-4 pt-0 space-y-4">
           {steps.map((step) => (
             <div
               key={step.stepNumber}

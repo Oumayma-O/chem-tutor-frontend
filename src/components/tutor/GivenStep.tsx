@@ -1,5 +1,7 @@
+import React from "react";
 import { SolutionStep } from "@/types/chemistry";
 import { StepBadge } from "./StepBadge";
+import { formatMathContent } from "@/lib/mathDisplay";
 
 interface GivenStepProps {
   step: SolutionStep;
@@ -14,12 +16,17 @@ export function GivenStep({ step }: GivenStepProps) {
           <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
             {step.label}
           </span>
-          <span className="text-foreground font-medium">{step.instruction}</span>
+          <span className="text-foreground font-medium">{formatMathContent(step.instruction)}</span>
         </div>
       </div>
       <div className="ml-16 bg-card rounded-md p-4 border border-border">
-        <p className="equation text-foreground whitespace-pre-line">
-          {step.content?.replace(/, /g, "\n")}
+        <p className="equation text-foreground">
+          {step.content?.split(", ").map((line, i) => (
+            <React.Fragment key={i}>
+              {i > 0 && <br />}
+              {formatMathContent(line)}
+            </React.Fragment>
+          ))}
         </p>
       </div>
     </div>

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, X, XCircle, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatMathContent } from "@/lib/mathDisplay";
 
 interface InteractiveStepProps {
   step: SolutionStep;
@@ -51,7 +52,7 @@ export function InteractiveStep({
           <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
             {step.label}
           </span>
-          <span className="text-foreground font-medium">{step.instruction}</span>
+          <span className="text-foreground font-medium">{formatMathContent(step.instruction)}</span>
         </div>
       </div>
 

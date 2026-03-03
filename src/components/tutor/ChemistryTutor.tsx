@@ -47,7 +47,6 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
-  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -619,19 +618,6 @@ export function ChemistryTutor({
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
-                {/* Generate Another: shown at end of playlist before limit */}
-                {!nav.pagination.has_next && !nav.pagination.at_limit && !nav.isNavigating && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full gap-1.5 text-muted-foreground hover:text-foreground text-xs"
-                    onClick={nav.handleSeeAnother}
-                    disabled={nav.problemLoading}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Generate Another Example
-                  </Button>
-                )}
               </div>
             )}
 
