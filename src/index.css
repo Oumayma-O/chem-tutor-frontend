@@ -1,0 +1,215 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Chemistry Tutor Design System - Faded Worked Examples */
+
+@layer base {
+  :root {
+    /* Core Colors */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary: Deep Navy Blue */
+    --primary: 217 91% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Light Blue Gray */
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Accent: Amber/Orange for Interactive Elements */
+    --accent: 38 92% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Success: Green for correct answers */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning: Amber for hints */
+    --warning: 45 93% 47%;
+    --warning-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 40%;
+
+    --radius: 0.75rem;
+
+    /* Step Colors */
+    --step-given: 210 40% 96%;
+    --step-given-border: 199 89% 48%;
+    --step-interactive: 48 96% 89%;
+    --step-interactive-border: 38 92% 50%;
+    --step-complete: 142 72% 94%;
+    --step-complete-border: 142 76% 36%;
+
+    /* Problem Card */
+    --problem-bg: 48 100% 96%;
+    --problem-border: 38 92% 50%;
+
+    /* Reference Panel */
+    --reference-bg: 142 76% 97%;
+    --reference-border: 142 76% 36%;
+
+    /* Mastery Colors */
+    --mastery-low: 0 84% 60%;
+    --mastery-medium: 45 93% 47%;
+    --mastery-high: 142 76% 36%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5% 26%;
+    --sidebar-primary: 217 91% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 214 32% 91%;
+    --sidebar-ring: 217 91% 60%;
+  }
+
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 15%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 15%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 38 92% 50%;
+    --accent-foreground: 222 47% 11%;
+
+    --success: 142 76% 46%;
+    --success-foreground: 222 47% 11%;
+
+    --warning: 45 93% 47%;
+    --warning-foreground: 222 47% 11%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 213 27% 84%;
+
+    --step-given: 217 33% 20%;
+    --step-given-border: 199 89% 48%;
+    --step-interactive: 38 50% 20%;
+    --step-interactive-border: 38 92% 50%;
+    --step-complete: 142 40% 20%;
+    --step-complete-border: 142 76% 46%;
+
+    --problem-bg: 38 50% 15%;
+    --problem-border: 38 92% 50%;
+
+    --reference-bg: 142 40% 15%;
+    --reference-border: 142 76% 46%;
+
+    --mastery-low: 0 84% 60%;
+    --mastery-medium: 45 93% 47%;
+    --mastery-high: 142 76% 46%;
+
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 222 47% 11%;
+    --sidebar-accent: 217 33% 20%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 17%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Chemistry equation styling */
+.equation {
+  font-family: "Times New Roman", Times, serif;
+  font-size: 1.125rem;
+  letter-spacing: 0.025em;
+}
+
+.equation sub {
+  font-size: 0.75em;
+  vertical-align: sub;
+}
+
+.equation sup {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+/* Smooth transitions for interactive elements */
+.step-card {
+  @apply transition-all duration-200 ease-in-out;
+}
+
+.step-card:hover {
+  @apply shadow-md;
+}
+
+/* Input focus states for chemistry inputs */
+.chem-input:focus {
+  @apply ring-2 ring-primary ring-offset-2 outline-none;
+}
+
+/* Animation for mastery progress */
+@keyframes pulse-success {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.mastery-pulse {
+  animation: pulse-success 2s ease-in-out infinite;
+}
+
+/* Fade in animation for step feedback */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fade-in 0.3s ease-out;
+}
