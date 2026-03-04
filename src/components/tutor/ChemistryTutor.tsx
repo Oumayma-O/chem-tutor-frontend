@@ -273,7 +273,7 @@ export function ChemistryTutor({
 
     apiGetTopicProgress(userId, chapterId)
       .then((progress) => {
-        const topicStatus = progress.find((p) => p.topic_index === topicIndex)?.status;
+        const topicStatus = progress.find((p) => p.lesson_index === topicIndex)?.status;
         if (topicStatus === "completed") setHasCompletedLevel2((prev) => prev || true);
       })
       .catch(() => {});
@@ -366,8 +366,8 @@ export function ChemistryTutor({
       apiCompleteAttempt({
         attempt_id: currentAttemptId,
         user_id: userId,
-        chapter_id: chapterId,
-        topic_index: topicIndex,
+        unit_id: chapterId,
+        lesson_index: topicIndex,
         score,
         step_log,
         level: nav.currentLevel,

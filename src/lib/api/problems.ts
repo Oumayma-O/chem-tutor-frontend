@@ -59,8 +59,8 @@ export interface HintOutput {
 }
 
 export async function apiGenerateProblemV2(body: {
-  chapter_id: string;
-  topic_index: number;
+  unit_id: string;
+  lesson_index: number;
   topic_name: string;
   difficulty?: string;
   level?: number;
@@ -76,11 +76,11 @@ export async function apiGenerateProblemV2(body: {
 }
 
 export async function apiGetReferenceExample(
-  chapterId: string,
-  topicIndex: number,
+  unitId: string,
+  lessonIndex: number,
 ): Promise<ProblemOutput | null> {
   return get<ProblemOutput>(
-    `/problems/worked-example?chapter_id=${encodeURIComponent(chapterId)}&topic_index=${topicIndex}`,
+    `/problems/worked-example?unit_id=${encodeURIComponent(unitId)}&lesson_index=${lessonIndex}`,
   ).catch(() => null);
 }
 
@@ -93,8 +93,8 @@ export interface ReferenceCardStep {
 
 export interface ReferenceCardOutput {
   topic: string;
-  chapter_id: string;
-  topic_index: number;
+  unit_id: string;
+  lesson_index: number;
   steps: ReferenceCardStep[];
   hint: string;
 }
@@ -105,19 +105,19 @@ export interface ReferenceCardOutput {
  * Returns null on error so callers can fall back gracefully.
  */
 export async function apiGetReferenceCard(
-  chapterId: string,
-  topicIndex: number,
+  unitId: string,
+  lessonIndex: number,
   topicName: string,
 ): Promise<ReferenceCardOutput | null> {
   return get<ReferenceCardOutput>(
-    `/problems/reference-card?chapter_id=${encodeURIComponent(chapterId)}&topic_index=${topicIndex}&topic_name=${encodeURIComponent(topicName)}`,
+    `/problems/reference-card?unit_id=${encodeURIComponent(unitId)}&lesson_index=${lessonIndex}&topic_name=${encodeURIComponent(topicName)}`,
   ).catch(() => null);
 }
 
 export async function apiNavigateProblem(body: {
   user_id: string;
-  chapter_id: string;
-  topic_index: number;
+  unit_id: string;
+  lesson_index: number;
   level: number;
   difficulty: string;
   direction: "prev" | "next";
@@ -164,7 +164,7 @@ export async function apiClassifyErrors(body: {
 }
 
 export async function apiGenerateExitTicket(body: {
-  chapter_id: string;
+  unit_id: string;
   topic_name: string;
   difficulty?: string;
   format?: string;
@@ -199,7 +199,7 @@ export async function apiGenerateHint(body: {
 }
 
 export async function apiGenerateProblem(body: {
-  chapter_id: string;
+  unit_id: string;
   topic_name: string;
   difficulty?: string;
   interests?: string[];
@@ -218,7 +218,7 @@ export async function apiGenerateProblem(body: {
 }
 
 export async function apiGenerateGuide(body: {
-  chapter_id: string;
+  unit_id: string;
   topic_name: string;
   guide_step_index: number;
   interests?: string[];

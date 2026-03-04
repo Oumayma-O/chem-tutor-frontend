@@ -13,7 +13,7 @@ interface ChapterSelectorProps {
   showAllOption?: boolean;
 }
 
-export function ChapterSelector({ value, onValueChange, courseLevel, label = "Chapter", showAllOption = false }: ChapterSelectorProps) {
+export function ChapterSelector({ value, onValueChange, courseLevel, label = "Unit", showAllOption = false }: ChapterSelectorProps) {
   const { chapters } = useChapters();
 
   const available = useMemo(
@@ -35,10 +35,10 @@ export function ChapterSelector({ value, onValueChange, courseLevel, label = "Ch
       </Label>
       <Select value={value} onValueChange={onValueChange}>
         <SelectTrigger>
-          <SelectValue placeholder="Select chapter" />
+          <SelectValue placeholder="Select unit" />
         </SelectTrigger>
         <SelectContent>
-          {showAllOption && <SelectItem value="all">All Chapters</SelectItem>}
+          {showAllOption && <SelectItem value="all">All Units</SelectItem>}
           {filtered.map((ch) => (
             <SelectItem key={ch.id} value={ch.id}>
               {ch.icon} {ch.title}

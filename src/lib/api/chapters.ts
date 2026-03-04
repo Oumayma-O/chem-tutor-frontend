@@ -1,17 +1,20 @@
 import { get } from "./core";
 
-export interface TopicOut {
+export interface LessonOut {
   id: number;
-  chapter_id: string;
+  unit_id: string;
   title: string;
   description: string;
-  topic_index: number;
+  lesson_index: number;
   key_equations: string[];
   standards: { code: string; framework: string; description: string }[];
   is_active: boolean;
 }
 
-export interface ChapterListItem {
+/** @deprecated use LessonOut */
+export type TopicOut = LessonOut;
+
+export interface UnitListItem {
   id: string;
   title: string;
   description: string;
@@ -23,11 +26,15 @@ export interface ChapterListItem {
   sort_order: number;
   is_active: boolean;
   is_coming_soon: boolean;
-  topic_count: number;
-  topic_titles: string[];
+  lesson_count: number;
+  lesson_titles: string[];
+  skill_count: number;
 }
 
-export interface ChapterOut {
+/** @deprecated use UnitListItem */
+export type ChapterListItem = UnitListItem;
+
+export interface UnitOut {
   id: string;
   title: string;
   description: string;
@@ -39,13 +46,20 @@ export interface ChapterOut {
   sort_order: number;
   is_active: boolean;
   is_coming_soon: boolean;
-  topics: TopicOut[];
+  lessons: LessonOut[];
 }
 
-export async function apiGetChapters(): Promise<ChapterListItem[]> {
-  return get<ChapterListItem[]>("/chapters");
+/** @deprecated use UnitOut */
+export type ChapterOut = UnitOut;
+
+export async function apiGetUnits(): Promise<UnitListItem[]> {
+  return get<UnitListItem[]>("/units");
 }
 
-export async function apiGetChapter(id: string): Promise<ChapterOut> {
-  return get<ChapterOut>(`/chapters/${id}`);
+export const apiGetChapters = apiGetUnits;
+
+export async function apiGetUnit(id: string): Promise<UnitOut> {
+  return get<UnitOut>(`/units/${id}`);
 }
+
+export const apiGetChapter = apiGetUnit;

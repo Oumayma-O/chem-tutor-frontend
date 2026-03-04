@@ -105,8 +105,8 @@ export function useGeneratedProblem({
 
       try {
         const data = await apiGenerateProblemV2({
-          chapter_id: chapterId,
-          topic_index: topicIndex,
+          unit_id: chapterId,
+          lesson_index: topicIndex,
           topic_name: topicName,
           difficulty,
           level,

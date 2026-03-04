@@ -21,18 +21,22 @@ const KINETICS_TOPICS: { order: 0 | 1 | 2; label: string }[] = [
 const RATE_LAWS_TOPIC_INDEX = 3;
 
 export default function ChapterLandingPage() {
-  const { chapterId, topicIndex } = useParams<{ chapterId: string; topicIndex?: string }>();
+  const { chapterId, unitId, topicIndex, lessonIndex } = useParams<{
+    chapterId?: string; unitId?: string; topicIndex?: string; lessonIndex?: string;
+  }>();
+  const effectiveId = unitId || chapterId;
+  const effectiveIndex = lessonIndex || topicIndex;
   const navigate = useNavigate();
-  const { chapter, topicTitles, loading, error } = useChapter(chapterId);
-  const currentTopicIdx = topicIndex ? parseInt(topicIndex, 10) : 0;
+  const { chapter, topicTitles, loading, error } = useChapter(effectiveId);
+  const currentTopicIdx = effectiveIndex ? parseInt(effectiveIndex, 10) : 0;
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const { profile, user } = useAuth();
-  const { getStatus } = useTopicCompletion(chapterId || "", user?.id);
+  const { getStatus } = useTopicCompletion(effectiveId || "", user?.id);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [chapterId, topicIndex]);
+  }, [effectiveId, effectiveIndex]);
 
   if (loading) {
     return (

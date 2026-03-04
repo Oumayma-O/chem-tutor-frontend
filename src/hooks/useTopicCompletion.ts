@@ -50,7 +50,7 @@ export function useTopicCompletion(chapterId: string, userId?: string) {
           }
           const dbMap: Record<number, TopicStatus> = {};
           for (const r of records) {
-            dbMap[r.topic_index] = r.status;
+            dbMap[r.lesson_index] = r.status;
           }
           setStatusMap(dbMap);
           persistLocal(dbMap);

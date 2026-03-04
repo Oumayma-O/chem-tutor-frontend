@@ -11,17 +11,17 @@ import { Button } from "@/components/ui/button";
 import { Menu, Loader2 } from "lucide-react";
 
 export default function TutorPage() {
-  const { chapterId, topicIndex } = useParams<{ chapterId: string; topicIndex?: string }>();
+  const { unitId, lessonIndex } = useParams<{ unitId?: string; lessonIndex?: string }>();
   const navigate = useNavigate();
-  const { chapter, topicTitles, loading, error } = useChapter(chapterId);
-  const currentTopicIdx = topicIndex ? parseInt(topicIndex, 10) : 0;
+  const { chapter, topicTitles, loading, error } = useChapter(unitId);
+  const currentTopicIdx = lessonIndex ? parseInt(lessonIndex, 10) : 0;
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { profile, user } = useAuth();
-  const { markCompleted, markInProgress } = useTopicCompletion(chapterId || "", user?.id);
+  const { markCompleted, markInProgress } = useTopicCompletion(unitId || "", user?.id);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [chapterId, topicIndex]);
+  }, [unitId, lessonIndex]);
 
   if (loading) {
     return (

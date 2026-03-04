@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
-import { apiGetChapter, type ChapterOut } from "@/lib/api";
+import { apiGetUnit, type UnitOut } from "@/lib/api";
 
 interface UseChapterResult {
-  chapter: ChapterOut | null;
-  /** Topics sorted by topic_index, titles only */
+  chapter: UnitOut | null;
+  /** Lessons sorted by lesson_index, titles only */
   topicTitles: string[];
   loading: boolean;
   error: string | null;
 }
 
 export function useChapter(chapterId: string | undefined): UseChapterResult {
-  const [chapter, setChapter] = useState<ChapterOut | null>(null);
+  const [chapter, setChapter] = useState<UnitOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,18 +21,18 @@ export function useChapter(chapterId: string | undefined): UseChapterResult {
     }
     setLoading(true);
     setError(null);
-    apiGetChapter(chapterId)
+    apiGetUnit(chapterId)
       .then(setChapter)
       .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Chapter not found"),
+        setError(err instanceof Error ? err.message : "Unit not found"),
       )
       .finally(() => setLoading(false));
   }, [chapterId]);
 
   const topicTitles = chapter
-    ? [...chapter.topics]
-        .sort((a, b) => a.topic_index - b.topic_index)
-        .map((t) => t.title)
+    ? [...chapter.lessons]
+        .sort((a, b) => a.lesson_index - b.lesson_index)
+        .map((l) => l.title)
     : [];
 
   return { chapter, topicTitles, loading, error };

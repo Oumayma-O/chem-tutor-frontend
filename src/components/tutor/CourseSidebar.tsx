@@ -186,7 +186,7 @@ export function CourseSidebar({
                   onClick={() => {
                     // If user has saved state for this topic (e.g. left while in Level 2), resume in tutor instead of simulation
                     const resumePractice = hasSavedTutorState(userId, currentChapterId, i);
-                    navigate(resumePractice ? `/tutor/${currentChapterId}/${i}` : `/chapter/${currentChapterId}/${i}`);
+                    navigate(resumePractice ? `/tutor/${currentChapterId}/${i}` : `/unit/${currentChapterId}/${i}`);
                   }}
                   className={cn(
                     "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-colors text-left",
@@ -209,7 +209,7 @@ export function CourseSidebar({
       <div className="px-3 py-3 border-t border-border mt-2 space-y-1">
         {isOnPracticePage && (
           <button
-            onClick={() => navigate(`/chapter/${currentChapterId}/${currentTopicIndex}`)}
+            onClick={() => navigate(`/unit/${currentChapterId}/${currentTopicIndex}`)}
             className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary/40 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
@@ -221,7 +221,7 @@ export function CourseSidebar({
           className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary/40 transition-colors"
         >
           <Home className="w-3.5 h-3.5 text-amber-500" />
-          Back to Chapters
+          Back to Units
         </button>
       </div>
     </aside>

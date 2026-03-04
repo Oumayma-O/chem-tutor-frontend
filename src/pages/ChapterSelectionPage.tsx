@@ -3,8 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useChapters } from "@/hooks/useChapters";
 import { COURSE_LEVELS, CourseLevel, getCourseLevel } from "@/data/chapters";
-import { type ChapterListItem } from "@/lib/api";
-import { Button } from "@/components/ui/button";
+import { type UnitListItem } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -17,21 +16,12 @@ function inferCourseLevel(gradeLevel: string | null): CourseLevel | "all" {
   if (!gradeLevel) return "all";
   const gl = gradeLevel.toLowerCase();
   if (gl.includes("ap") || gl.includes("advanced")) return "ap";
-  if (
-    gl.includes("high-school") ||
-    gl.includes("honors") ||
-    gl.includes("high school") ||
-    gl.includes("11") ||
-    gl.includes("12")
-  )
-    return "high-school";
-  if (gl.includes("middle") || gl.includes("intro")) return "intro";
-  return "all";
+  return "standard";
 }
 
 // ── Skeleton card ────────────────────────────────────────────────────────────
 
-function ChapterCardSkeleton() {
+function UnitCardSkeleton() {
   return (
     <Card className="border-2 border-border animate-pulse">
       <CardHeader className="pb-3 pt-6">
@@ -73,16 +63,16 @@ export default function ChapterSelectionPage() {
         !searchQuery ||
         ch.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         ch.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ch.topic_titles.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
+        ch.lesson_titles.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
       const chLevel = getCourseLevel(ch.course_name);
       const matchesLevel = selectedLevel === "all" || chLevel === selectedLevel;
       return matchesSearch && matchesLevel;
     });
   }, [chapters, searchQuery, selectedLevel]);
 
-  const handleSelectChapter = (chapter: ChapterListItem) => {
-    if (chapter.is_coming_soon || !chapter.is_active) return;
-    navigate(`/chapter/${chapter.id}`);
+  const handleSelectUnit = (unit: UnitListItem) => {
+    if (unit.is_coming_soon || !unit.is_active) return;
+    navigate(`/unit/${unit.id}`);
   };
 
   return (
@@ -106,7 +96,7 @@ export default function ChapterSelectionPage() {
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-foreground mb-1">Your Learning Path</h2>
             <p className="text-muted-foreground text-sm">
-              Select a chapter to begin with its simulation, then practice.
+              Select a unit to begin with its simulation, then practice.
             </p>
           </div>
 
@@ -115,7 +105,7 @@ export default function ChapterSelectionPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search topics, skills, or chapters..."
+                placeholder="Search lessons, skills, or units..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 pr-8"
@@ -168,26 +158,26 @@ export default function ChapterSelectionPage() {
 
           {(searchQuery || selectedLevel !== "all") && !loading && !error && (
             <p className="text-sm text-muted-foreground mb-4">
-              {filteredChapters.length} chapter{filteredChapters.length !== 1 ? "s" : ""} found
+              {filteredChapters.length} unit{filteredChapters.length !== 1 ? "s" : ""} found
             </p>
           )}
 
-          {/* Chapter Grid */}
+          {/* Unit Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
             {loading
-              ? Array.from({ length: 6 }).map((_, i) => <ChapterCardSkeleton key={i} />)
-              : filteredChapters.map((chapter) => {
-                  const available = chapter.is_active && !chapter.is_coming_soon;
+              ? Array.from({ length: 6 }).map((_, i) => <UnitCardSkeleton key={i} />)
+              : filteredChapters.map((unit) => {
+                  const available = unit.is_active && !unit.is_coming_soon;
                   return (
                     <Card
-                      key={chapter.id}
+                      key={unit.id}
                       className={cn(
                         "transition-all group relative overflow-hidden border-2",
                         available
                           ? "cursor-pointer hover:shadow-card-elevated hover:border-primary/40 hover:-translate-y-1"
                           : "opacity-40 cursor-not-allowed border-border",
                       )}
-                      onClick={() => handleSelectChapter(chapter)}
+                      onClick={() => handleSelectUnit(unit)}
                     >
                       {available && (
                         <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-primary via-primary/80 to-accent/60" />
@@ -195,12 +185,12 @@ export default function ChapterSelectionPage() {
                       <CardHeader className="pb-3 pt-6">
                         <div className="flex items-start justify-between">
                           <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl group-hover:bg-primary/15 transition-colors">
-                            {chapter.icon}
+                            {unit.icon}
                           </div>
                           <div className="flex flex-col items-end gap-1.5">
-                            {chapter.course_name && (
+                            {unit.course_name && (
                               <Badge variant="outline" className="text-[10px] font-medium">
-                                {chapter.course_name}
+                                {unit.course_name}
                               </Badge>
                             )}
                             {!available && (
@@ -211,26 +201,29 @@ export default function ChapterSelectionPage() {
                             )}
                           </div>
                         </div>
-                        <CardTitle className="text-base mt-3">{chapter.title}</CardTitle>
+                        <CardTitle className="text-base mt-3">{unit.title}</CardTitle>
                         <CardDescription className="text-xs leading-relaxed">
-                          {chapter.description}
+                          {unit.description}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="pt-0 pb-5">
                         <div className="flex flex-wrap gap-1.5 mb-4">
-                          {chapter.topic_titles.slice(0, 3).map((topic) => (
-                            <Badge key={topic} variant="outline" className="text-[10px] bg-secondary/40">
-                              {topic}
+                          {unit.lesson_titles.slice(0, 3).map((lesson) => (
+                            <Badge key={lesson} variant="outline" className="text-[10px] bg-secondary/40">
+                              {lesson}
                             </Badge>
                           ))}
-                          {chapter.topic_titles.length > 3 && (
+                          {unit.lesson_titles.length > 3 && (
                             <Badge variant="outline" className="text-[10px] bg-secondary/40">
-                              +{chapter.topic_titles.length - 3} more
+                              +{unit.lesson_titles.length - 3} more
                             </Badge>
                           )}
                         </div>
                         {available && (
-                          <div className="flex items-center justify-end pt-2 border-t border-border">
+                          <div className="flex items-center justify-between pt-2 border-t border-border">
+                            <span className="text-[10px] text-muted-foreground">
+                              {unit.lesson_count} lessons · {unit.skill_count} skills
+                            </span>
                             <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                           </div>
                         )}
@@ -244,8 +237,8 @@ export default function ChapterSelectionPage() {
             <div className="text-center py-16">
               <p className="text-muted-foreground">
                 {chapters.length === 0
-                  ? "No chapters available yet. Check back soon!"
-                  : "No chapters match your search. Try different keywords or adjust the filter."}
+                  ? "No units available yet. Check back soon!"
+                  : "No units match your search. Try different keywords or adjust the filter."}
               </p>
             </div>
           )}

@@ -56,10 +56,15 @@ function AppRoutes() {
       <Route path="/" element={<ChapterSelectionPage />} />
       <Route path="/profile" element={<StudentProfilePage />} />
       <Route path="/admin" element={<AdminPage />} />
+      {/* Unit landing (new) */}
+      <Route path="/unit/:unitId" element={<ChapterLandingPage />} />
+      <Route path="/unit/:unitId/:lessonIndex" element={<ChapterLandingPage />} />
+      {/* Chapter landing (backward compat) */}
       <Route path="/chapter/:chapterId" element={<ChapterLandingPage />} />
       <Route path="/chapter/:chapterId/:topicIndex" element={<ChapterLandingPage />} />
-      <Route path="/tutor/:chapterId/:topicIndex" element={<TutorPage />} />
-      <Route path="/tutor/:chapterId" element={<TutorPage />} />
+      {/* Tutor — unitId/lessonIndex params cover both old and new since pattern is identical */}
+      <Route path="/tutor/:unitId/:lessonIndex" element={<TutorPage />} />
+      <Route path="/tutor/:unitId" element={<TutorPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

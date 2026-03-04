@@ -198,8 +198,8 @@ export function useProblemNavigation({
         if (userId && p) {
           apiStartAttempt({
             user_id: userId,
-            chapter_id: chapterId,
-            topic_index: topicIndex,
+            unit_id: chapterId,
+            lesson_index: topicIndex,
             problem_id: p.id,
             difficulty,
             level,
@@ -223,8 +223,8 @@ export function useProblemNavigation({
         if (userId && problem) {
           apiStartAttempt({
             user_id: userId,
-            chapter_id: chapterId,
-            topic_index: topicIndex,
+            unit_id: chapterId,
+            lesson_index: topicIndex,
             problem_id: problem.id,
             difficulty,
             level,
@@ -394,8 +394,8 @@ export function useProblemNavigation({
       try {
         const data = await apiNavigateProblem({
           user_id: userId,
-          chapter_id: chapterId,
-          topic_index: topicIndex,
+          unit_id: chapterId,
+          lesson_index: topicIndex,
           level: lvl,
           difficulty: diff,
           direction,

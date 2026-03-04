@@ -25,15 +25,18 @@ export interface ProgressionDecision {
   feedback_message: string;
 }
 
-export interface TopicProgressItem {
-  topic_index: number;
+export interface LessonProgressItem {
+  lesson_index: number;
   status: "not-started" | "in-progress" | "completed";
 }
 
+/** @deprecated use LessonProgressItem */
+export type TopicProgressItem = LessonProgressItem;
+
 export async function apiStartAttempt(body: {
   user_id: string;
-  chapter_id: string;
-  topic_index: number;
+  unit_id: string;
+  lesson_index: number;
   problem_id: string;
   difficulty: string;
   level: number;
@@ -45,8 +48,8 @@ export async function apiStartAttempt(body: {
 export async function apiCompleteAttempt(body: {
   attempt_id: string;
   user_id: string;
-  chapter_id: string;
-  topic_index: number;
+  unit_id: string;
+  lesson_index: number;
   score: number;
   step_log: unknown[];
   level: number;
@@ -56,47 +59,47 @@ export async function apiCompleteAttempt(body: {
 
 export async function apiGetMastery(
   userId: string,
-  chapterId: string,
-  topicIndex: number,
+  unitId: string,
+  lessonIndex: number,
 ): Promise<MasteryState> {
   return get<MasteryState>(
-    `/mastery/users/${userId}/chapters/${chapterId}/topics/${topicIndex}`,
+    `/mastery/users/${userId}/units/${unitId}/lessons/${lessonIndex}`,
   );
 }
 
 export async function apiGetTopicProgress(
   userId: string,
-  chapterId: string,
-): Promise<TopicProgressItem[]> {
-  return get<TopicProgressItem[]>(
-    `/mastery/users/${userId}/chapters/${chapterId}/progress`,
+  unitId: string,
+): Promise<LessonProgressItem[]> {
+  return get<LessonProgressItem[]>(
+    `/mastery/users/${userId}/units/${unitId}/progress`,
   );
 }
 
 export async function apiSetTopicStatus(
   userId: string,
-  chapterId: string,
-  topicIndex: number,
+  unitId: string,
+  lessonIndex: number,
   status: "not-started" | "in-progress" | "completed",
-): Promise<TopicProgressItem> {
-  return request<TopicProgressItem>(
+): Promise<LessonProgressItem> {
+  return request<LessonProgressItem>(
     "PATCH",
-    `/mastery/users/${userId}/chapters/${chapterId}/topics/${topicIndex}/status`,
+    `/mastery/users/${userId}/units/${unitId}/lessons/${lessonIndex}/status`,
     { status },
   );
 }
 
 export async function apiUnlockLevel3(
   userId: string,
-  chapterId: string,
-  topicIndex: number,
+  unitId: string,
+  lessonIndex: number,
 ): Promise<{ level3_unlocked: boolean }> {
   return post<{ level3_unlocked: boolean }>(
-    `/mastery/users/${userId}/chapters/${chapterId}/topics/${topicIndex}/unlock-level3`,
+    `/mastery/users/${userId}/units/${unitId}/lessons/${lessonIndex}/unlock-level3`,
     {},
   );
 }
 
-export async function apiGetAllProgress(userId: string): Promise<TopicProgressItem[]> {
-  return get<TopicProgressItem[]>(`/mastery/users/${userId}/progress`);
+export async function apiGetAllProgress(userId: string): Promise<LessonProgressItem[]> {
+  return get<LessonProgressItem[]>(`/mastery/users/${userId}/progress`);
 }
