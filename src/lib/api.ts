@@ -8,6 +8,6 @@
  */
 export * from "./api/core";
 export * from "./api/auth";
-export * from "./api/chapters";
+export * from "./api/units";
 export * from "./api/problems";
 export * from "./api/mastery";

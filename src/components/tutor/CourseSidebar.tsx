@@ -1,25 +1,24 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useTopicCompletion } from "@/hooks/useTopicCompletion";
+import { useLessonCompletion } from "@/hooks/useLessonCompletion";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Home } from "lucide-react";
 
-const TOPIC_STATE_STORAGE_KEY = "chemtutor_topic_state";
+const LESSON_STATE_STORAGE_KEY = "chemtutor_lesson_state";
 
-type TopicStatus = "not-started" | "in-progress" | "completed";
+type LessonStatus = "not-started" | "in-progress" | "completed";
 
 /** Returns 0–100 progress for the ring based on saved level state + overall status. */
-function getTopicProgress(
-  status: TopicStatus,
+function getLessonProgress(
+  status: LessonStatus,
   userId: string | undefined,
-  chapterId: string,
-  topicIndex: number,
+  unitId: string,
+  lessonIndex: number,
 ): number {
   if (status === "completed") return 100;
   if (status === "not-started") return 0;
-  // in-progress: read saved level from localStorage to get granular progress
   if (userId) {
     try {
-      const key = `${TOPIC_STATE_STORAGE_KEY}_${userId}_${chapterId}_${topicIndex}`;
+      const key = `${LESSON_STATE_STORAGE_KEY}_${userId}_${unitId}_${lessonIndex}`;
       const raw = localStorage.getItem(key);
       if (raw) {
         const parsed = JSON.parse(raw) as { currentLevel?: number };
@@ -34,7 +33,7 @@ function getTopicProgress(
 }
 
 /** SVG circular progress ring — 16×16, advances clockwise from top. */
-function TopicRing({ progress }: { progress: number }) {
+function LessonRing({ progress }: { progress: number }) {
   const size = 18;
   const r = 7;
   const cx = size / 2;
@@ -51,7 +50,6 @@ function TopicRing({ progress }: { progress: number }) {
       className="shrink-0"
       style={{ transition: "all 0.4s ease" }}
     >
-      {/* Track */}
       <circle
         cx={cx} cy={cy} r={r}
         fill="none"
@@ -59,7 +57,6 @@ function TopicRing({ progress }: { progress: number }) {
         strokeWidth="1.8"
         className="text-border opacity-60"
       />
-      {/* Progress arc */}
       {progress > 0 && (
         <circle
           cx={cx} cy={cy} r={r}
@@ -74,7 +71,6 @@ function TopicRing({ progress }: { progress: number }) {
           style={{ transition: "stroke-dashoffset 0.5s ease" }}
         />
       )}
-      {/* Center fill dot when complete */}
       {isComplete && (
         <circle cx={cx} cy={cy} r={r * 0.38} fill="currentColor" className="text-green-500" />
       )}
@@ -82,11 +78,11 @@ function TopicRing({ progress }: { progress: number }) {
   );
 }
 
-/** True if we have any saved tutor state for this topic so we can resume in practice instead of simulation. */
-function hasSavedTutorState(userId: string | undefined, chapterId: string, topicIndex: number): boolean {
+/** True if we have any saved tutor state for this lesson so we can resume in practice. */
+function hasSavedTutorState(userId: string | undefined, unitId: string, lessonIndex: number): boolean {
   if (!userId) return false;
   try {
-    const key = `${TOPIC_STATE_STORAGE_KEY}_${userId}_${chapterId}_${topicIndex}`;
+    const key = `${LESSON_STATE_STORAGE_KEY}_${userId}_${unitId}_${lessonIndex}`;
     const raw = localStorage.getItem(key);
     if (!raw) return false;
     const parsed = JSON.parse(raw) as { currentLevel?: number; levelCache?: Record<number, unknown> };
@@ -97,37 +93,35 @@ function hasSavedTutorState(userId: string | undefined, chapterId: string, topic
 }
 
 interface CourseSidebarProps {
-  currentChapterId: string;
-  currentTopicIndex?: number;
+  currentUnitId: string;
+  currentLessonIndex?: number;
   open: boolean;
-  /** Chapter title provided by parent after fetch */
-  chapterTitle?: string;
-  /** Ordered topic title list provided by parent after fetch */
-  topicTitles?: string[];
+  unitTitle?: string;
+  lessonTitles?: string[];
   userId?: string;
 }
 
 export function CourseSidebar({
-  currentChapterId,
-  currentTopicIndex = 0,
+  currentUnitId,
+  currentLessonIndex = 0,
   open,
-  chapterTitle,
-  topicTitles = [],
+  unitTitle,
+  lessonTitles = [],
   userId,
 }: CourseSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { getStatus } = useTopicCompletion(currentChapterId, userId);
+  const { getStatus } = useLessonCompletion(currentUnitId, userId);
 
   if (!open) return null;
 
   const isOnPracticePage = location.pathname.startsWith("/tutor/");
 
-  const totalTopics = topicTitles.length;
-  const completedCount = totalTopics > 0
-    ? topicTitles.filter((_, i) => getStatus(i) === "completed").length
+  const totalLessons = lessonTitles.length;
+  const completedCount = totalLessons > 0
+    ? lessonTitles.filter((_, i) => getStatus(i) === "completed").length
     : 0;
-  const percentComplete = totalTopics > 0 ? Math.round((completedCount / totalTopics) * 100) : 0;
+  const percentComplete = totalLessons > 0 ? Math.round((completedCount / totalLessons) * 100) : 0;
 
   return (
     <aside
@@ -137,23 +131,21 @@ export function CourseSidebar({
       )}
     >
       <div className="p-4 pt-5 pb-4 border-b border-border">
-        {/* Unit name — primary hierarchy, more space from separator */}
-        {chapterTitle ? (
+        {unitTitle ? (
           <h2 className="text-sm font-semibold text-foreground truncate mb-4">
-            {chapterTitle}
+            {unitTitle}
           </h2>
         ) : (
           <div className="h-4 w-3/4 rounded bg-secondary/60 animate-pulse mb-4" />
         )}
-        {/* Progress indicators — secondary, smaller and lighter */}
-        {totalTopics > 0 && (
+        {totalLessons > 0 && (
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-normal text-muted-foreground">
                 {percentComplete}% complete
               </span>
               <span className="text-[11px] font-normal text-muted-foreground tabular-nums">
-                {completedCount}/{totalTopics} topics
+                {completedCount}/{totalLessons} lessons
               </span>
             </div>
             <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -170,23 +162,21 @@ export function CourseSidebar({
       </div>
 
       <div className="p-3 space-y-1">
-        {topicTitles.length === 0
+        {lessonTitles.length === 0
           ? Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="h-9 rounded-lg bg-secondary/40 animate-pulse" />
             ))
-          : topicTitles.map((topic, i) => {
-              const isActive = i === currentTopicIndex;
+          : lessonTitles.map((lesson, i) => {
+              const isActive = i === currentLessonIndex;
               const status = getStatus(i);
-
-              const progress = getTopicProgress(status, userId, currentChapterId, i);
+              const progress = getLessonProgress(status, userId, currentUnitId, i);
 
               return (
                 <button
-                  key={`${currentChapterId}-${i}`}
+                  key={`${currentUnitId}-${i}`}
                   onClick={() => {
-                    // If user has saved state for this topic (e.g. left while in Level 2), resume in tutor instead of simulation
-                    const resumePractice = hasSavedTutorState(userId, currentChapterId, i);
-                    navigate(resumePractice ? `/tutor/${currentChapterId}/${i}` : `/unit/${currentChapterId}/${i}`);
+                    const resumePractice = hasSavedTutorState(userId, currentUnitId, i);
+                    navigate(resumePractice ? `/tutor/${currentUnitId}/${i}` : `/unit/${currentUnitId}/${i}`);
                   }}
                   className={cn(
                     "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-colors text-left",
@@ -199,8 +189,8 @@ export function CourseSidebar({
                           : "text-muted-foreground hover:bg-secondary/40",
                   )}
                 >
-                  <TopicRing progress={progress} />
-                  <span className="truncate">{topic}</span>
+                  <LessonRing progress={progress} />
+                  <span className="truncate">{lesson}</span>
                 </button>
               );
             })}
@@ -209,7 +199,7 @@ export function CourseSidebar({
       <div className="px-3 py-3 border-t border-border mt-2 space-y-1">
         {isOnPracticePage && (
           <button
-            onClick={() => navigate(`/unit/${currentChapterId}/${currentTopicIndex}`)}
+            onClick={() => navigate(`/unit/${currentUnitId}/${currentLessonIndex}`)}
             className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary/40 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />

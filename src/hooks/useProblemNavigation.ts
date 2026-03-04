@@ -50,7 +50,7 @@ export interface StepSetters {
   resetTracking: () => void;
 }
 
-export const TOPIC_STATE_STORAGE_KEY = "chemtutor_topic_state";
+export const LESSON_STATE_STORAGE_KEY = "chemtutor_lesson_state";
 
 export function defaultPaginationForLevel(level: Level): ProblemPagination {
   const maxProblems = level === 1 ? 3 : 5;
@@ -67,9 +67,9 @@ export function defaultPaginationForLevel(level: Level): ProblemPagination {
 // ── Hook interface ──────────────────────────────────────────────────────────
 
 interface UseProblemNavigationOptions {
-  chapterId: string;
-  topicIndex: number;
-  topicName: string;
+  unitId: string;
+  lessonIndex: number;
+  lessonName: string;
   userId?: string;
   interests: string[];
   gradeLevel: string | null;
@@ -96,9 +96,9 @@ interface UseProblemNavigationOptions {
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export function useProblemNavigation({
-  chapterId,
-  topicIndex,
-  topicName,
+  unitId,
+  lessonIndex,
+  lessonName,
   userId,
   interests,
   gradeLevel,
@@ -153,9 +153,9 @@ export function useProblemNavigation({
   // ── Problem generation ────────────────────────────────────────────────────
 
   const { generate: generateProblem } = useGeneratedProblem({
-    chapterId,
-    topicIndex,
-    topicName,
+  unitId,
+  lessonIndex,
+  lessonName,
     interests,
     gradeLevel,
     masteryScore,
@@ -198,8 +198,8 @@ export function useProblemNavigation({
         if (userId && p) {
           apiStartAttempt({
             user_id: userId,
-            unit_id: chapterId,
-            lesson_index: topicIndex,
+            unit_id: unitId,
+            lesson_index: lessonIndex,
             problem_id: p.id,
             difficulty,
             level,
@@ -223,8 +223,8 @@ export function useProblemNavigation({
         if (userId && problem) {
           apiStartAttempt({
             user_id: userId,
-            unit_id: chapterId,
-            lesson_index: topicIndex,
+            unit_id: unitId,
+            lesson_index: lessonIndex,
             problem_id: problem.id,
             difficulty,
             level,
@@ -243,22 +243,22 @@ export function useProblemNavigation({
         setProblemLoading(false);
       }
     },
-    [generateProblem, triggerPrefetch, userId, chapterId, topicIndex, onAttemptStart],
+    [generateProblem, triggerPrefetch, userId, unitId, lessonIndex, onAttemptStart],
   );
 
   // ── Init: reset guard on chapter/topic change ────────────────────────────
 
   useEffect(() => {
     hasInitializedRef.current = false;
-  }, [chapterId, topicName]);
+  }, [unitId, lessonName]);
 
   // ── Init: restore from localStorage or load fresh ────────────────────────
 
   useEffect(() => {
     if (hasInitializedRef.current) return;
     const key =
-      userId && chapterId != null
-        ? `${TOPIC_STATE_STORAGE_KEY}_${userId}_${chapterId}_${topicIndex}`
+      userId && unitId != null
+        ? `${LESSON_STATE_STORAGE_KEY}_${userId}_${unitId}_${lessonIndex}`
         : null;
 
     if (key) {
@@ -310,7 +310,7 @@ export function useProblemNavigation({
     return () => {
       persistOnUnmountRef.current();
     };
-  }, [loadNewProblem, chapterId, topicIndex, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadNewProblem, unitId, lessonIndex, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cache & persistence ───────────────────────────────────────────────────
 
@@ -333,8 +333,8 @@ export function useProblemNavigation({
       pagination: pag,
       difficulty: diff,
     };
-    if (userId && chapterId != null) {
-      const key = `${TOPIC_STATE_STORAGE_KEY}_${userId}_${chapterId}_${topicIndex}`;
+    if (userId && unitId != null) {
+      const key = `${LESSON_STATE_STORAGE_KEY}_${userId}_${unitId}_${lessonIndex}`;
       try {
         localStorage.setItem(
           key,
@@ -351,7 +351,7 @@ export function useProblemNavigation({
         /* quota or disabled */
       }
     }
-  }, [userId, chapterId, topicIndex]); // stepStateRef, masteryScoreRef, hasCompletedLevel2Ref are stable refs
+  }, [userId, unitId, lessonIndex]); // stepStateRef, masteryScoreRef, hasCompletedLevel2Ref are stable refs
 
   useLayoutEffect(() => {
     persistOnUnmountRef.current = saveCurrentStateToCache;
@@ -394,8 +394,8 @@ export function useProblemNavigation({
       try {
         const data = await apiNavigateProblem({
           user_id: userId,
-          unit_id: chapterId,
-          lesson_index: topicIndex,
+          unit_id: unitId,
+          lesson_index: lessonIndex,
           level: lvl,
           difficulty: diff,
           direction,
@@ -439,7 +439,7 @@ export function useProblemNavigation({
         setIsNavigating(false);
       }
     },
-    [userId, chapterId, topicIndex, saveCurrentStateToCache, loadNewProblem, restorePerProblemState],
+    [userId, unitId, lessonIndex, saveCurrentStateToCache, loadNewProblem, restorePerProblemState],
   );
 
   const handleSeeAnother = useCallback(() => {
@@ -513,16 +513,16 @@ export function useProblemNavigation({
 
   // Mark topic in-progress once per topic
   useEffect(() => {
-    const key = `${chapterId}-${topicIndex}`;
+    const key = `${unitId}-${lessonIndex}`;
     if (lastMarkedRef.current === key) return;
     lastMarkedRef.current = key;
     onMarkInProgress?.();
-  }, [chapterId, topicIndex, onMarkInProgress]);
+  }, [unitId, lessonIndex, onMarkInProgress]);
 
   // Fetch topic-specific reference example for Level 2 panel
   useEffect(() => {
     if (currentLevel !== 2) return;
-    apiGetReferenceExample(chapterId, topicIndex).then((problem) => {
+    apiGetReferenceExample(unitId, lessonIndex).then((problem) => {
       if (!problem) return;
       const steps: ReferenceStep[] = problem.steps
         .filter((s) => s.type === "given" && (s.content || s.correct_answer))
@@ -533,7 +533,7 @@ export function useProblemNavigation({
         }));
       if (steps.length > 0) setDynamicReferenceSteps(steps);
     });
-  }, [currentLevel, chapterId, topicIndex]);
+  }, [currentLevel, unitId, lessonIndex]);
 
   // ── Return ────────────────────────────────────────────────────────────────
 

@@ -62,10 +62,10 @@ const STEP_TYPE_TO_REASONING_PATTERN: Record<string, string> = {
 };
 
 interface ChemistryTutorProps {
-  chapterId: string;
-  chapterTitle: string;
-  topicName?: string;
-  topicIndex?: number;
+  unitId: string;
+  unitTitle: string;
+  lessonName?: string;
+  lessonIndex?: number;
   userId?: string;
   onTopicComplete?: () => void;
   onMarkInProgress?: () => void;
@@ -82,17 +82,17 @@ interface ChemistryTutorProps {
  * This component wires hooks, handles progression modal/exit ticket, and renders layout.
  */
 export function ChemistryTutor({
-  chapterId,
-  chapterTitle,
-  topicName,
-  topicIndex = 0,
+  unitId,
+  unitTitle,
+  lessonName,
+  lessonIndex = 0,
   userId,
   onTopicComplete,
   onMarkInProgress,
   interests = [],
   gradeLevel = null,
 }: ChemistryTutorProps) {
-  const currentTopicName = topicName || chapterTitle;
+  const currentTopicName = lessonName || unitTitle;
 
   // ── Mastery state (owned by component — cross-cutting between both hooks) ─
   const [masteryScore, setMasteryScore] = useState(0);
@@ -163,9 +163,9 @@ export function ChemistryTutor({
 
   // ── Problem navigation hook ───────────────────────────────────────────────
   const nav = useProblemNavigation({
-    chapterId,
-    topicIndex,
-    topicName: currentTopicName,
+    unitId,
+    lessonIndex,
+    lessonName: currentTopicName,
     userId,
     interests,
     gradeLevel,
@@ -246,7 +246,7 @@ export function ChemistryTutor({
   // Fetch mastery from backend on load
   useEffect(() => {
     if (!userId) return;
-    apiGetMastery(userId, chapterId, topicIndex)
+    apiGetMastery(userId, unitId, lessonIndex)
       .then((state) => {
         setHasCompletedLevel2((prev) => prev || !!state.level3_unlocked);
         const rawScore = state.mastery_score ?? 0;
@@ -271,21 +271,21 @@ export function ChemistryTutor({
       })
       .catch(() => {});
 
-    apiGetTopicProgress(userId, chapterId)
+    apiGetTopicProgress(userId, unitId)
       .then((progress) => {
-        const topicStatus = progress.find((p) => p.lesson_index === topicIndex)?.status;
+        const topicStatus = progress.find((p) => p.lesson_index === lessonIndex)?.status;
         if (topicStatus === "completed") setHasCompletedLevel2((prev) => prev || true);
       })
       .catch(() => {});
-  }, [userId, chapterId, topicIndex]);
+  }, [userId, unitId, lessonIndex]);
 
   // Fetch reference card once per topic (topic-level cache — backend persists it)
   useEffect(() => {
     setReferenceCard(null);
-    apiGetReferenceCard(chapterId, topicIndex, currentTopicName).then((card) => {
+    apiGetReferenceCard(unitId, lessonIndex, currentTopicName).then((card) => {
       if (card) setReferenceCard(card);
     });
-  }, [chapterId, topicIndex, currentTopicName]);
+  }, [unitId, lessonIndex, currentTopicName]);
 
   // Start step timer when interactive steps become available
   useEffect(() => {
@@ -320,12 +320,12 @@ export function ChemistryTutor({
   const persistLevel3Unlock = useCallback(async () => {
     if (!userId) return;
     try {
-      await apiUnlockLevel3(userId, chapterId, topicIndex);
-      await apiSetTopicStatus(userId, chapterId, topicIndex, "in-progress");
+      await apiUnlockLevel3(userId, unitId, lessonIndex);
+      await apiSetTopicStatus(userId, unitId, lessonIndex, "in-progress");
     } catch {
       /* non-critical */
     }
-  }, [userId, chapterId, topicIndex]);
+  }, [userId, unitId, lessonIndex]);
 
   const handleTimedTransitionComplete = useCallback(async () => {
     setShowTransitionScreen(false);
@@ -366,8 +366,8 @@ export function ChemistryTutor({
       apiCompleteAttempt({
         attempt_id: currentAttemptId,
         user_id: userId,
-        unit_id: chapterId,
-        lesson_index: topicIndex,
+        unit_id: unitId,
+        lesson_index: lessonIndex,
         score,
         step_log,
         level: nav.currentLevel,
@@ -402,8 +402,8 @@ export function ChemistryTutor({
     persistLevel3Unlock,
     userId,
     currentAttemptId,
-    chapterId,
-    topicIndex,
+    unitId,
+    lessonIndex,
   ]);
 
   const handleContinueAfterProgression = useCallback(() => {
@@ -435,7 +435,7 @@ export function ChemistryTutor({
       toast.success(`Level 3 unlocked! Loading ${difficulty} difficulty problem…`);
     } else if (nav.currentLevel === 3) {
       onTopicComplete?.();
-      if (userId) apiSetTopicStatus(userId, chapterId, topicIndex, "completed").catch(() => {});
+      if (userId) apiSetTopicStatus(userId, unitId, lessonIndex, "completed").catch(() => {});
       const difficulty = backendDiff ?? getDifficultyForMastery(masteryScore);
       nav.loadNewProblem(difficulty, nextExcludeIds, 3);
       toast.success(`Next problem: ${difficulty} difficulty!`);
@@ -454,8 +454,8 @@ export function ChemistryTutor({
     persistLevel3Unlock,
     onTopicComplete,
     userId,
-    chapterId,
-    topicIndex,
+    unitId,
+    lessonIndex,
   ]);
 
   const handleStayAtLevel = useCallback(() => {

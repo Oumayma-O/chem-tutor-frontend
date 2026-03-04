@@ -7,10 +7,10 @@ import { ExitTicketConfigPanel } from "@/components/teacher/ExitTicketConfigPane
 import { ExitTicketAnalyticsPanel } from "@/components/teacher/ExitTicketAnalyticsPanel";
 import { TimedModeControls } from "@/components/teacher/TimedModeControls";
 import { LiveSessionPanel } from "@/components/teacher/LiveSessionPanel";
-import { ChapterSelector } from "@/components/teacher/ChapterSelector";
+import { UnitSelector } from "@/components/teacher/UnitSelector";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { CourseLevel } from "@/data/chapters";
+import { CourseLevel } from "@/data/units";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -74,7 +74,7 @@ interface TeacherClass {
   timed_mode_active: boolean;
   timed_practice_minutes: number | null;
   timed_started_at: string | null;
-  active_chapter_id: string | null;
+  active_unit_id: string | null;
 }
 
 interface ClassStudent {
@@ -93,13 +93,13 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
   const [selectedClassId, setSelectedClassId] = useState<string>("all");
   const [enrolledStudents, setEnrolledStudents] = useState<ClassStudent[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
-  const [chapterFilter, setChapterFilter] = useState("all");
+  const [unitFilter, setUnitFilter] = useState("all");
   const growthTrend = calculateGrowthTrend(profile.recentAttempts);
   
   const fetchClasses = useCallback(async () => {
     const { data } = await supabase
       .from("classes")
-      .select("id, name, grade_level, subject, class_code, timed_mode_active, timed_practice_minutes, timed_started_at, active_chapter_id")
+      .select("id, name, grade_level, subject, class_code, timed_mode_active, timed_practice_minutes, timed_started_at, active_unit_id")
       .order("created_at", { ascending: false });
     if (data) setClasses(data as any);
   }, []);
@@ -254,11 +254,11 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className="lg:col-span-2">
                 <div className="max-w-xs">
-                  <ChapterSelector
-                    value={chapterFilter}
-                    onValueChange={setChapterFilter}
+                  <UnitSelector
+                    value={unitFilter}
+                    onValueChange={setUnitFilter}
                     courseLevel={selectedClass?.grade_level as CourseLevel | undefined}
-                    label="Filter by Chapter"
+                    label="Filter by Unit"
                     showAllOption
                   />
                 </div>
@@ -667,7 +667,7 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
                 isTimedActive={selectedClass.timed_mode_active}
                 practiceDuration={selectedClass.timed_practice_minutes ?? undefined}
                 startedAt={selectedClass.timed_started_at}
-                activeChapterId={selectedClass.active_chapter_id}
+                activeChapterId={selectedClass.active_unit_id}
                 onUpdate={fetchClasses}
               />
             )}

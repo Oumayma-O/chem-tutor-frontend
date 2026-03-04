@@ -3,9 +3,9 @@ import { Problem, SolutionStep } from "@/types/chemistry";
 import { apiGenerateProblemV2, ProblemDeliveryResponse, ProblemPagination } from "@/lib/api";
 
 interface UseGeneratedProblemOptions {
-  chapterId: string;
-  topicIndex: number;
-  topicName: string;
+  unitId: string;
+  lessonIndex: number;
+  lessonName: string;
   interests: string[];
   gradeLevel: string | null;
   masteryScore: number;
@@ -84,9 +84,9 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
 }
 
 export function useGeneratedProblem({
-  chapterId,
-  topicIndex,
-  topicName,
+  unitId,
+  lessonIndex,
+  lessonName,
   interests,
   gradeLevel,
   userId,
@@ -105,9 +105,9 @@ export function useGeneratedProblem({
 
       try {
         const data = await apiGenerateProblemV2({
-          unit_id: chapterId,
-          lesson_index: topicIndex,
-          topic_name: topicName,
+          unit_id: unitId,
+          lesson_index: lessonIndex,
+          topic_name: lessonName,
           difficulty,
           level,
           interests: interests || [],
@@ -136,7 +136,7 @@ export function useGeneratedProblem({
         setIsLoading(false);
       }
     },
-    [chapterId, topicIndex, topicName, interests, gradeLevel, userId],
+    [unitId, lessonIndex, lessonName, interests, gradeLevel, userId],
   );
 
   return { generate, isLoading, error };

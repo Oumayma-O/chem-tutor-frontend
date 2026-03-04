@@ -11,10 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Wand2, CheckCircle, Clock, ChevronRight, ChevronLeft, Send, Save, RefreshCw, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { ChapterSelector } from "./ChapterSelector";
-import { CourseLevel } from "@/data/chapters";
-import { type ChapterListItem } from "@/lib/api";
-import { useChapters } from "@/hooks/useChapters";
+import { UnitSelector } from "./UnitSelector";
+import { CourseLevel } from "@/data/units";
+import { type UnitListItem } from "@/lib/api";
+import { useUnits } from "@/hooks/useUnits";
 
 interface ExitTicketConfigPanelProps {
   classId: string;
@@ -38,9 +38,9 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
   // Step state
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
 
-  // Step 1: Chapter & Topic
-  const [selectedChapterId, setSelectedChapterId] = useState("kinetics");
-  const [selectedTopicIndex, setSelectedTopicIndex] = useState(0);
+  // Step 1: Unit & Lesson
+  const [selectedUnitId, setSelectedUnitId] = useState("kinetics");
+  const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
 
   // Step 2: Timed Practice
   const [timedEnabled, setTimedEnabled] = useState(false);
@@ -61,19 +61,19 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
   // Step 5: Publish
   const [saving, setSaving] = useState(false);
 
-  const { chapters } = useChapters();
-  const selectedChapter = chapters.find(c => c.id === selectedChapterId);
-  const topicName = selectedChapter?.topic_titles[selectedTopicIndex] || "Reaction Kinetics";
+  const { units } = useUnits();
+  const selectedUnit = units.find(u => u.id === selectedUnitId);
+  const lessonName = selectedUnit?.lesson_titles[selectedLessonIndex] || "Reaction Kinetics";
 
-  const stepLabels = ["Chapter & Topic", "Timed Practice", "Exit Ticket", "Preview", "Publish"];
+  const stepLabels = ["Unit & Lesson", "Timed Practice", "Exit Ticket", "Preview", "Publish"];
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
     try {
       if (useBackendApi()) {
         const data = await apiGenerateExitTicket({
-          topic_name: topicName,
-          chapter_id: selectedChapterId,
+          topic_name: lessonName,
+          unit_id: selectedUnitId,
           difficulty,
           format,
           question_count: questionCount,
@@ -83,7 +83,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         toast.success(`Generated ${data?.questions?.length || 0} questions`);
       } else {
         const { data, error } = await supabase.functions.invoke("generate-exit-ticket", {
-          body: { topicName, chapterId: selectedChapterId, difficulty, format, questionCount },
+          body: { lessonName, unitId: selectedUnitId, difficulty, format, questionCount },
         });
         if (error) throw error;
         if (data?.error) { toast.error(data.error); return; }
@@ -97,15 +97,15 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
     } finally {
       setGenerating(false);
     }
-  }, [topicName, selectedChapterId, difficulty, format, questionCount]);
+  }, [lessonName, selectedUnitId, difficulty, format, questionCount]);
 
   const handleRegenerateOne = useCallback(async (index: number) => {
     setRegeneratingIndex(index);
     try {
       if (useBackendApi()) {
         const data = await apiGenerateExitTicket({
-          topic_name: topicName,
-          chapter_id: selectedChapterId,
+          topic_name: lessonName,
+          unit_id: selectedUnitId,
           difficulty,
           format: questions[index].format,
           question_count: 1,
@@ -121,7 +121,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         }
       } else {
         const { data, error } = await supabase.functions.invoke("generate-exit-ticket", {
-          body: { topicName, chapterId: selectedChapterId, difficulty, format: questions[index].format, questionCount: 1 },
+          body: { lessonName, unitId: selectedUnitId, difficulty, format: questions[index].format, questionCount: 1 },
         });
         if (error) throw error;
         if (data?.questions?.[0]) {
@@ -139,7 +139,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
     } finally {
       setRegeneratingIndex(null);
     }
-  }, [topicName, selectedChapterId, difficulty, questions]);
+  }, [lessonName, selectedUnitId, difficulty, questions]);
 
   const handleDeleteQuestion = useCallback((index: number) => {
     setQuestions(prev => prev.filter((_, i) => i !== index).map((q, i) => ({ ...q, question_order: i + 1 })));
@@ -173,8 +173,8 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         .from("exit_ticket_configs")
         .insert({
           class_id: classId,
-          chapter_id: selectedChapterId,
-          topic_index: selectedTopicIndex,
+          unit_id: selectedUnitId,
+          lesson_index: selectedLessonIndex,
           question_count: questions.length,
           difficulty,
           time_limit_minutes: timeLimit,
@@ -208,7 +208,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
             timed_mode_active: true,
             timed_practice_minutes: timedDuration,
             timed_started_at: new Date().toISOString(),
-            active_chapter_id: selectedChapterId,
+            active_unit_id: selectedUnitId,
           })
           .eq("id", classId);
         if (timedErr) throw timedErr;
@@ -225,7 +225,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
     } finally {
       setSaving(false);
     }
-  }, [questions, classId, selectedChapterId, selectedTopicIndex, difficulty, timeLimit, format, timedEnabled, timedDuration, onTimedModeLaunched]);
+  }, [questions, classId, selectedUnitId, selectedLessonIndex, difficulty, timeLimit, format, timedEnabled, timedDuration, onTimedModeLaunched]);
 
   return (
     <Card>
@@ -265,15 +265,15 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* ===== STEP 1: Chapter & Topic ===== */}
+        {/* ===== STEP 1: Unit & Lesson ===== */}
         {currentStep === 1 && (
-          <Step1ChapterTopic
-            selectedChapterId={selectedChapterId}
-            setSelectedChapterId={(id) => { setSelectedChapterId(id); setSelectedTopicIndex(0); }}
-            selectedTopicIndex={selectedTopicIndex}
-            setSelectedTopicIndex={setSelectedTopicIndex}
+          <Step1UnitLesson
+            selectedUnitId={selectedUnitId}
+            setSelectedUnitId={(id) => { setSelectedUnitId(id); setSelectedLessonIndex(0); }}
+            selectedLessonIndex={selectedLessonIndex}
+            setSelectedLessonIndex={setSelectedLessonIndex}
             courseLevel={courseLevel}
-            selectedChapter={selectedChapter}
+            selectedUnit={selectedUnit}
             onNext={() => setCurrentStep(2)}
           />
         )}
@@ -307,8 +307,8 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         {currentStep === 4 && (
           <Step4Preview
             questions={questions}
-            selectedChapter={selectedChapter}
-            topicName={topicName}
+            selectedUnit={selectedUnit}
+            lessonName={lessonName}
             difficulty={difficulty}
             timeLimit={timeLimit}
             editingIndex={editingIndex}
@@ -327,8 +327,8 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         {/* ===== STEP 5: Publish ===== */}
         {currentStep === 5 && (
           <Step5Publish
-            selectedChapter={selectedChapter}
-            topicName={topicName}
+            selectedUnit={selectedUnit}
+            lessonName={lessonName}
             questionCount={questions.length}
             difficulty={difficulty}
             timeLimit={timeLimit}
@@ -347,22 +347,22 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
 
 // ===== Step Sub-Components =====
 
-function Step1ChapterTopic({ selectedChapterId, setSelectedChapterId, selectedTopicIndex, setSelectedTopicIndex, courseLevel, selectedChapter, onNext }: {
-  selectedChapterId: string; setSelectedChapterId: (id: string) => void;
-  selectedTopicIndex: number; setSelectedTopicIndex: (i: number) => void;
-  courseLevel?: CourseLevel; selectedChapter?: ChapterListItem;
+function Step1UnitLesson({ selectedUnitId, setSelectedUnitId, selectedLessonIndex, setSelectedLessonIndex, courseLevel, selectedUnit, onNext }: {
+  selectedUnitId: string; setSelectedUnitId: (id: string) => void;
+  selectedLessonIndex: number; setSelectedLessonIndex: (i: number) => void;
+  courseLevel?: CourseLevel; selectedUnit?: UnitListItem;
   onNext: () => void;
 }) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <ChapterSelector value={selectedChapterId} onValueChange={setSelectedChapterId} courseLevel={courseLevel} label="Chapter" />
+        <UnitSelector value={selectedUnitId} onValueChange={setSelectedUnitId} courseLevel={courseLevel} label="Unit" />
         <div className="space-y-2">
-          <Label>Topic</Label>
-          <Select value={String(selectedTopicIndex)} onValueChange={v => setSelectedTopicIndex(Number(v))}>
+          <Label>Lesson</Label>
+          <Select value={String(selectedLessonIndex)} onValueChange={v => setSelectedLessonIndex(Number(v))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(selectedChapter?.topic_titles || []).map((t, i) => (
+              {(selectedUnit?.lesson_titles || []).map((t, i) => (
                 <SelectItem key={i} value={String(i)}>{t}</SelectItem>
               ))}
             </SelectContent>
@@ -498,10 +498,10 @@ function Step3Config({ questionCount, setQuestionCount, difficulty, setDifficult
   );
 }
 
-function Step4Preview({ questions, selectedChapter, topicName, difficulty, timeLimit, editingIndex, setEditingIndex, regeneratingIndex, onRegenerateOne, onDeleteQuestion, onEditField, onEditQcmOption, onRegenerateAll, onBack, onNext }: {
+function Step4Preview({ questions, selectedUnit, lessonName, difficulty, timeLimit, editingIndex, setEditingIndex, regeneratingIndex, onRegenerateOne, onDeleteQuestion, onEditField, onEditQcmOption, onRegenerateAll, onBack, onNext }: {
   questions: GeneratedQuestion[];
-  selectedChapter?: ChapterListItem;
-  topicName: string; difficulty: string; timeLimit: number;
+  selectedUnit?: UnitListItem;
+  lessonName: string; difficulty: string; timeLimit: number;
   editingIndex: number | null; setEditingIndex: (v: number | null) => void;
   regeneratingIndex: number | null;
   onRegenerateOne: (i: number) => void;
@@ -515,8 +515,8 @@ function Step4Preview({ questions, selectedChapter, topicName, difficulty, timeL
     <div className="space-y-4">
       {/* Preview header */}
       <div className="flex flex-wrap items-center gap-2 p-3 bg-secondary/30 rounded-lg">
-        <Badge variant="outline">{selectedChapter?.icon} {selectedChapter?.title}</Badge>
-        <Badge variant="secondary">{topicName}</Badge>
+        <Badge variant="outline">{selectedUnit?.icon} {selectedUnit?.title}</Badge>
+        <Badge variant="secondary">{lessonName}</Badge>
         <Badge variant="outline">{questions.length} Q</Badge>
         <Badge variant="outline">{timeLimit} min</Badge>
         <Badge className={cn(
@@ -609,9 +609,9 @@ function Step4Preview({ questions, selectedChapter, topicName, difficulty, timeL
   );
 }
 
-function Step5Publish({ selectedChapter, topicName, questionCount, difficulty, timeLimit, format, timedEnabled, timedDuration, saving, onBack, onPublish }: {
-  selectedChapter?: ChapterListItem;
-  topicName: string; questionCount: number; difficulty: string;
+function Step5Publish({ selectedUnit, lessonName, questionCount, difficulty, timeLimit, format, timedEnabled, timedDuration, saving, onBack, onPublish }: {
+  selectedUnit?: UnitListItem;
+  lessonName: string; questionCount: number; difficulty: string;
   timeLimit: number; format: string;
   timedEnabled: boolean; timedDuration: number;
   saving: boolean;
@@ -623,8 +623,8 @@ function Step5Publish({ selectedChapter, topicName, questionCount, difficulty, t
       <div className="p-4 bg-secondary/30 rounded-lg space-y-3">
         <h4 className="font-semibold text-foreground">Review & Publish</h4>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><span className="text-muted-foreground">Chapter:</span> <span className="font-medium text-foreground">{selectedChapter?.icon} {selectedChapter?.title}</span></div>
-          <div><span className="text-muted-foreground">Topic:</span> <span className="font-medium text-foreground">{topicName}</span></div>
+          <div><span className="text-muted-foreground">Unit:</span> <span className="font-medium text-foreground">{selectedUnit?.icon} {selectedUnit?.title}</span></div>
+          <div><span className="text-muted-foreground">Lesson:</span> <span className="font-medium text-foreground">{lessonName}</span></div>
           <div><span className="text-muted-foreground">Questions:</span> <span className="font-medium text-foreground">{questionCount}</span></div>
           <div><span className="text-muted-foreground">Difficulty:</span> <Badge variant="outline" className="ml-1">{difficulty}</Badge></div>
           <div><span className="text-muted-foreground">Time Limit:</span> <span className="font-medium text-foreground">{timeLimit} min</span></div>

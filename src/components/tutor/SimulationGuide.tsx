@@ -24,14 +24,14 @@ const STATIC_GUIDE_STEPS: GuideStep[] = [
 const STORAGE_KEY = "chemtutor_sim_guide_seen";
 
 interface SimulationGuideProps {
-  chapterId?: string;
-  topicName?: string;
+  unitId?: string;
+  lessonName?: string;
   interests?: string[];
   gradeLevel?: string | null;
   masteryScore?: number;
 }
 
-export function SimulationGuide({ chapterId, topicName, interests, gradeLevel, masteryScore }: SimulationGuideProps) {
+export function SimulationGuide({ unitId, lessonName, interests, gradeLevel, masteryScore }: SimulationGuideProps) {
   const [hasSeen, setHasSeen] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === "true"; } catch { return false; }
   });
@@ -48,18 +48,18 @@ export function SimulationGuide({ chapterId, topicName, interests, gradeLevel, m
 
   // Fetch personalized guide text
   useEffect(() => {
-    if (isMinimized || !chapterId || fetchedRef.current.has(step)) return;
-    if (!interests?.length && !gradeLevel) return; // No personalization data
+    if (isMinimized || !unitId || fetchedRef.current.has(step)) return;
+    if (!interests?.length && !gradeLevel) return;
 
     fetchedRef.current.add(step);
 
-    const ragContext = buildRagContext(chapterId, topicName);
+    const ragContext = buildRagContext(unitId, lessonName);
 
-    const payload = { chapterId, topicName, guideStepIndex: step, interests: interests || [], gradeLevel, masteryScore, ragContext };
+    const payload = { unitId, lessonName, guideStepIndex: step, interests: interests || [], gradeLevel, masteryScore, ragContext };
     (useBackendApi()
       ? apiGenerateGuide({
-          chapter_id: chapterId,
-          topic_name: topicName || "",
+          chapter_id: unitId,
+          topic_name: lessonName || "",
           guide_step_index: step,
           interests: interests || [],
           grade_level: gradeLevel,
@@ -73,7 +73,7 @@ export function SimulationGuide({ chapterId, topicName, interests, gradeLevel, m
         setPersonalizedSteps((prev) => ({ ...prev, [step]: { title: data.title!, description: data.description! } }));
       }
     }).catch(() => {/* keep static */});
-  }, [step, isMinimized, chapterId, topicName, interests, gradeLevel, masteryScore]);
+  }, [step, isMinimized, unitId, lessonName, interests, gradeLevel, masteryScore]);
 
   // Scroll highlighted element into view
   const scrollToHighlight = useCallback((highlightId: string) => {

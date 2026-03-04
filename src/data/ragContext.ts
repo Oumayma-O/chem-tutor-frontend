@@ -76,14 +76,14 @@ export const INTEREST_MAPPINGS: Record<string, { label: string; narratives: Reco
 };
 
 // ──────────────────────────────────────────────
-// Standards per chapter
+// Standards per unit
 // ──────────────────────────────────────────────
 export interface StandardRef {
   code: string;
   description: string;
 }
 
-export const CHAPTER_STANDARDS: Record<string, StandardRef[]> = {
+export const UNIT_STANDARDS: Record<string, StandardRef[]> = {
   "kinetics": [
     { code: "NGSS HS-PS1-5", description: "Apply scientific principles and evidence to provide an explanation about the effects of changing the temperature or concentration of the reacting particles on the rate at which a reaction occurs." },
     { code: "AP Chem 4.A", description: "The student can construct an explanation about the factors that influence reaction rates." },
@@ -107,7 +107,7 @@ export const CHAPTER_STANDARDS: Record<string, StandardRef[]> = {
 };
 
 // ──────────────────────────────────────────────
-// Skill definitions per topic
+// Skill definitions per lesson
 // ──────────────────────────────────────────────
 export interface SkillDef {
   name: string;
@@ -115,7 +115,7 @@ export interface SkillDef {
   assessedBy: string;
 }
 
-export const TOPIC_SKILLS: Record<string, SkillDef[]> = {
+export const LESSON_SKILLS: Record<string, SkillDef[]> = {
   "kinetics": [
     { name: "Rate Law Selection", description: "Identify and write the correct integrated rate law for 0th, 1st, or 2nd order reactions.", assessedBy: "Step 1 — Equation selection" },
     { name: "Variable Identification", description: "Extract and organize given variables ([A]₀, k, t) from a word problem.", assessedBy: "Step 2 — Knowns identification" },
@@ -177,7 +177,7 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
 ];
 
 // ──────────────────────────────────────────────
-// Key equations per chapter
+// Key equations per unit
 // ──────────────────────────────────────────────
 export const KEY_EQUATIONS: Record<string, string[]> = {
   "kinetics": [
@@ -196,12 +196,12 @@ export const KEY_EQUATIONS: Record<string, string[]> = {
 // ──────────────────────────────────────────────
 // Helper: build RAG context payload for a request
 // ──────────────────────────────────────────────
-export function buildRagContext(chapterId: string, topicName?: string) {
-  const standards = CHAPTER_STANDARDS[chapterId] || [];
-  const skills = TOPIC_SKILLS[chapterId] || [];
-  const equations = KEY_EQUATIONS[chapterId] || [];
+export function buildRagContext(unitId: string, lessonName?: string) {
+  const standards = UNIT_STANDARDS[unitId] || [];
+  const skills = LESSON_SKILLS[unitId] || [];
+  const equations = KEY_EQUATIONS[unitId] || [];
   const examples = FEW_SHOT_EXAMPLES.filter(
-    (ex) => !topicName || ex.topic.toLowerCase().includes(topicName.toLowerCase().split(" ")[0])
+    (ex) => !lessonName || ex.topic.toLowerCase().includes(lessonName.toLowerCase().split(" ")[0])
   );
 
   return {
@@ -218,14 +218,14 @@ export function buildRagContext(chapterId: string, topicName?: string) {
 }
 
 /**
- * Get interest narrative for a chapter
+ * Get interest narrative for a unit
  */
-export function getInterestNarrative(interests: string[], chapterId: string): string {
+export function getInterestNarrative(interests: string[], unitId: string): string {
   const narratives: string[] = [];
   for (const interest of interests) {
     const mapping = INTEREST_MAPPINGS[interest];
-    if (mapping?.narratives[chapterId]) {
-      narratives.push(mapping.narratives[chapterId]);
+    if (mapping?.narratives[unitId]) {
+      narratives.push(mapping.narratives[unitId]);
     }
   }
   return narratives.length > 0

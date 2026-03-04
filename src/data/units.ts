@@ -1,5 +1,5 @@
-// chapters.ts — CourseLevel type + helpers
-// Data comes from the backend API via useChapters / useChapter hooks.
+// units.ts — CourseLevel type + helpers
+// Data comes from the backend API via useUnits / useUnit hooks.
 
 export type CourseLevel = "standard" | "ap";
 

@@ -7,8 +7,8 @@ import { useAuth, AuthProvider } from "@/hooks/useAuth";
 import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
 import AdminPage from "./pages/AdminPage";
-import ChapterSelectionPage from "./pages/ChapterSelectionPage";
-import ChapterLandingPage from "./pages/ChapterLandingPage";
+import UnitSelectionPage from "./pages/UnitSelectionPage";
+import UnitLandingPage from "./pages/UnitLandingPage";
 import TutorPage from "./pages/TutorPage";
 import TeacherPage from "./pages/TeacherPage";
 import StudentProfilePage from "./pages/StudentProfilePage";
@@ -53,16 +53,13 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<ChapterSelectionPage />} />
+      <Route path="/" element={<UnitSelectionPage />} />
       <Route path="/profile" element={<StudentProfilePage />} />
       <Route path="/admin" element={<AdminPage />} />
-      {/* Unit landing (new) */}
-      <Route path="/unit/:unitId" element={<ChapterLandingPage />} />
-      <Route path="/unit/:unitId/:lessonIndex" element={<ChapterLandingPage />} />
-      {/* Chapter landing (backward compat) */}
-      <Route path="/chapter/:chapterId" element={<ChapterLandingPage />} />
-      <Route path="/chapter/:chapterId/:topicIndex" element={<ChapterLandingPage />} />
-      {/* Tutor — unitId/lessonIndex params cover both old and new since pattern is identical */}
+      {/* Unit landing */}
+      <Route path="/unit/:unitId" element={<UnitLandingPage />} />
+      <Route path="/unit/:unitId/:lessonIndex" element={<UnitLandingPage />} />
+      {/* Tutor */}
       <Route path="/tutor/:unitId/:lessonIndex" element={<TutorPage />} />
       <Route path="/tutor/:unitId" element={<TutorPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

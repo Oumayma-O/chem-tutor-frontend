@@ -107,10 +107,10 @@ export interface ReferenceCardOutput {
 export async function apiGetReferenceCard(
   unitId: string,
   lessonIndex: number,
-  topicName: string,
+  lessonName: string,
 ): Promise<ReferenceCardOutput | null> {
   return get<ReferenceCardOutput>(
-    `/problems/reference-card?unit_id=${encodeURIComponent(unitId)}&lesson_index=${lessonIndex}&topic_name=${encodeURIComponent(topicName)}`,
+    `/problems/reference-card?unit_id=${encodeURIComponent(unitId)}&lesson_index=${lessonIndex}&topic_name=${encodeURIComponent(lessonName)}`,
   ).catch(() => null);
 }
 

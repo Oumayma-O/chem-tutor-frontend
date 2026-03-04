@@ -1,29 +1,29 @@
 import { useMemo } from "react";
-import { CourseLevel, getCourseLevel } from "@/data/chapters";
-import { useChapters } from "@/hooks/useChapters";
+import { CourseLevel, getCourseLevel } from "@/data/units";
+import { useUnits } from "@/hooks/useUnits";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { BookOpen } from "lucide-react";
 
-interface ChapterSelectorProps {
+interface UnitSelectorProps {
   value: string;
-  onValueChange: (chapterId: string) => void;
+  onValueChange: (unitId: string) => void;
   courseLevel?: CourseLevel;
   label?: string;
   showAllOption?: boolean;
 }
 
-export function ChapterSelector({ value, onValueChange, courseLevel, label = "Unit", showAllOption = false }: ChapterSelectorProps) {
-  const { chapters } = useChapters();
+export function UnitSelector({ value, onValueChange, courseLevel, label = "Unit", showAllOption = false }: UnitSelectorProps) {
+  const { units } = useUnits();
 
   const available = useMemo(
-    () => chapters.filter((c) => c.is_active && !c.is_coming_soon),
-    [chapters],
+    () => units.filter((u) => u.is_active && !u.is_coming_soon),
+    [units],
   );
 
   const filtered = useMemo(() => {
     if (!courseLevel) return available;
-    const lvl = available.filter((c) => getCourseLevel(c.course_name) === courseLevel);
+    const lvl = available.filter((u) => getCourseLevel(u.course_name) === courseLevel);
     return lvl.length > 0 ? lvl : available;
   }, [available, courseLevel]);
 
@@ -39,9 +39,9 @@ export function ChapterSelector({ value, onValueChange, courseLevel, label = "Un
         </SelectTrigger>
         <SelectContent>
           {showAllOption && <SelectItem value="all">All Units</SelectItem>}
-          {filtered.map((ch) => (
-            <SelectItem key={ch.id} value={ch.id}>
-              {ch.icon} {ch.title}
+          {filtered.map((u) => (
+            <SelectItem key={u.id} value={u.id}>
+              {u.icon} {u.title}
             </SelectItem>
           ))}
         </SelectContent>

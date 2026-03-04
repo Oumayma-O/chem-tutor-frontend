@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { CourseLevel, COURSE_LEVELS } from "@/data/chapters";
-import { type ChapterListItem } from "@/lib/api";
-import { useChapters } from "@/hooks/useChapters";
+import { CourseLevel, COURSE_LEVELS } from "@/data/units";
+import { type UnitListItem } from "@/lib/api";
+import { useUnits } from "@/hooks/useUnits";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -68,12 +68,12 @@ export default function AdminPage() {
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [systemStats, setSystemStats] = useState({ totalStudents: 0, totalTeachers: 0, totalClasses: 0 });
 
-  const { chapters } = useChapters();
+  const { units } = useUnits();
 
   // Chapter management
-  const [editingChapter, setEditingChapter] = useState<ChapterListItem | null>(null);
-  const [chapterDialogOpen, setChapterDialogOpen] = useState(false);
-  const [chapterForm, setChapterForm] = useState({ title: "", description: "", icon: "📘", courseLevel: "intro" as CourseLevel, topics: "" });
+  const [editingUnit, setEditingUnit] = useState<UnitListItem | null>(null);
+  const [unitDialogOpen, setUnitDialogOpen] = useState(false);
+  const [unitForm, setUnitForm] = useState({ title: "", description: "", icon: "📘", courseLevel: "intro" as CourseLevel, lessons: "" });
 
   // Check admin role
   useEffect(() => {
@@ -121,15 +121,15 @@ export default function AdminPage() {
     toast.success(`Calculator ${enabled ? "enabled" : "disabled"}`);
   };
 
-  const openChapterDialog = (chapter?: ChapterListItem) => {
-    if (chapter) {
-      setEditingChapter(chapter);
-      setChapterForm({ title: chapter.title, description: chapter.description, icon: chapter.icon, courseLevel: "intro", topics: chapter.topic_titles.join(", ") });
+  const openUnitDialog = (unit?: UnitListItem) => {
+    if (unit) {
+      setEditingUnit(unit);
+      setUnitForm({ title: unit.title, description: unit.description, icon: unit.icon, courseLevel: "intro", lessons: unit.lesson_titles.join(", ") });
     } else {
-      setEditingChapter(null);
-      setChapterForm({ title: "", description: "", icon: "📘", courseLevel: "intro", topics: "" });
+      setEditingUnit(null);
+      setUnitForm({ title: "", description: "", icon: "📘", courseLevel: "intro", lessons: "" });
     }
-    setChapterDialogOpen(true);
+    setUnitDialogOpen(true);
   };
 
   if (isAdmin === null) {
@@ -173,40 +173,40 @@ export default function AdminPage() {
           </Card>
         </div>
 
-        <Tabs defaultValue="chapters" className="space-y-6">
+        <Tabs defaultValue="units" className="space-y-6">
           <TabsList className="grid w-full max-w-md grid-cols-3">
-            <TabsTrigger value="chapters" className="gap-1.5"><BookOpen className="w-3.5 h-3.5" />Chapters</TabsTrigger>
+            <TabsTrigger value="units" className="gap-1.5"><BookOpen className="w-3.5 h-3.5" />Units</TabsTrigger>
             <TabsTrigger value="teachers" className="gap-1.5"><GraduationCap className="w-3.5 h-3.5" />Teachers</TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5"><Settings className="w-3.5 h-3.5" />Settings</TabsTrigger>
           </TabsList>
 
-          {/* CHAPTERS TAB */}
-          <TabsContent value="chapters" className="space-y-4">
+          {/* UNITS TAB */}
+          <TabsContent value="units" className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-foreground">Chapter Management</h2>
-              <Button onClick={() => openChapterDialog()} className="gap-1.5"><Plus className="w-4 h-4" />Add Chapter</Button>
+              <h2 className="text-lg font-semibold text-foreground">Unit Management</h2>
+              <Button onClick={() => openUnitDialog()} className="gap-1.5"><Plus className="w-4 h-4" />Add Unit</Button>
             </div>
             <div className="space-y-3">
-              {chapters.map(chapter => (
-                <Card key={chapter.id}>
+              {units.map(unit => (
+                <Card key={unit.id}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex items-start gap-3">
-                        <span className="text-2xl">{chapter.icon}</span>
+                        <span className="text-2xl">{unit.icon}</span>
                         <div>
-                          <h3 className="font-semibold text-foreground">{chapter.title}</h3>
-                          <p className="text-sm text-muted-foreground">{chapter.description}</p>
+                          <h3 className="font-semibold text-foreground">{unit.title}</h3>
+                          <p className="text-sm text-muted-foreground">{unit.description}</p>
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {chapter.topic_titles.map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
+                            {unit.lesson_titles.map(t => <Badge key={t} variant="secondary" className="text-xs">{t}</Badge>)}
                           </div>
                           <div className="flex gap-2 mt-2">
-                            {chapter.course_name && <Badge variant="outline">{chapter.course_name}</Badge>}
-                            <Badge variant={!chapter.is_coming_soon ? "default" : "secondary"}>{!chapter.is_coming_soon ? "Available" : "Coming Soon"}</Badge>
+                            {unit.course_name && <Badge variant="outline">{unit.course_name}</Badge>}
+                            <Badge variant={!unit.is_coming_soon ? "default" : "secondary"}>{!unit.is_coming_soon ? "Available" : "Coming Soon"}</Badge>
                           </div>
                         </div>
                       </div>
                       <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openChapterDialog(chapter)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openUnitDialog(unit)}>
                           <Pencil className="w-4 h-4" />
                         </Button>
                       </div>
@@ -216,7 +216,7 @@ export default function AdminPage() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              Note: Chapter data is currently stored in code. To make chapters fully dynamic, a database table is needed.
+              Unit data comes from the backend API.
             </p>
           </TabsContent>
 
@@ -288,31 +288,31 @@ export default function AdminPage() {
         </Tabs>
       </main>
 
-      {/* Chapter Edit Dialog */}
-      <Dialog open={chapterDialogOpen} onOpenChange={setChapterDialogOpen}>
+      {/* Unit Edit Dialog */}
+      <Dialog open={unitDialogOpen} onOpenChange={setUnitDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingChapter ? "Edit Chapter" : "Add Chapter"}</DialogTitle>
-            <DialogDescription>Chapter data is currently stored in code. This preview shows the editor interface.</DialogDescription>
+            <DialogTitle>{editingUnit ? "Edit Unit" : "Add Unit"}</DialogTitle>
+            <DialogDescription>Unit data is managed via the backend API.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-[60px_1fr] gap-3">
               <div className="space-y-2">
                 <Label>Icon</Label>
-                <Input value={chapterForm.icon} onChange={e => setChapterForm(prev => ({ ...prev, icon: e.target.value }))} className="text-center text-lg" maxLength={4} />
+                <Input value={unitForm.icon} onChange={e => setUnitForm(prev => ({ ...prev, icon: e.target.value }))} className="text-center text-lg" maxLength={4} />
               </div>
               <div className="space-y-2">
                 <Label>Title</Label>
-                <Input value={chapterForm.title} onChange={e => setChapterForm(prev => ({ ...prev, title: e.target.value }))} maxLength={100} />
+                <Input value={unitForm.title} onChange={e => setUnitForm(prev => ({ ...prev, title: e.target.value }))} maxLength={100} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Description</Label>
-              <Input value={chapterForm.description} onChange={e => setChapterForm(prev => ({ ...prev, description: e.target.value }))} maxLength={200} />
+              <Input value={unitForm.description} onChange={e => setUnitForm(prev => ({ ...prev, description: e.target.value }))} maxLength={200} />
             </div>
             <div className="space-y-2">
               <Label>Course Level</Label>
-              <Select value={chapterForm.courseLevel} onValueChange={v => setChapterForm(prev => ({ ...prev, courseLevel: v as CourseLevel }))}>
+              <Select value={unitForm.courseLevel} onValueChange={v => setUnitForm(prev => ({ ...prev, courseLevel: v as CourseLevel }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {COURSE_LEVELS.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
@@ -320,14 +320,14 @@ export default function AdminPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Topics (comma-separated)</Label>
-              <Input value={chapterForm.topics} onChange={e => setChapterForm(prev => ({ ...prev, topics: e.target.value }))} placeholder="Topic 1, Topic 2, Topic 3" />
+              <Label>Lessons (comma-separated)</Label>
+              <Input value={unitForm.lessons} onChange={e => setUnitForm(prev => ({ ...prev, lessons: e.target.value }))} placeholder="Lesson 1, Lesson 2, Lesson 3" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setChapterDialogOpen(false)}>Cancel</Button>
-            <Button onClick={() => { setChapterDialogOpen(false); toast.info("Chapter management requires database migration for persistence."); }}>
-              {editingChapter ? "Update" : "Create"}
+            <Button variant="outline" onClick={() => setUnitDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => { setUnitDialogOpen(false); toast.info("Use the backend API to persist unit changes."); }}>
+              {editingUnit ? "Update" : "Create"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -11,9 +11,6 @@ export interface LessonOut {
   is_active: boolean;
 }
 
-/** @deprecated use LessonOut */
-export type TopicOut = LessonOut;
-
 export interface UnitListItem {
   id: string;
   title: string;
@@ -29,10 +26,17 @@ export interface UnitListItem {
   lesson_count: number;
   lesson_titles: string[];
   skill_count: number;
+  /** v0.1: Standard-only lesson slugs. */
+  standard_lessons?: string[];
+  /** v0.1: AP extension lesson slugs. */
+  ap_extension_lessons?: string[];
+  standard_skills_count?: number;
+  ap_extra_skills_count?: number;
+  is_ap_mastery?: boolean;
+  ap_prerequisite?: string | null;
+  standard_lesson_titles?: string[];
+  ap_extension_lesson_titles?: string[];
 }
-
-/** @deprecated use UnitListItem */
-export type ChapterListItem = UnitListItem;
 
 export interface UnitOut {
   id: string;
@@ -49,17 +53,10 @@ export interface UnitOut {
   lessons: LessonOut[];
 }
 
-/** @deprecated use UnitOut */
-export type ChapterOut = UnitOut;
-
 export async function apiGetUnits(): Promise<UnitListItem[]> {
   return get<UnitListItem[]>("/units");
 }
 
-export const apiGetChapters = apiGetUnits;
-
 export async function apiGetUnit(id: string): Promise<UnitOut> {
   return get<UnitOut>(`/units/${id}`);
 }
-
-export const apiGetChapter = apiGetUnit;
