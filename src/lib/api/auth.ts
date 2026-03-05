@@ -28,6 +28,8 @@ export async function apiRegister(body: {
   role: string;
   name: string;
   grade_level?: string | null;
+  grade?: string | null;
+  course?: string | null;
   class_name?: string | null;
   interests?: string[];
 }): Promise<AuthTokenResponse> {

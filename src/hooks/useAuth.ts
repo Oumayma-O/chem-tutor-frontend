@@ -40,6 +40,8 @@ interface AuthContextValue extends AuthState {
     role: AppRole,
     displayName: string,
     gradeLevel?: string,
+    grade?: string,
+    course?: string,
     className?: string,
     interests?: string[],
   ) => Promise<SignInResult>;
@@ -115,6 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     role: AppRole,
     displayName: string,
     gradeLevel?: string,
+    grade?: string,
+    course?: string,
     className?: string,
     interests?: string[],
   ): Promise<SignInResult> => {
@@ -125,6 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role,
         name: displayName,
         grade_level: gradeLevel || null,
+        grade: grade || null,
+        course: course || null,
         class_name: className || null,
         interests: interests || [],
       });

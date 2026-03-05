@@ -30,6 +30,25 @@ const COURSE_TYPE_OPTIONS = [
   { value: "ap", label: "AP Chemistry" },
 ];
 
+/** Map signup form values to backend Grade/Course names (used for profile). */
+function signupGradeToProfileName(value: string): string {
+  const map: Record<string, string> = {
+    "middle-school": "Middle School",
+    "9th": "9th Grade",
+    "10th": "10th Grade",
+    "11th": "11th Grade",
+    "12th": "12th Grade",
+  };
+  return map[value] ?? value;
+}
+function signupCourseToProfileName(value: string): string {
+  const map: Record<string, string> = {
+    standard: "Standard Chemistry",
+    ap: "AP Chemistry",
+  };
+  return map[value] ?? value;
+}
+
 const INTEREST_OPTIONS = [
   { value: "sports", label: "Sports", icon: "🏀" },
   { value: "music", label: "Music", icon: "🎵" },
@@ -118,12 +137,16 @@ export default function AuthPage() {
         finalInterests.push("other");
       }
 
+      const gradeName = signupGradeRange ? signupGradeToProfileName(signupGradeRange) : undefined;
+      const courseName = signupCourseType ? signupCourseToProfileName(signupCourseType) : undefined;
       const { error } = await signUp(
         signupEmail,
         signupPassword,
         signupRole,
         signupName,
         gradeLevel || "",
+        gradeName,
+        courseName,
         signupClassName,
         finalInterests
       );
