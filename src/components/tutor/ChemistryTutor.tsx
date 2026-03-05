@@ -8,7 +8,6 @@ import {
   apiUnlockLevel3,
   apiSetTopicStatus,
   apiCompleteAttempt,
-  apiGetTopicProgress,
 } from "@/lib/api";
 import { apiGetReferenceCard, type ReferenceCardOutput } from "@/lib/api/problems";
 import {
@@ -33,7 +32,7 @@ import { Calculator } from "./Calculator";
 import { useAdaptiveProgression } from "@/hooks/useAdaptiveProgression";
 import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ProblemLoadingState } from "@/components/tutor/ProblemLoadingState";
 
 import {
   CheckCircle,
@@ -69,6 +68,8 @@ interface ChemistryTutorProps {
   userId?: string;
   onTopicComplete?: () => void;
   onMarkInProgress?: () => void;
+  /** When true, Level 3 is shown as unlocked (from parent's lesson completion state — avoids extra progress API call). */
+  topicCompleted?: boolean;
   interests?: string[];
   gradeLevel?: string | null;
 }
@@ -89,6 +90,7 @@ export function ChemistryTutor({
   userId,
   onTopicComplete,
   onMarkInProgress,
+  topicCompleted = false,
   interests = [],
   gradeLevel = null,
 }: ChemistryTutorProps) {
@@ -271,13 +273,12 @@ export function ChemistryTutor({
       })
       .catch(() => {});
 
-    apiGetTopicProgress(userId, unitId)
-      .then((progress) => {
-        const topicStatus = progress.find((p) => p.lesson_index === lessonIndex)?.status;
-        if (topicStatus === "completed") setHasCompletedLevel2((prev) => prev || true);
-      })
-      .catch(() => {});
   }, [userId, unitId, lessonIndex]);
+
+  // Level 3 unlock from parent's lesson completion (avoids duplicate progress API)
+  useEffect(() => {
+    if (topicCompleted) setHasCompletedLevel2((prev) => prev || true);
+  }, [topicCompleted]);
 
   // Fetch reference card once per topic (topic-level cache — backend persists it)
   useEffect(() => {
@@ -621,13 +622,9 @@ export function ChemistryTutor({
               </div>
             )}
 
-            {/* ── Problem loading skeleton ─────────────────────────────────── */}
+            {/* ── Problem loading (molecular loader after 500ms) ────────────── */}
             {nav.problemLoading || nav.isNavigating ? (
-              <div className="space-y-4">
-                <Skeleton className="h-24 w-full" />
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-16 w-full" />
-              </div>
+              <ProblemLoadingState />
             ) : !problem ? (
               <div className="text-center py-12 text-muted-foreground">
                 <p>Failed to load problem. Please refresh the page.</p>

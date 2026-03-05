@@ -1,5 +1,5 @@
 import { useParams, Navigate, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUnit } from "@/hooks/useUnit";
 import { KineticsSimulation } from "@/components/tutor/KineticsSimulation";
 import { AtomicStructureSimulation } from "@/components/tutor/AtomicStructureSimulation";
@@ -8,9 +8,10 @@ import { CourseSidebar } from "@/components/tutor/CourseSidebar";
 import { NavDropdown } from "@/components/tutor/NavDropdown";
 import { BeakerMascot } from "@/components/tutor/BeakerMascot";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Beaker, BookOpen, Zap, Clock, CheckCircle, Circle, Menu, Loader2 } from "lucide-react";
-import { useLessonCompletion } from "@/hooks/useLessonCompletion";
+import { ArrowRight, ArrowLeft, Beaker, BookOpen, Zap, ChevronRight, ChevronDown, Menu, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLessonCompletion } from "@/hooks/useLessonCompletion";
+import { cn } from "@/lib/utils";
 
 const KINETICS_LESSONS: { order: 0 | 1 | 2; label: string }[] = [
   { order: 0, label: "Zero-Order Kinetics" },
@@ -26,6 +27,8 @@ export default function UnitLandingPage() {
   const { unit, lessonTitles, loading, error } = useUnit(unitId);
   const currentLessonIdx = lessonIndex ? parseInt(lessonIndex, 10) : 0;
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [lessonDropdownOpen, setLessonDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const { profile, user } = useAuth();
   const { getStatus } = useLessonCompletion(unitId || "", user?.id);
@@ -33,6 +36,16 @@ export default function UnitLandingPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [unitId, lessonIndex]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setLessonDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (loading) {
     return (
@@ -58,6 +71,11 @@ export default function UnitLandingPage() {
     isAtomicStructure ||
     (isKinetics && currentLessonIdx === RATE_LAWS_LESSON_INDEX);
 
+  const currentLessonTitle = lessonTitles[currentLessonIdx] ?? "";
+  const totalLessons = lessonTitles.length;
+  const hasPrev = currentLessonIdx > 0;
+  const hasNext = currentLessonIdx < totalLessons - 1;
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-card sticky top-0 z-20">
@@ -73,9 +91,65 @@ export default function UnitLandingPage() {
             </Button>
             <BeakerMascot pose="idle" size={24} className="shrink-0" />
             <div className="h-5 w-px bg-border shrink-0" />
-            <h1 className="text-sm font-semibold text-foreground truncate py-1">
-              {unit.title}
-            </h1>
+            {/* Breadcrumb — unit name truncates on small screens so user icon stays visible */}
+            <nav className="flex items-center gap-1 min-w-0 text-sm overflow-hidden">
+              <button
+                onClick={() => navigate("/")}
+                className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                Units
+              </button>
+              <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+              {/* Unit title as lesson dropdown; responsive max-width with ellipsis */}
+              <div className="relative min-w-0 max-w-[min(45vw,140px)] sm:max-w-[200px] md:max-w-[240px]" ref={dropdownRef}>
+                <button
+                  onClick={() => setLessonDropdownOpen((v) => !v)}
+                  title={unit.title}
+                  className="flex items-center gap-0.5 text-muted-foreground hover:text-foreground transition-colors w-full min-w-0"
+                >
+                  <span className="truncate">{unit.title}</span>
+                  <ChevronDown className="w-3 h-3 shrink-0 opacity-60" />
+                </button>
+                {lessonDropdownOpen && lessonTitles.length > 0 && (
+                  <div className="absolute top-full left-0 mt-1.5 w-60 bg-card border border-border rounded-lg shadow-lg z-30 py-1 max-h-72 overflow-y-auto">
+                    <p className="px-3 pt-1.5 pb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {unit.title}
+                    </p>
+                    {lessonTitles.map((title, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          navigate(`/unit/${unit.id}/${i}`);
+                          setLessonDropdownOpen(false);
+                        }}
+                        className={cn(
+                          "flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left hover:bg-secondary/60 transition-colors",
+                          i === currentLessonIdx
+                            ? "text-primary font-medium bg-primary/5"
+                            : "text-foreground",
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "w-1.5 h-1.5 rounded-full shrink-0",
+                            i === currentLessonIdx ? "bg-primary" : "bg-border",
+                          )}
+                        />
+                        <span className="truncate">{title}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {currentLessonTitle && (
+                <>
+                  <ChevronRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                  <span className="text-foreground font-medium truncate max-w-[160px]">
+                    {currentLessonTitle}
+                  </span>
+                </>
+              )}
+            </nav>
           </div>
           <NavDropdown />
         </div>
@@ -89,65 +163,16 @@ export default function UnitLandingPage() {
           unitTitle={unit.title}
           lessonTitles={lessonTitles}
           userId={user?.id}
+          getLessonStatus={getStatus}
         />
 
-        <div className="flex-1 min-w-0">
-          {/* Lesson pills */}
-          <div className="border-b border-border bg-card/50">
-            <div className="px-4 py-3">
-              <div className="flex items-center gap-2 overflow-x-auto">
-                {lessonTitles.map((lesson, i) => {
-                  const isActive = i === currentLessonIdx;
-                  const status = getStatus(i);
-
-                  return (
-                    <div key={lesson} className="flex items-center shrink-0">
-                      {i > 0 && (
-                        <div
-                          className={`w-6 h-0.5 mx-1 ${
-                            status === "completed"
-                              ? "bg-green-500"
-                              : status === "in-progress"
-                                ? "bg-amber-400"
-                                : "bg-border"
-                          }`}
-                        />
-                      )}
-                      <div
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-                          isActive
-                            ? "bg-primary text-primary-foreground shadow-sm"
-                            : status === "completed"
-                              ? "bg-green-500/10 text-green-600"
-                              : status === "in-progress"
-                                ? "bg-amber-500/10 text-amber-600"
-                                : "bg-secondary/60 text-muted-foreground"
-                        }`}
-                      >
-                        {status === "completed" ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : isActive ? (
-                          <Clock className="w-3 h-3" />
-                        ) : status === "in-progress" ? (
-                          <Clock className="w-3 h-3" />
-                        ) : (
-                          <Circle className="w-3 h-3" />
-                        )}
-                        {lesson}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <main className="px-4 lg:px-6 py-5">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <main className="flex-1 px-4 lg:px-6 py-5 pb-24">
             {hasSimulation ? (
               <section>
                 <SimulationGuide
                   unitId={unit.id}
-                  lessonName={lessonTitles[currentLessonIdx] ?? ""}
+                  lessonName={currentLessonTitle}
                   interests={profile?.interests || []}
                   gradeLevel={profile?.grade_level}
                   masteryScore={0}
@@ -156,7 +181,7 @@ export default function UnitLandingPage() {
                 <div className="flex items-center gap-3 mb-6">
                   <Beaker className="w-6 h-6 text-primary" />
                   <h2 className="text-xl font-bold text-foreground">
-                    {lessonTitles[currentLessonIdx]} — Simulation
+                    {currentLessonTitle} — Simulation
                   </h2>
                 </div>
 
@@ -172,7 +197,7 @@ export default function UnitLandingPage() {
                 )}
 
                 {isAtomicStructure && (
-                  <AtomicStructureSimulation topicLabel={lessonTitles[currentLessonIdx] ?? ""} />
+                  <AtomicStructureSimulation topicLabel={currentLessonTitle} />
                 )}
 
                 <div className="mt-8 text-center">
@@ -182,7 +207,7 @@ export default function UnitLandingPage() {
                     className="gap-2 text-base px-8"
                   >
                     <Zap className="w-5 h-5" />
-                    Start Practice — {lessonTitles[currentLessonIdx]}
+                    Start Practice — {currentLessonTitle}
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                   <p className="text-sm text-muted-foreground mt-3">
@@ -194,14 +219,14 @@ export default function UnitLandingPage() {
               <section className="text-center py-16">
                 <BookOpen className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
                 <h2 className="text-xl font-semibold text-foreground mb-2">
-                  Explore {unit.title}
+                  {currentLessonTitle || unit.title}
                 </h2>
                 <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                  Interactive simulations for this unit are coming soon.
+                  Step-by-step adaptive practice for this topic.
                 </p>
                 <Button
                   size="lg"
-                  onClick={() => navigate(`/tutor/${unit.id}/0`)}
+                  onClick={() => navigate(`/tutor/${unit.id}/${currentLessonIdx}`)}
                   className="gap-2"
                 >
                   <Zap className="w-5 h-5" />
@@ -210,6 +235,46 @@ export default function UnitLandingPage() {
               </section>
             )}
           </main>
+
+          {/* Sticky footer navigation */}
+          {totalLessons > 0 && (
+            <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-border bg-card/95 backdrop-blur-sm">
+              <div className="flex items-center justify-between px-4 py-3 max-w-screen-xl mx-auto">
+                {/* Previous */}
+                <button
+                  onClick={() =>
+                    hasPrev && navigate(`/unit/${unit.id}/${currentLessonIdx - 1}`)
+                  }
+                  disabled={!hasPrev}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline truncate max-w-[160px]">
+                    {hasPrev ? lessonTitles[currentLessonIdx - 1] : "Previous"}
+                  </span>
+                </button>
+
+                {/* Center: lesson counter */}
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  Lesson {currentLessonIdx + 1} of {totalLessons}
+                </span>
+
+                {/* Next */}
+                <button
+                  onClick={() =>
+                    hasNext && navigate(`/unit/${unit.id}/${currentLessonIdx + 1}`)
+                  }
+                  disabled={!hasNext}
+                  className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                >
+                  <span className="hidden sm:inline truncate max-w-[160px]">
+                    {hasNext ? lessonTitles[currentLessonIdx + 1] : "Next"}
+                  </span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -37,6 +37,8 @@ export function useLessonCompletion(unitId: string, userId?: string) {
     [storageKey],
   );
 
+  const REFETCH_DEBOUNCE_MS = 1500;
+
   const refetch = useCallback(() => {
     if (!unitId) return;
     if (userId) {
@@ -65,11 +67,20 @@ export function useLessonCompletion(unitId: string, userId?: string) {
   }, [unitId, userId, refetch]);
 
   useEffect(() => {
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const handler = (e: CustomEvent<{ unitId: string }>) => {
-      if (e.detail?.unitId === unitId) refetch();
+      if (e.detail?.unitId !== unitId) return;
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        refetch();
+      }, REFETCH_DEBOUNCE_MS);
     };
     window.addEventListener("lessonProgressInvalidate", handler as EventListener);
-    return () => window.removeEventListener("lessonProgressInvalidate", handler as EventListener);
+    return () => {
+      window.removeEventListener("lessonProgressInvalidate", handler as EventListener);
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
   }, [unitId, refetch]);
 
   const getStatus = useCallback(

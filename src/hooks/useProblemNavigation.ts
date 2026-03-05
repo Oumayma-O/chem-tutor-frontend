@@ -130,6 +130,9 @@ export function useProblemNavigation({
   const prefetchedLevel = useRef<number>(0);
   const prefetchInFlight = useRef(false);
   const lastMarkedRef = useRef<string>("");
+  // Tracks ALL Level 1 examples the user has already seen so they are properly excluded
+  // when requesting a new one. Lives as a ref to avoid mixing with Level 2/3 completedProblemIds.
+  const seenLevel1IdsRef = useRef<string[]>([]);
 
   // Snapshot of nav-owned state — always current (updated before effects fire).
   const stateSnapshot = useRef({
@@ -183,7 +186,11 @@ export function useProblemNavigation({
   );
 
   const loadNewProblem = useCallback(
-    async (difficulty: "easy" | "medium" | "hard", excludeIds: string[], level: number) => {
+    async (
+      difficulty: "easy" | "medium" | "hard",
+      excludeIds: string[],
+      level: number,
+    ): Promise<Problem | null> => {
       if (
         prefetchedProblem.current &&
         prefetchedLevel.current === level &&
@@ -195,6 +202,7 @@ export function useProblemNavigation({
         setCurrentProblem(p);
         setPagination(defaultPaginationForLevel(level as Level));
         setCurrentDifficulty(difficulty);
+        setProblemLoading(false);
         if (userId && p) {
           apiStartAttempt({
             user_id: userId,
@@ -209,8 +217,10 @@ export function useProblemNavigation({
         } else {
           onAttemptStart(null);
         }
-        triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
-        return;
+        if (level >= 2) {
+          triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
+        }
+        return p;
       }
       prefetchedProblem.current = null;
       prefetchedLevel.current = 0;
@@ -234,11 +244,17 @@ export function useProblemNavigation({
         } else {
           onAttemptStart(null);
         }
-        triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
+        if (level >= 2) {
+          triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
+        }
+        return problem;
       } catch (err) {
-        toast.error("Failed to load problem from API. Check your connection.");
+        const message =
+          err instanceof Error ? err.message : "Failed to load problem. Check your connection.";
+        toast.error(message);
         console.error("loadNewProblem error:", err);
         onAttemptStart(null);
+        return null;
       } finally {
         setProblemLoading(false);
       }
@@ -250,6 +266,7 @@ export function useProblemNavigation({
 
   useEffect(() => {
     hasInitializedRef.current = false;
+    seenLevel1IdsRef.current = [];
   }, [unitId, lessonName]);
 
   // ── Init: restore from localStorage or load fresh ────────────────────────
@@ -442,26 +459,60 @@ export function useProblemNavigation({
     [userId, unitId, lessonIndex, saveCurrentStateToCache, loadNewProblem, restorePerProblemState],
   );
 
-  const handleSeeAnother = useCallback(() => {
+  const handleSeeAnother = useCallback(async () => {
     const {
       currentDifficulty: diff,
       currentLevel: lvl,
       completedProblemIds: cpi,
       currentProblem: cur,
     } = stateSnapshot.current;
-    const excludeIds = [...cpi];
-    if (cur?.id) excludeIds.push(cur.id);
 
     if (lvl === 1) {
+      // Track the current example as "seen" so it is excluded on future calls
+      if (cur?.id && !seenLevel1IdsRef.current.includes(cur.id)) {
+        seenLevel1IdsRef.current = [...seenLevel1IdsRef.current, cur.id];
+      }
+      // Exclude ALL previously seen Level 1 examples (not just the current one)
+      const excludeIds = [...new Set([...seenLevel1IdsRef.current])];
+
+      // #region agent log
+      fetch('http://127.0.0.1:7686/ingest/508ce7ac-cfc4-4f61-b695-8439511ca390',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f6d775'},body:JSON.stringify({sessionId:'f6d775',location:'useProblemNavigation:handleSeeAnother',message:'see_another_level1',data:{excludeIds,seenLevel1Ids:seenLevel1IdsRef.current,currentProblemId:cur?.id},hypothesisId:'H1-H2',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+
       saveCurrentStateToCache();
       stepSettersRef.current.setAnswers({});
       stepSettersRef.current.setHints({});
       stepSettersRef.current.setHintLoading(new Set());
       stepSettersRef.current.setStructuredStepComplete({});
       stepSettersRef.current.resetTracking();
-      loadNewProblem(diff, excludeIds, 1);
+
+      const newProblem = await loadNewProblem(diff, excludeIds, 1);
+
+      if (newProblem?.id && !seenLevel1IdsRef.current.includes(newProblem.id)) {
+        seenLevel1IdsRef.current = [...seenLevel1IdsRef.current, newProblem.id];
+      }
+
+      const n = seenLevel1IdsRef.current.length;
+      if (n > 0) {
+        setPagination({
+          current_index: n - 1,
+          total: n,
+          max_problems: 3,
+          has_prev: n > 1,
+          has_next: n < 3,
+          at_limit: n >= 3,
+        });
+      }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7686/ingest/508ce7ac-cfc4-4f61-b695-8439511ca390',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f6d775'},body:JSON.stringify({sessionId:'f6d775',location:'useProblemNavigation:handleSeeAnother',message:'see_another_level1_done',data:{seenLevel1After:seenLevel1IdsRef.current},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       return;
     }
+
+    // Levels 2/3: navigate within playlist if ahead, otherwise generate new
+    const excludeIds = [...cpi];
+    if (cur?.id) excludeIds.push(cur.id);
 
     const snap = stateSnapshot.current.pagination;
     const hasRealNext = snap && snap.has_next && snap.current_index + 1 < snap.total;

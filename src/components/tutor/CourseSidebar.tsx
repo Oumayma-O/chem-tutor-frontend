@@ -1,5 +1,4 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useLessonCompletion } from "@/hooks/useLessonCompletion";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Home } from "lucide-react";
 
@@ -99,6 +98,8 @@ interface CourseSidebarProps {
   unitTitle?: string;
   lessonTitles?: string[];
   userId?: string;
+  /** Lesson completion status from parent (single source of truth — avoids duplicate progress API calls). */
+  getLessonStatus: (lessonIndex: number) => LessonStatus;
 }
 
 export function CourseSidebar({
@@ -108,10 +109,10 @@ export function CourseSidebar({
   unitTitle,
   lessonTitles = [],
   userId,
+  getLessonStatus: getStatus,
 }: CourseSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { getStatus } = useLessonCompletion(currentUnitId, userId);
 
   if (!open) return null;
 

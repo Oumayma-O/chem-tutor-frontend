@@ -1,15 +1,18 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useUnits } from "@/hooks/useUnits";
+import { useCurriculum } from "@/hooks/useCurriculum";
 import { COURSE_LEVELS, CourseLevel, getCourseLevel } from "@/data/units";
-import { type UnitListItem } from "@/lib/api";
+import { type CurriculumUnit, type PhaseCurriculumGroup } from "@/lib/api/units";
 import { Input } from "@/components/ui/input";
 import { Search, X, AlertCircle } from "lucide-react";
+
 import { cn } from "@/lib/utils";
 import { NavDropdown } from "@/components/tutor/NavDropdown";
 import { BeakerMascot } from "@/components/tutor/BeakerMascot";
-import { UnitRow } from "@/components/landing/UnitRow";
+import { UnitRow, type UnitViewMode } from "@/components/landing/UnitRow";
+import { PhaseHeader } from "@/components/landing/PhaseHeader";
+import { LayoutList, List } from "lucide-react";
 
 function inferCourseLevel(gradeLevel: string | null): CourseLevel | "all" {
   if (!gradeLevel) return "all";
@@ -18,28 +21,31 @@ function inferCourseLevel(gradeLevel: string | null): CourseLevel | "all" {
   return "standard";
 }
 
+function matchesCourseLevel(unit: CurriculumUnit, level: CourseLevel): boolean {
+  return getCourseLevel(unit.course_name) === level;
+}
+
 function UnitRowSkeleton() {
   return (
-    <div className="w-full rounded-lg border-2 border-border bg-card animate-pulse p-5">
+    <div className="w-full rounded-xl border bg-card animate-pulse p-6">
       <div className="flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-secondary/60" />
-          <div className="w-12 h-4 rounded bg-secondary/60" />
+          <div className="w-11 h-11 rounded-xl bg-secondary/60" />
         </div>
         <div className="flex-1">
-          <div className="h-5 w-3/4 rounded bg-secondary/60 mb-2" />
+          <div className="h-5 w-3/4 rounded bg-secondary/60 mb-1.5" />
+          <div className="h-3.5 w-1/2 rounded bg-secondary/40 mb-2.5" />
           <div className="flex gap-1.5">
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3].map((i) => (
               <div key={i} className="h-5 w-16 rounded-full bg-secondary/50" />
             ))}
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="h-4 w-24 rounded bg-secondary/50" />
-          <div className="h-5 w-20 rounded-full bg-secondary/50" />
+          <div className="w-24 h-2 rounded-full bg-secondary/50" />
         </div>
       </div>
-      <div className="mt-4 h-1.5 w-full rounded-full bg-secondary/50" />
     </div>
   );
 }
@@ -47,8 +53,9 @@ function UnitRowSkeleton() {
 export default function UnitSelectionPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const { units, loading, error } = useUnits();
+  const { phases, loading, error } = useCurriculum();
   const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState<UnitViewMode>("default");
 
   const autoLevel = inferCourseLevel(profile?.grade_level ?? null);
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "all">(autoLevel);
@@ -57,20 +64,32 @@ export default function UnitSelectionPage() {
     if (autoLevel !== "all") setSelectedLevel(autoLevel);
   }, [autoLevel]);
 
-  const filteredUnits = useMemo(() => {
-    return units.filter((u) => {
-      const matchesSearch =
-        !searchQuery ||
-        u.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.lesson_titles.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()));
-      const uLevel = getCourseLevel(u.course_name);
-      const matchesLevel = selectedLevel === "all" || uLevel === selectedLevel;
-      return matchesSearch && matchesLevel;
-    });
-  }, [units, searchQuery, selectedLevel]);
+  const filteredPhases = useMemo(() => {
+    const q = searchQuery.toLowerCase();
 
-  const handleSelectUnit = (unit: UnitListItem) => {
+    return phases
+      .map((phase): PhaseCurriculumGroup => {
+        const filtered = phase.units.filter((u) => {
+          if (selectedLevel !== "all" && !matchesCourseLevel(u, selectedLevel)) {
+            return false;
+          }
+          if (q) {
+            return (
+              u.title.toLowerCase().includes(q) ||
+              u.description.toLowerCase().includes(q) ||
+              u.lesson_titles.some((t) => t.toLowerCase().includes(q))
+            );
+          }
+          return true;
+        });
+        return { ...phase, units: filtered };
+      })
+      .filter((phase) => phase.units.length > 0);
+  }, [phases, searchQuery, selectedLevel]);
+
+  const totalUnits = filteredPhases.reduce((sum, p) => sum + p.units.length, 0);
+
+  const handleSelectUnit = (unit: CurriculumUnit) => {
     if (unit.is_coming_soon || !unit.is_active) return;
     navigate(`/unit/${unit.id}`);
   };
@@ -84,26 +103,31 @@ export default function UnitSelectionPage() {
             className="flex items-center gap-2 hover:opacity-80 transition-opacity"
           >
             <BeakerMascot pose="idle" size={28} />
-            <span className="text-sm font-bold text-foreground hidden sm:inline">Chem Tutor</span>
+            <span className="text-sm font-bold text-foreground hidden sm:inline">
+              Chem Tutor
+            </span>
           </button>
           <NavDropdown />
         </div>
       </header>
 
       <main className="px-6 lg:px-12 xl:px-16 py-6">
-        <div className="max-w-[1600px] mx-auto">
+        <div className="max-w-[1000px] mx-auto">
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-foreground mb-1">Your Learning Path</h2>
+            <h2 className="text-2xl font-bold text-foreground mb-1">
+              Your Learning Path
+            </h2>
             <p className="text-muted-foreground text-sm">
-              Select a unit to begin with its simulation, then practice.
+              Follow the sequence below — each topic builds on the last.
             </p>
           </div>
 
+          {/* Search + Filter + View toggle */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Search lessons, skills, or units..."
+                placeholder="Search topics or chapters..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 pr-8"
@@ -117,7 +141,7 @@ export default function UnitSelectionPage() {
                 </button>
               )}
             </div>
-            <div className="flex gap-1.5 bg-secondary/60 rounded-lg p-1">
+            <div className="flex gap-1 bg-secondary/60 rounded-lg p-1">
               <button
                 onClick={() => setSelectedLevel("all")}
                 className={cn(
@@ -144,6 +168,34 @@ export default function UnitSelectionPage() {
                 </button>
               ))}
             </div>
+
+            {/* View mode toggle */}
+            <div className="flex gap-0.5 bg-secondary/60 rounded-lg p-1 shrink-0">
+              <button
+                onClick={() => setViewMode("default")}
+                title="Detailed view"
+                className={cn(
+                  "p-1.5 rounded-md transition-all",
+                  viewMode === "default"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <LayoutList className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode("compact")}
+                title="Compact view"
+                className={cn(
+                  "p-1.5 rounded-md transition-all",
+                  viewMode === "compact"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {error && (
@@ -155,30 +207,47 @@ export default function UnitSelectionPage() {
 
           {(searchQuery || selectedLevel !== "all") && !loading && !error && (
             <p className="text-sm text-muted-foreground mb-4">
-              {filteredUnits.length} unit{filteredUnits.length !== 1 ? "s" : ""} found
+              {totalUnits} unit{totalUnits !== 1 ? "s" : ""} found
             </p>
           )}
 
-          <div className="grid grid-cols-1 gap-4">
-            {loading
-              ? Array.from({ length: 6 }).map((_, i) => <UnitRowSkeleton key={i} />)
-              : filteredUnits.map((unit) => (
-                  <UnitRow
-                    key={unit.id}
-                    unit={unit}
-                    courseLevel={
-                      selectedLevel === "all" ? getCourseLevel(unit.course_name) : selectedLevel
-                    }
-                    progress={0}
-                    onClick={() => handleSelectUnit(unit)}
-                  />
-                ))}
-          </div>
+          {/* Phase-grouped unit list */}
+          {loading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <UnitRowSkeleton key={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredPhases.map((phase) => (
+                <div key={phase.phase_id ?? "unassigned"}>
+                  {selectedLevel !== "all" && (
+                    <PhaseHeader
+                      name={phase.phase_name}
+                      description={phase.phase_description}
+                    />
+                  )}
+                  <div className={cn(viewMode === "compact" ? "space-y-1" : "space-y-3", "mt-2")}>
+                    {phase.units.map((unit) => (
+                      <UnitRow
+                        key={unit.id}
+                        unit={unit}
+                        progress={0}
+                        viewMode={viewMode}
+                        onClick={() => handleSelectUnit(unit)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
-          {!loading && !error && filteredUnits.length === 0 && (
+          {!loading && !error && totalUnits === 0 && (
             <div className="text-center py-16">
               <p className="text-muted-foreground">
-                {units.length === 0
+                {phases.length === 0
                   ? "No units available yet. Check back soon!"
                   : "No units match your search. Try different keywords or adjust the filter."}
               </p>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Calculator as CalcIcon, X, Copy, Check } from "lucide-react";
+import { Calculator as CalcIcon, X, Copy, Check, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { evaluateExpression } from "@/lib/mathEval";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ export function Calculator({ enabled }: CalculatorProps) {
   const [display, setDisplay] = useState("0");
   const [hasResult, setHasResult] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [scientific, setScientific] = useState(false);
 
   if (!enabled) return null;
 
@@ -24,6 +25,15 @@ export function Calculator({ enabled }: CalculatorProps) {
     }
     setHasResult(false);
     setDisplay((prev) => (prev === "0" && val !== "." ? val : prev + val));
+  };
+
+  const handleFunc = (fn: string) => {
+    if (hasResult) {
+      setDisplay(`${fn}(${display})`);
+      setHasResult(false);
+    } else {
+      setDisplay((prev) => (prev === "0" ? `${fn}(` : prev + `${fn}(`));
+    }
   };
 
   const handleClear = () => {
@@ -51,25 +61,19 @@ export function Calculator({ enabled }: CalculatorProps) {
     });
   };
 
-  // Keyboard support when calculator is open
   useEffect(() => {
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
-      // Don't intercept when focus is in an input/textarea (step answer fields)
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       if (/^[0-9]$/.test(e.key) || e.key === ".") {
         handleInput(e.key);
-      } else if (e.key === "+") {
-        handleInput("+");
-      } else if (e.key === "-") {
-        handleInput("-");
-      } else if (e.key === "*") {
-        handleInput("*");
-      } else if (e.key === "/") {
-        e.preventDefault();
-        handleInput("/");
+      } else if (["+", "-", "*", "/", "^"].includes(e.key)) {
+        if (e.key === "/") e.preventDefault();
+        handleInput(e.key);
+      } else if (e.key === "(" || e.key === ")") {
+        handleInput(e.key);
       } else if (e.key === "Enter" || e.key === "=") {
         e.preventDefault();
         handleEquals();
@@ -83,11 +87,26 @@ export function Calculator({ enabled }: CalculatorProps) {
     return () => window.removeEventListener("keydown", handler);
   }, [open, display, hasResult]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const buttons = [
+  const basicButtons = [
     ["7", "8", "9", "÷"],
     ["4", "5", "6", "×"],
     ["1", "2", "3", "−"],
     ["0", ".", "=", "+"],
+  ];
+
+  const sciButtons: { label: string; action: () => void }[] = [
+    { label: "ln",   action: () => handleFunc("ln") },
+    { label: "log",  action: () => handleFunc("log") },
+    { label: "exp",  action: () => handleFunc("exp") },
+    { label: "√",    action: () => handleFunc("sqrt") },
+    { label: "sin",  action: () => handleFunc("sin") },
+    { label: "cos",  action: () => handleFunc("cos") },
+    { label: "tan",  action: () => handleFunc("tan") },
+    { label: "xʸ",   action: () => handleInput("^") },
+    { label: "(",    action: () => handleInput("(") },
+    { label: ")",    action: () => handleInput(")") },
+    { label: "π",    action: () => handleInput("pi") },
+    { label: "e",    action: () => handleInput("e") },
   ];
 
   return (
@@ -97,7 +116,7 @@ export function Calculator({ enabled }: CalculatorProps) {
         onClick={() => setOpen((o) => !o)}
         className={cn(
           "fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all",
-          "bg-primary text-primary-foreground hover:bg-primary/90"
+          "bg-primary text-primary-foreground hover:bg-primary/90",
         )}
         aria-label="Toggle calculator"
       >
@@ -106,21 +125,53 @@ export function Calculator({ enabled }: CalculatorProps) {
 
       {/* Calculator popup */}
       {open && (
-        <div className="fixed bottom-20 right-6 z-40 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+        <div
+          className={cn(
+            "fixed bottom-20 right-6 z-40 bg-card border border-border rounded-xl shadow-xl overflow-hidden transition-all",
+            scientific ? "w-80" : "w-64",
+          )}
+        >
           {/* Display */}
           <div className="bg-secondary p-3 text-right">
-            <div className="text-xs text-muted-foreground h-4 overflow-hidden">
-              {hasResult ? "Result" : ""}
+            <div className="flex items-center justify-between mb-0.5">
+              <button
+                onClick={() => setScientific((s) => !s)}
+                className={cn(
+                  "flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors",
+                  scientific
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                title="Toggle scientific mode"
+              >
+                <FlaskConical className="w-3 h-3" />
+                SCI
+              </button>
+              <span className="text-[10px] text-muted-foreground">
+                {hasResult ? "Result" : ""}
+              </span>
             </div>
-            <div className="text-xl font-mono text-foreground truncate">{display}</div>
+            <div className="text-xl font-mono text-foreground truncate">
+              {display}
+            </div>
           </div>
 
           {/* Controls row */}
           <div className="flex gap-1 px-2 pt-2">
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={handleClear}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-8 text-xs"
+              onClick={handleClear}
+            >
               C
             </Button>
-            <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={handleBackspace}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 h-8 text-xs"
+              onClick={handleBackspace}
+            >
               ⌫
             </Button>
             <Button
@@ -130,30 +181,59 @@ export function Calculator({ enabled }: CalculatorProps) {
               onClick={handleCopy}
               title="Copy result"
             >
-              {copied ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+              {copied ? (
+                <Check className="w-3 h-3 text-success" />
+              ) : (
+                <Copy className="w-3 h-3" />
+              )}
               {copied ? "Copied" : "Copy"}
             </Button>
           </div>
 
-          {/* Number pad */}
-          <div className="grid grid-cols-4 gap-1 p-2">
-            {buttons.flat().map((btn) => (
-              <Button
-                key={btn}
-                variant={["+", "−", "×", "÷"].includes(btn) ? "secondary" : btn === "=" ? "default" : "ghost"}
-                size="sm"
-                className="h-10 text-base font-medium"
-                onClick={() => {
-                  if (btn === "=") handleEquals();
-                  else if (btn === "×") handleInput("*");
-                  else if (btn === "÷") handleInput("/");
-                  else if (btn === "−") handleInput("-");
-                  else handleInput(btn);
-                }}
-              >
-                {btn}
-              </Button>
-            ))}
+          <div className={cn("p-2", scientific && "flex gap-1.5")}>
+            {/* Scientific panel */}
+            {scientific && (
+              <div className="grid grid-cols-3 gap-1 shrink-0">
+                {sciButtons.map((btn) => (
+                  <Button
+                    key={btn.label}
+                    variant="outline"
+                    size="sm"
+                    className="h-9 text-[11px] font-medium px-1"
+                    onClick={btn.action}
+                  >
+                    {btn.label}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {/* Number pad */}
+            <div className={cn("grid grid-cols-4 gap-1", scientific && "flex-1")}>
+              {basicButtons.flat().map((btn) => (
+                <Button
+                  key={btn}
+                  variant={
+                    ["+", "−", "×", "÷"].includes(btn)
+                      ? "secondary"
+                      : btn === "="
+                        ? "default"
+                        : "ghost"
+                  }
+                  size="sm"
+                  className="h-10 text-base font-medium"
+                  onClick={() => {
+                    if (btn === "=") handleEquals();
+                    else if (btn === "×") handleInput("*");
+                    else if (btn === "÷") handleInput("/");
+                    else if (btn === "−") handleInput("-");
+                    else handleInput(btn);
+                  }}
+                >
+                  {btn}
+                </Button>
+              ))}
+            </div>
           </div>
         </div>
       )}

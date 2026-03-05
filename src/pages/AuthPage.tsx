@@ -19,16 +19,15 @@ import { BeakerMascot } from "@/components/tutor/BeakerMascot";
 
 const GRADE_RANGE_OPTIONS = [
   { value: "middle-school", label: "Middle School" },
-  { value: "high-school-9-10", label: "High School (9–10)" },
-  { value: "high-school-11-12", label: "High School (11–12)" },
-  { value: "ap-advanced", label: "AP / Advanced" },
+  { value: "9th", label: "9th Grade" },
+  { value: "10th", label: "10th Grade" },
+  { value: "11th", label: "11th Grade" },
+  { value: "12th", label: "12th Grade" },
 ];
 
 const COURSE_TYPE_OPTIONS = [
-  { value: "regular", label: "Regular Chemistry" },
-  { value: "honors", label: "Honors" },
+  { value: "standard", label: "Standard Chemistry" },
   { value: "ap", label: "AP Chemistry" },
-  { value: "not-sure", label: "Not sure" },
 ];
 
 const INTEREST_OPTIONS = [
@@ -111,7 +110,7 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       const gradeLevel = [signupGradeRange, signupCourseType]
-        .filter((v) => v && v !== "not-sure")
+        .filter(Boolean)
         .join(" · ") || null;
 
       const finalInterests = [...signupInterests];

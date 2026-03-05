@@ -1,4 +1,4 @@
-import { post, get } from "./core";
+import { post, get, request } from "./core";
 
 export interface AuthTokenResponse {
   access_token: string;
@@ -15,7 +15,11 @@ export interface MeResponse {
   role: string;
   name: string;
   grade_level: string | null;
+  grade: string | null;
+  course: string | null;
   interests: string[];
+  classroom_name: string | null;
+  classroom_code: string | null;
 }
 
 export async function apiRegister(body: {
@@ -39,4 +43,12 @@ export async function apiLogin(body: {
 
 export async function apiMe(): Promise<MeResponse> {
   return get<MeResponse>("/auth/me");
+}
+
+export async function apiUpdateProfile(body: {
+  grade?: string;
+  course?: string;
+  interests?: string[];
+}): Promise<MeResponse> {
+  return request<MeResponse>("PATCH", "/auth/profile", body);
 }

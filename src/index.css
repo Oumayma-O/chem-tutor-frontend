@@ -213,3 +213,47 @@
 .fade-in {
   animation: fade-in 0.3s ease-out;
 }
+
+/* Loading state: subtle breathing mascot (0.98 ↔ 1.02) */
+@keyframes mascot-breathe {
+  0%,
+  100% {
+    transform: scale(0.98);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+.mascot-breathe {
+  animation: mascot-breathe 2.2s ease-in-out infinite;
+}
+
+/* Orbit: smooth 360° rotation */
+@keyframes molecule-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.molecule-orbit {
+  animation: molecule-orbit 6s linear infinite;
+}
+
+/* Staggered opacity pulse for orbit dots */
+@keyframes dot-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.dot-pulse {
+  animation: dot-pulse 1.5s ease-in-out infinite;
+}

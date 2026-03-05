@@ -99,6 +99,7 @@ export function useGeneratedProblem({
       difficulty: "easy" | "medium" | "hard",
       excludeIds: string[],
       level: number = 2,
+      isRetry = false,
     ): Promise<GenerateResult> => {
       setIsLoading(true);
       setError(null);
@@ -122,9 +123,14 @@ export function useGeneratedProblem({
 
         const result = parseProblemOutput(data);
 
-        // Filter out already-seen problems (fallback when no user_id / no playlist)
-        if (excludeIds.includes(data.problem.id)) {
-          throw new Error("Duplicate problem id returned — retrying not supported here");
+        // When at the playlist cap the backend cycles through existing problems —
+        // seeing a previously-excluded id is expected, so skip the duplicate check.
+        if (!data.at_limit && excludeIds.includes(data.problem.id)) {
+          if (!isRetry) {
+            return generate(difficulty, [...excludeIds, data.problem.id], level, true);
+          }
+          // Retry also returned a duplicate — backend may still be warming up; surface the error.
+          throw new Error("Duplicate problem returned. Try again in a moment.");
         }
 
         return result;

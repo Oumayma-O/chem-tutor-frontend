@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +15,6 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft,
-  BookOpen,
   Trophy,
   Target,
   GraduationCap,
@@ -25,23 +23,27 @@ import {
   Save,
   Pencil,
   X,
-  Camera,
+  FlaskConical,
+  Beaker,
+  BookCheck,
+  BarChart3,
 } from "lucide-react";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { BeakerMascot } from "@/components/tutor/BeakerMascot";
 
-const GRADE_RANGE_OPTIONS = [
-  { value: "middle-school", label: "Middle School" },
-  { value: "high-school-9-10", label: "High School (9–10)" },
-  { value: "high-school-11-12", label: "High School (11–12)" },
-  { value: "ap-advanced", label: "AP / Advanced" },
+const GRADE_OPTIONS = [
+  { value: "Middle School", label: "Middle School" },
+  { value: "9th Grade", label: "9th Grade" },
+  { value: "10th Grade", label: "10th Grade" },
+  { value: "11th Grade", label: "11th Grade" },
+  { value: "12th Grade", label: "12th Grade" },
 ];
 
-const COURSE_TYPE_OPTIONS = [
-  { value: "regular", label: "Regular Chemistry" },
-  { value: "honors", label: "Honors" },
-  { value: "ap", label: "AP Chemistry" },
+const COURSE_OPTIONS = [
+  { value: "Standard Chemistry", label: "Standard Chemistry" },
+  { value: "AP Chemistry", label: "AP Chemistry" },
 ];
 
 const INTEREST_OPTIONS = [
@@ -57,82 +59,70 @@ const INTEREST_OPTIONS = [
   { value: "movies", label: "Movies & TV", icon: "🎬" },
 ];
 
+const ACHIEVEMENT_BADGES = [
+  { icon: "🔬", label: "First Experiment", desc: "Complete your first unit" },
+  { icon: "⚗️", label: "Bunsen Burner", desc: "Score 80%+ on an exit ticket" },
+  { icon: "🧪", label: "Lab Coat", desc: "Complete 3 units" },
+  { icon: "🏅", label: "Reactor", desc: "Achieve 90% mastery on any unit" },
+  { icon: "🎓", label: "Valedictorian", desc: "Complete all AP units" },
+  { icon: "💎", label: "Diamond Flask", desc: "30-day study streak" },
+];
+
 export default function StudentProfilePage() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, updateProfile } = useAuth();
   const navigate = useNavigate();
-  const [classInfo, setClassInfo] = useState<{ name: string; code: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
-  // Editable fields
   const [grade, setGrade] = useState("");
   const [course, setCourse] = useState("");
   const [interests, setInterests] = useState<string[]>([]);
 
-  // Parse initial values from profile
   useEffect(() => {
     if (!profile) return;
-    const parts = profile.grade_level?.split(" · ") || [];
-    setGrade(parts[0] || "");
-    setCourse(parts[1] || "");
-    setInterests(profile.interests || []);
-    setAvatarUrl(profile.avatar_url || null);
+    setGrade(profile.grade ?? "");
+    setCourse(profile.course ?? "");
+    setInterests(profile.interests ?? []);
   }, [profile]);
-
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      const { data: enrollments } = await supabase
-        .from("class_students")
-        .select("class_id")
-        .eq("student_id", user.id)
-        .limit(1);
-
-      if (enrollments?.[0]) {
-        const { data: cls } = await supabase
-          .from("classes")
-          .select("name, class_code")
-          .eq("id", enrollments[0].class_id)
-          .single();
-        if (cls) setClassInfo({ name: cls.name, code: cls.class_code });
-      }
-    })();
-  }, [user]);
 
   if (!user || !profile) return null;
 
-  const isInClassroom = !!classInfo;
+  const initials = profile.display_name
+    ? profile.display_name.charAt(0).toUpperCase()
+    : "?";
 
-  const initials = profile.display_name ? profile.display_name.charAt(0).toUpperCase() : "?";
-
-  const handleAvatarUpload = async (_e: React.ChangeEvent<HTMLInputElement>) => {
-    toast.info("Avatar upload coming soon.");
-  };
+  const isInClassroom = !!profile.classroom_name;
 
   const toggleInterest = (value: string) => {
     setInterests((prev) =>
-      prev.includes(value) ? prev.filter((i) => i !== value) : [...prev, value]
+      prev.includes(value) ? prev.filter((i) => i !== value) : [...prev, value],
     );
   };
 
   const handleSave = async () => {
-    toast.info("Profile editing coming soon — changes cannot be saved yet.");
-    setIsEditing(false);
+    setSaving(true);
+    try {
+      await updateProfile({ grade, course, interests });
+      toast.success("Profile saved!");
+      setIsEditing(false);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to save profile");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleCancelEdit = () => {
-    // Reset to profile values
-    const parts = profile.grade_level?.split(" · ") || [];
-    setGrade(parts[0] || "");
-    setCourse(parts[1] || "");
-    setInterests(profile.interests || []);
+    setGrade(profile.grade ?? "");
+    setCourse(profile.course ?? "");
+    setInterests(profile.interests ?? []);
     setIsEditing(false);
   };
 
-  const gradeLabel = GRADE_RANGE_OPTIONS.find((o) => o.value === grade)?.label || grade || "Not set";
-  const courseLabel = COURSE_TYPE_OPTIONS.find((o) => o.value === course)?.label || course || "Not set";
+  const gradeLabel =
+    GRADE_OPTIONS.find((o) => o.value === grade)?.label || grade || "Not set";
+  const courseLabel =
+    COURSE_OPTIONS.find((o) => o.value === course)?.label || course || "Not set";
 
   return (
     <div className="min-h-screen bg-background">
@@ -141,75 +131,97 @@ export default function StudentProfilePage() {
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-sm font-bold text-foreground">My Profile</h1>
+          <h1 className="text-sm font-semibold text-foreground tracking-wide uppercase">
+            Research Profile
+          </h1>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-2xl space-y-6">
+      <main className="container mx-auto px-4 py-8 max-w-2xl space-y-5">
         {/* Identity Card */}
-        <Card>
+        <Card className="overflow-hidden">
+          <div className="h-1 bg-gradient-to-r from-primary to-primary/40" />
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="relative group">
-                  <Avatar className="h-16 w-16">
-                    {avatarUrl && <AvatarImage src={avatarUrl} alt={profile.display_name} />}
-                    <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
-                      {initials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <Camera className="w-5 h-5 text-white" />
-                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={uploadingAvatar} />
-                  </label>
-                </div>
+                <Avatar className="h-14 w-14">
+                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
-                  <CardTitle className="text-xl">{profile.display_name}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                  <CardTitle className="text-lg">
+                    {profile.display_name}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
                 </div>
               </div>
               {!isEditing && (
-                <Button variant="outline" size="sm" onClick={() => setIsEditing(true)} className="gap-1.5">
-                  <Pencil className="w-3.5 h-3.5" />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="gap-1.5 text-xs"
+                >
+                  <Pencil className="w-3 h-3" />
                   Edit
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-4">
             {isEditing ? (
               <>
                 {isInClassroom && (
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 text-sm text-muted-foreground">
                     <Users className="w-4 h-4 shrink-0" />
-                    <span>Grade and course are set by your classroom ({classInfo.name}).</span>
+                    <span>
+                      Grade and course are managed by your classroom (
+                      {profile.classroom_name}).
+                    </span>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5">
+                    <Label className="flex items-center gap-1.5 text-xs">
                       <GraduationCap className="w-3.5 h-3.5 text-muted-foreground" />
                       Grade
                     </Label>
-                    <Select value={grade} onValueChange={setGrade} disabled={isInClassroom}>
-                      <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
+                    <Select
+                      value={grade}
+                      onValueChange={setGrade}
+                      disabled={isInClassroom}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select grade" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {GRADE_RANGE_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        {GRADE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                    <Label className="flex items-center gap-1.5 text-xs">
+                      <FlaskConical className="w-3.5 h-3.5 text-muted-foreground" />
                       Course
                     </Label>
-                    <Select value={course} onValueChange={setCourse} disabled={isInClassroom}>
-                      <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+                    <Select
+                      value={course}
+                      onValueChange={setCourse}
+                      disabled={isInClassroom}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select course" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {COURSE_TYPE_OPTIONS.map((opt) => (
-                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        {COURSE_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -219,28 +231,38 @@ export default function StudentProfilePage() {
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1">
-                    <GraduationCap className="w-3.5 h-3.5" /> Grade
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
+                    <GraduationCap className="w-3 h-3" /> Grade
                   </p>
-                  <p className="text-sm font-medium text-foreground">{gradeLabel}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {gradeLabel}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1">
-                    <BookOpen className="w-3.5 h-3.5" /> Course
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
+                    <FlaskConical className="w-3 h-3" /> Course
                   </p>
-                  <p className="text-sm font-medium text-foreground">{courseLabel}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {courseLabel}
+                  </p>
                 </div>
               </div>
             )}
 
-            {classInfo && (
-              <div className="flex items-center gap-2">
+            {profile.classroom_name && (
+              <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
                 <Users className="w-4 h-4 text-muted-foreground" />
                 <div>
-                  <p className="text-xs text-muted-foreground">Classroom</p>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    Classroom
+                  </p>
                   <p className="text-sm font-medium text-foreground">
-                    {classInfo.name}{" "}
-                    <Badge variant="outline" className="ml-1 text-[10px]">{classInfo.code}</Badge>
+                    {profile.classroom_name}{" "}
+                    {profile.classroom_code && (
+                      <Badge variant="outline" className="ml-1 text-[10px] font-mono">
+                        {profile.classroom_code}
+                      </Badge>
+                    )}
                   </p>
                 </div>
               </div>
@@ -248,16 +270,62 @@ export default function StudentProfilePage() {
           </CardContent>
         </Card>
 
+        {/* Progress & Stats */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wide">
+              <BarChart3 className="w-4 h-4 text-primary" />
+              Exam Readiness
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <div className="flex justify-between text-sm mb-1.5">
+                <span className="text-muted-foreground">Overall Mastery</span>
+                <span className="font-bold text-foreground tabular-nums">0%</span>
+              </div>
+              <Progress value={0} className="h-2" />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 rounded-lg border border-border bg-card">
+                <BookCheck className="w-4 h-4 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xl font-bold text-foreground tabular-nums">0</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Modules</p>
+              </div>
+              <div className="text-center p-3 rounded-lg border border-border bg-card">
+                <Target className="w-4 h-4 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xl font-bold text-foreground tabular-nums">0</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Validated</p>
+              </div>
+              <div className="text-center p-3 rounded-lg border border-border bg-card">
+                <Trophy className="w-4 h-4 mx-auto text-amber-500 mb-1" />
+                <p className="text-xl font-bold text-foreground tabular-nums">0</p>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Exit Tickets</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Interests */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base">Interests</CardTitle>
-                <p className="text-xs text-muted-foreground">We use these to personalize your chemistry problems.</p>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wide">
+                  <Beaker className="w-4 h-4 text-primary" />
+                  Context Preferences
+                </CardTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Problems are personalized around your interests.
+                </p>
               </div>
               {!isEditing && (
-                <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)} className="gap-1.5 text-xs">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                  className="gap-1 text-xs text-muted-foreground"
+                >
                   <Pencil className="w-3 h-3" /> Edit
                 </Button>
               )}
@@ -275,7 +343,7 @@ export default function StudentProfilePage() {
                       "relative flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 transition-all text-center",
                       interests.includes(interest.value)
                         ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/30"
+                        : "border-border hover:border-primary/30",
                     )}
                   >
                     {interests.includes(interest.value) && (
@@ -284,82 +352,80 @@ export default function StudentProfilePage() {
                       </div>
                     )}
                     <span className="text-lg">{interest.icon}</span>
-                    <span className={cn(
-                      "text-[10px] font-medium leading-tight",
-                      interests.includes(interest.value) ? "text-primary" : "text-muted-foreground"
-                    )}>{interest.label}</span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-medium leading-tight",
+                        interests.includes(interest.value)
+                          ? "text-primary"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {interest.label}
+                    </span>
                   </button>
                 ))}
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {interests.length > 0 ? interests.map((val) => {
-                  const opt = INTEREST_OPTIONS.find((o) => o.value === val);
-                  return opt ? (
-                    <Badge key={val} variant="secondary" className="gap-1">
-                      {opt.icon} {opt.label}
-                    </Badge>
-                  ) : null;
-                }) : (
-                  <p className="text-sm text-muted-foreground">No interests selected yet.</p>
+                {interests.length > 0 ? (
+                  interests.map((val) => {
+                    const opt = INTEREST_OPTIONS.find((o) => o.value === val);
+                    return opt ? (
+                      <Badge key={val} variant="secondary" className="gap-1 text-xs">
+                        {opt.icon} {opt.label}
+                      </Badge>
+                    ) : null;
+                  })
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No preferences set. Edit to personalize your problems.
+                  </p>
                 )}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Progress Overview */}
+        {/* Achievements — mascot lives here as "stamps" */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Target className="w-4 h-4 text-primary" />
-              Progress Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-muted-foreground">Overall Mastery</span>
-                <span className="font-semibold text-foreground">60%</span>
-              </div>
-              <Progress value={60} className="h-2.5" />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="text-center p-3 rounded-lg bg-secondary/50">
-                <p className="text-2xl font-bold text-foreground">1</p>
-                <p className="text-xs text-muted-foreground">Chapters Started</p>
-              </div>
-              <div className="text-center p-3 rounded-lg bg-secondary/50">
-                <p className="text-2xl font-bold text-foreground">0</p>
-                <p className="text-xs text-muted-foreground">Completed</p>
-              </div>
-              <div className="text-center p-3 rounded-lg bg-secondary/50">
-                <p className="text-2xl font-bold text-foreground">0</p>
-                <p className="text-xs text-muted-foreground">Exit Tickets</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Achievements */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-accent" />
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wide">
+              <Trophy className="w-4 h-4 text-amber-500" />
               Achievements
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Complete chapters and exit tickets to unlock achievements.
-            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {ACHIEVEMENT_BADGES.map((badge) => (
+                <div
+                  key={badge.label}
+                  className="flex flex-col items-center gap-1 p-3 rounded-lg border border-dashed border-border/50 opacity-35 hover:opacity-50 transition-opacity"
+                  title={badge.desc}
+                >
+                  <span className="text-xl grayscale">{badge.icon}</span>
+                  <span className="text-[9px] font-medium text-muted-foreground text-center leading-tight">
+                    {badge.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+              <BeakerMascot mood="relaxed" size={32} />
+              <p className="text-xs text-muted-foreground">
+                Complete units and exit tickets to unlock achievements.
+              </p>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Edit mode actions */}
+        {/* Actions */}
         {isEditing ? (
           <div className="flex gap-3">
-            <Button onClick={handleSave} disabled={saving} className="flex-1 gap-2">
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 gap-2"
+            >
               <Save className="w-4 h-4" />
               {saving ? "Saving..." : "Save Changes"}
             </Button>
@@ -370,7 +436,13 @@ export default function StudentProfilePage() {
           </div>
         ) : (
           <div className="flex justify-end">
-            <Button variant="outline" onClick={signOut}>Sign Out</Button>
+            <Button
+              variant="ghost"
+              onClick={signOut}
+              className="text-xs text-muted-foreground hover:text-destructive"
+            >
+              Sign Out
+            </Button>
           </div>
         )}
       </main>
