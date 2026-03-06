@@ -1,11 +1,14 @@
+import { cn } from "@/lib/utils";
+
 interface PhaseHeaderProps {
   name: string;
   description?: string | null;
+  className?: string;
 }
 
-export function PhaseHeader({ name, description }: PhaseHeaderProps) {
+export function PhaseHeader({ name, description, className }: PhaseHeaderProps) {
   return (
-    <div className="flex items-center gap-4 pt-8 pb-3 first:pt-0">
+    <div className={cn("flex items-center gap-4 pt-8 pb-3 first:pt-0", className)}>
       <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground whitespace-nowrap">
         {name}
       </h3>

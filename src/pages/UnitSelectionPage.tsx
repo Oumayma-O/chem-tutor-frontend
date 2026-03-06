@@ -6,13 +6,13 @@ import { COURSE_LEVELS, CourseLevel, getCourseLevel } from "@/data/units";
 import { type CurriculumUnit, type PhaseCurriculumGroup } from "@/lib/api/units";
 import { Input } from "@/components/ui/input";
 import { Search, X, AlertCircle } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
 import { NavDropdown } from "@/components/tutor/NavDropdown";
 import { BeakerMascot } from "@/components/tutor/BeakerMascot";
-import { UnitRow, type UnitViewMode } from "@/components/landing/UnitRow";
+import { UnitRow } from "@/components/landing/UnitRow";
 import { PhaseHeader } from "@/components/landing/PhaseHeader";
-import { LayoutList, List } from "lucide-react";
 
 function inferCourseLevel(gradeLevel: string | null): CourseLevel | "all" {
   if (!gradeLevel) return "all";
@@ -55,7 +55,6 @@ export default function UnitSelectionPage() {
   const navigate = useNavigate();
   const { phases, loading, error } = useCurriculum();
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState<UnitViewMode>("default");
 
   const autoLevel = inferCourseLevel(profile?.grade_level ?? null);
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "all">(autoLevel);
@@ -169,33 +168,6 @@ export default function UnitSelectionPage() {
               ))}
             </div>
 
-            {/* View mode toggle */}
-            <div className="flex gap-0.5 bg-secondary/60 rounded-lg p-1 shrink-0">
-              <button
-                onClick={() => setViewMode("default")}
-                title="Detailed view"
-                className={cn(
-                  "p-1.5 rounded-md transition-all",
-                  viewMode === "default"
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <LayoutList className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setViewMode("compact")}
-                title="Compact view"
-                className={cn(
-                  "p-1.5 rounded-md transition-all",
-                  viewMode === "compact"
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
           </div>
 
           {error && (
@@ -211,7 +183,6 @@ export default function UnitSelectionPage() {
             </p>
           )}
 
-          {/* Phase-grouped unit list */}
           {loading ? (
             <div className="space-y-4">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -219,29 +190,89 @@ export default function UnitSelectionPage() {
               ))}
             </div>
           ) : (
-            <div className="space-y-2">
-              {filteredPhases.map((phase) => (
-                <div key={phase.phase_id ?? "unassigned"}>
-                  {selectedLevel !== "all" && (
-                    <PhaseHeader
-                      name={phase.phase_name}
-                      description={phase.phase_description}
-                    />
-                  )}
-                  <div className={cn(viewMode === "compact" ? "space-y-1" : "space-y-3", "mt-2")}>
-                    {phase.units.map((unit) => (
-                      <UnitRow
-                        key={unit.id}
-                        unit={unit}
-                        progress={0}
-                        viewMode={viewMode}
-                        onClick={() => handleSelectUnit(unit)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              {selectedLevel === "all" ? (
+                /* ── Card grid ── */
+                <motion.div
+                  key="all-grid"
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.97 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+                >
+                  {(() => {
+                    let idx = 0;
+                    return filteredPhases.flatMap((phase) =>
+                      phase.units.map((unit) => {
+                        const delay = Math.min(idx++ * 0.035, 0.45);
+                        return (
+                          <motion.div
+                            key={unit.id}
+                            initial={{ opacity: 0, y: 14, scale: 0.96 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            transition={{ duration: 0.22, delay, ease: "easeOut" }}
+                            className="h-full"
+                          >
+                            <UnitRow
+                              unit={unit}
+                              progress={0}
+                              viewMode="card"
+                              onClick={() => handleSelectUnit(unit)}
+                            />
+                          </motion.div>
+                        );
+                      }),
+                    );
+                  })()}
+                </motion.div>
+              ) : (
+                /* ── Phased list ── */
+                <motion.div
+                  key={selectedLevel}
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 12 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="flex flex-col gap-3"
+                >
+                  {(() => {
+                    let itemIdx = 0;
+                    return filteredPhases.flatMap((phase, pi) => [
+                      <motion.div
+                        key={`phase-${phase.phase_id ?? pi}`}
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, delay: pi * 0.06, ease: "easeOut" }}
+                      >
+                        <PhaseHeader
+                          name={phase.phase_name}
+                          description={phase.phase_description}
+                        />
+                      </motion.div>,
+                      ...phase.units.map((unit) => {
+                        const delay = Math.min(itemIdx++ * 0.04, 0.5);
+                        return (
+                          <motion.div
+                            key={unit.id}
+                            initial={{ opacity: 0, x: -18 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.22, delay, ease: "easeOut" }}
+                          >
+                            <UnitRow
+                              unit={unit}
+                              progress={0}
+                              viewMode="default"
+                              onClick={() => handleSelectUnit(unit)}
+                            />
+                          </motion.div>
+                        );
+                      }),
+                    ]);
+                  })()}
+                </motion.div>
+              )}
+            </AnimatePresence>
           )}
 
           {!loading && !error && totalUnits === 0 && (

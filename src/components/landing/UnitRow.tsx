@@ -1,8 +1,9 @@
 import { type CurriculumUnit } from "@/lib/api/units";
 import { Lock, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getCourseLevel } from "@/data/units";
 
-export type UnitViewMode = "default" | "compact";
+export type UnitViewMode = "card" | "default" | "compact";
 
 // Stable color theme per unit slot — cycles through a curated palette
 const ICON_THEMES = [
@@ -31,6 +32,112 @@ export function UnitRow({ unit, progress = 0, onClick, viewMode = "default" }: U
   const available = unit.is_active && !unit.is_coming_soon;
   const theme = getTheme(unit.sort_order);
 
+  // ── Card (boxed grid cell for "All" filter) ─────────────────
+  if (viewMode === "card") {
+    const displayTitles = unit.lesson_titles.slice(0, 3);
+    const moreCount = unit.lesson_titles.length - displayTitles.length;
+    const courseLevel = getCourseLevel(unit.course_name);
+    const isAP = courseLevel === "ap";
+
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={!available}
+        className={cn(
+          "w-full h-full text-left rounded-xl border bg-card transition-all duration-300 ease-out",
+          "focus:outline-none focus:ring-2 focus:ring-primary/30",
+          available
+            ? "cursor-pointer hover:shadow-lg hover:-translate-y-1 hover:border-primary/30"
+            : "cursor-not-allowed opacity-60",
+        )}
+      >
+        <div className="flex flex-col p-4 h-full gap-3">
+          {/* Top row: icon + badges */}
+          <div className="flex items-start justify-between gap-2">
+            <div
+              className={cn(
+                "rounded-xl flex items-center justify-center text-xl shrink-0",
+                available ? theme.bg : "bg-muted/40",
+              )}
+              style={{ width: 44, height: 44 }}
+            >
+              {unit.icon ?? "📚"}
+            </div>
+            <div className="flex items-center gap-1 flex-wrap justify-end">
+              {available ? (
+                <span
+                  className={cn(
+                    "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                    isAP
+                      ? "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700"
+                      : "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700",
+                  )}
+                >
+                  {isAP ? "AP" : "Standard"}
+                </span>
+              ) : (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-secondary/60 text-muted-foreground border">
+                  Coming Soon
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Title + description + tags */}
+          <div className="flex-1 min-h-0">
+            <h3 className="font-semibold text-foreground text-sm leading-tight line-clamp-2">
+              {unit.title}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+              {unit.description}
+            </p>
+            {available && displayTitles.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {displayTitles.map((lesson) => (
+                  <span
+                    key={lesson}
+                    className="inline-flex text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/60 text-muted-foreground"
+                  >
+                    {lesson}
+                  </span>
+                ))}
+                {moreCount > 0 && (
+                  <span className="inline-flex text-[10px] px-1.5 py-0.5 rounded-md bg-secondary/40 text-muted-foreground/80">
+                    +{moreCount}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Stats + progress bar */}
+          {available && (
+            <div className="mt-auto pt-2 border-t border-border/50">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-muted-foreground">
+                  {unit.lesson_count} Lessons · {unit.skill_count} Skills
+                </span>
+                <span className="text-[11px] font-medium tabular-nums text-foreground/70">
+                  {Math.round(progress)}%
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-500",
+                    progress > 0 ? theme.bar : "bg-transparent",
+                  )}
+                  style={{ width: `${Math.max(Math.min(progress, 100), 0)}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </button>
+    );
+  }
+
   // ── Compact row ───────────────────────────────────────────
   if (viewMode === "compact") {
     return (
@@ -39,7 +146,7 @@ export function UnitRow({ unit, progress = 0, onClick, viewMode = "default" }: U
         onClick={onClick}
         disabled={!available}
         className={cn(
-          "w-full text-left rounded-lg border transition-all duration-150 group",
+          "w-full text-left rounded-lg border transition-all duration-300 ease-out group",
           available
             ? "cursor-pointer bg-card hover:shadow-sm hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
             : "cursor-not-allowed opacity-50 bg-muted/30",
@@ -108,7 +215,7 @@ export function UnitRow({ unit, progress = 0, onClick, viewMode = "default" }: U
       onClick={onClick}
       disabled={!available}
       className={cn(
-        "w-full text-left rounded-xl border transition-all duration-200 group",
+        "w-full text-left rounded-xl border transition-all duration-300 ease-out group",
         available
           ? "cursor-pointer bg-card hover:shadow-md hover:-translate-y-0.5 hover:border-primary/30 focus:outline-none focus:ring-2 focus:ring-primary/30"
           : "cursor-not-allowed opacity-50 bg-muted/30",
