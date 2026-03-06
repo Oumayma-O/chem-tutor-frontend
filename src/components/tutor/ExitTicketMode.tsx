@@ -203,11 +203,14 @@ export function ExitTicketMode({ problem, timeLimit: propTimeLimit, onComplete, 
     const correctCount = Object.values(answers).filter(a => a.isCorrect === true).length;
     const totalSteps = steps.length;
     const finalScore = totalSteps > 0 ? (correctCount / totalSteps) * 100 : 0;
+    // Support 3–6 steps: formula (0), variable (1), calculation (middle or 2), final (last)
+    const lastIdx = totalSteps - 1;
+    const calcIdx = totalSteps >= 4 ? 2 : totalSteps === 3 ? 1 : 0;
     const conceptualBreakdown: Record<string, number> = {
-      formula_selection: answers[steps[0]?.id]?.isCorrect ? 100 : 0,
-      variable_identification: answers[steps[1]?.id]?.isCorrect ? 100 : 0,
-      calculation: answers[steps[2]?.id]?.isCorrect ? 100 : 0,
-      final_answer: answers[steps[steps.length - 1]?.id]?.isCorrect ? 100 : 0,
+      formula_selection: steps[0] && answers[steps[0].id]?.isCorrect ? 100 : 0,
+      variable_identification: steps[1] && answers[steps[1].id]?.isCorrect ? 100 : 0,
+      calculation: steps[calcIdx] && answers[steps[calcIdx].id]?.isCorrect ? 100 : 0,
+      final_answer: steps[lastIdx] && answers[steps[lastIdx].id]?.isCorrect ? 100 : 0,
     };
     const timeUsed = timeLimit - timeRemaining;
     const timeEfficiency = Math.max(0, 100 - (timeUsed / timeLimit) * 50);

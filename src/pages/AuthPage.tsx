@@ -92,8 +92,12 @@ export default function AuthPage() {
     setIsLoading(true);
     try {
       const { error } = await signIn(loginEmail, loginPassword);
-      if (error) setError(error.message);
-      else toast.success("Welcome back!");
+      if (error) {
+        const msg = error.message.toLowerCase().includes("failed to fetch")
+          ? "Can't reach the server. Check your connection and that the backend is running (see .env VITE_API_URL)."
+          : error.message;
+        setError(msg);
+      } else toast.success("Welcome back!");
     } catch {
       setError("An unexpected error occurred");
     } finally {
@@ -150,8 +154,12 @@ export default function AuthPage() {
         signupClassName,
         finalInterests
       );
-      if (error) setError(error.message);
-      else toast.success("Account created! You're all set.");
+      if (error) {
+        const msg = error.message.toLowerCase().includes("failed to fetch")
+          ? "Can't reach the server. Check your connection and that the backend is running (see .env VITE_API_URL)."
+          : error.message;
+        setError(msg);
+      } else toast.success("Account created! You're all set.");
     } catch {
       setError("An unexpected error occurred");
     } finally {

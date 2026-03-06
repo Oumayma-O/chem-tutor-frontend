@@ -133,6 +133,8 @@ export function useProblemNavigation({
   // Tracks ALL Level 1 examples the user has already seen so they are properly excluded
   // when requesting a new one. Lives as a ref to avoid mixing with Level 2/3 completedProblemIds.
   const seenLevel1IdsRef = useRef<string[]>([]);
+  // Level 1: cache of problems in order so Prev/Next show the correct example (avoids backend returning wrong/duplicate).
+  const level1ProblemsRef = useRef<Problem[]>([]);
 
   // Snapshot of nav-owned state — always current (updated before effects fire).
   const stateSnapshot = useRef({
@@ -202,6 +204,7 @@ export function useProblemNavigation({
         setCurrentProblem(p);
         setPagination(defaultPaginationForLevel(level as Level));
         setCurrentDifficulty(difficulty);
+        if (level === 1 && level1ProblemsRef.current.length === 0) level1ProblemsRef.current[0] = p;
         setProblemLoading(false);
         if (userId && p) {
           apiStartAttempt({
@@ -230,6 +233,9 @@ export function useProblemNavigation({
         setCurrentProblem(problem);
         setPagination(pag ?? defaultPaginationForLevel(level as Level));
         setCurrentDifficulty(difficulty);
+        if (level === 1 && level1ProblemsRef.current.length === 0) {
+          level1ProblemsRef.current[0] = problem;
+        }
         if (userId && problem) {
           apiStartAttempt({
             user_id: userId,
@@ -249,8 +255,11 @@ export function useProblemNavigation({
         }
         return problem;
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "Failed to load problem. Check your connection.";
+        const raw = err instanceof Error ? err.message : "Failed to load problem. Check your connection.";
+        const is502 = String(raw).toLowerCase().includes("bad gateway") || String(raw).includes("502");
+        const message = is502
+          ? "Server error (502): problem generator failed. Check backend logs and that the LLM/API is configured."
+          : raw;
         toast.error(message);
         console.error("loadNewProblem error:", err);
         onAttemptStart(null);
@@ -267,6 +276,7 @@ export function useProblemNavigation({
   useEffect(() => {
     hasInitializedRef.current = false;
     seenLevel1IdsRef.current = [];
+    level1ProblemsRef.current = [];
   }, [unitId, lessonName]);
 
   // ── Init: restore from localStorage or load fresh ────────────────────────
@@ -404,9 +414,30 @@ export function useProblemNavigation({
   const handleNavigate = useCallback(
     async (direction: "prev" | "next") => {
       if (!userId) return;
-      const { currentLevel: lvl, currentDifficulty: diff, completedProblemIds: cpi } =
+      const { currentLevel: lvl, currentDifficulty: diff, completedProblemIds: cpi, pagination: pag } =
         stateSnapshot.current;
       saveCurrentStateToCache();
+      // Level 1: use local cache so each of the 3 examples shows the correct problem (not backend duplicate).
+      if (lvl === 1 && pag) {
+        const curIdx = pag.current_index;
+        const targetIdx = direction === "next" ? curIdx + 1 : curIdx - 1;
+        const cached = level1ProblemsRef.current[targetIdx];
+        if (cached != null && targetIdx >= 0 && targetIdx < level1ProblemsRef.current.length) {
+          setIsNavigating(true);
+          setCurrentProblem(cached);
+          restorePerProblemState(cached.id);
+          setPagination({
+            ...pag,
+            current_index: targetIdx,
+            has_prev: targetIdx > 0,
+            has_next: targetIdx < pag.total - 1,
+          });
+          stepSettersRef.current.setHintLoading(new Set());
+          stepSettersRef.current.resetTracking();
+          setIsNavigating(false);
+          return;
+        }
+      }
       setIsNavigating(true);
       try {
         const data = await apiNavigateProblem({
@@ -419,6 +450,11 @@ export function useProblemNavigation({
         });
         const { problem, pagination: pag } = parseProblemOutput(data);
         saveCurrentStateToCache();
+        if (lvl === 1 && problem && pag) {
+          const idx = pag.current_index;
+          if (level1ProblemsRef.current.length <= idx) level1ProblemsRef.current.length = idx + 1;
+          level1ProblemsRef.current[idx] = problem;
+        }
         setCurrentProblem(problem);
         stepSettersRef.current.setHintLoading(new Set());
         restorePerProblemState(problem.id);
@@ -475,10 +511,6 @@ export function useProblemNavigation({
       // Exclude ALL previously seen Level 1 examples (not just the current one)
       const excludeIds = [...new Set([...seenLevel1IdsRef.current])];
 
-      // #region agent log
-      fetch('http://127.0.0.1:7686/ingest/508ce7ac-cfc4-4f61-b695-8439511ca390',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f6d775'},body:JSON.stringify({sessionId:'f6d775',location:'useProblemNavigation:handleSeeAnother',message:'see_another_level1',data:{excludeIds,seenLevel1Ids:seenLevel1IdsRef.current,currentProblemId:cur?.id},hypothesisId:'H1-H2',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-
       saveCurrentStateToCache();
       stepSettersRef.current.setAnswers({});
       stepSettersRef.current.setHints({});
@@ -493,7 +525,9 @@ export function useProblemNavigation({
       }
 
       const n = seenLevel1IdsRef.current.length;
-      if (n > 0) {
+      if (n > 0 && newProblem) {
+        if (level1ProblemsRef.current.length < n) level1ProblemsRef.current.length = n;
+        level1ProblemsRef.current[n - 1] = newProblem;
         setPagination({
           current_index: n - 1,
           total: n,
@@ -503,10 +537,6 @@ export function useProblemNavigation({
           at_limit: n >= 3,
         });
       }
-
-      // #region agent log
-      fetch('http://127.0.0.1:7686/ingest/508ce7ac-cfc4-4f61-b695-8439511ca390',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f6d775'},body:JSON.stringify({sessionId:'f6d775',location:'useProblemNavigation:handleSeeAnother',message:'see_another_level1_done',data:{seenLevel1After:seenLevel1IdsRef.current},hypothesisId:'H2',timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       return;
     }
 

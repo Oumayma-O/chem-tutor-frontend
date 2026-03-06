@@ -68,17 +68,18 @@ export interface LevelConfig {
   givenStepsCount: number;
 }
 
+/** Level config. givenStepsCount: Level 1 = all steps (up to 6), Level 2 = 2 given, Level 3 = 0. */
 export const LEVEL_CONFIGS: LevelConfig[] = [
   {
     level: 1,
     title: "Fully Worked Example",
-    description: "Observe a complete, step-by-step solution to learn the approach.",
-    givenStepsCount: 5,
+    description: "Observe the complete, step-by-step solution. Problems may have 3–6 steps depending on topic.",
+    givenStepsCount: 6,
   },
   {
     level: 2,
     title: "Faded Example",
-    description: "Complete the missing final steps. Early steps are shown as scaffolding.",
+    description: "Complete the missing steps. The first two steps are shown as scaffolding.",
     givenStepsCount: 2,
   },
   {

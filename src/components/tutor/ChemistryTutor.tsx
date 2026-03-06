@@ -626,8 +626,9 @@ export function ChemistryTutor({
             {nav.problemLoading || nav.isNavigating ? (
               <ProblemLoadingState />
             ) : !problem ? (
-              <div className="text-center py-12 text-muted-foreground">
+              <div className="text-center py-12 text-muted-foreground space-y-1">
                 <p>Failed to load problem. Please refresh the page.</p>
+                <p className="text-xs">If this persists, the backend may be returning 502 — check server logs.</p>
               </div>
             ) : (
               <>

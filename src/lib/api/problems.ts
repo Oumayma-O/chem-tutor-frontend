@@ -22,6 +22,7 @@ export interface ProblemPagination {
   at_limit: boolean;
 }
 
+/** Problem from backend. steps length is 3–6 depending on unit strategy and difficulty. */
 export interface ProblemOutput {
   id: string;
   title: string;
