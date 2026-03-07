@@ -203,7 +203,7 @@ export function useProblemNavigation({
         prefetchedLevel.current = 0;
         setCurrentProblem(p);
         setPagination(defaultPaginationForLevel(level as Level));
-        setCurrentDifficulty(difficulty);
+        setCurrentDifficulty(p.difficulty as "easy" | "medium" | "hard");
         if (level === 1 && level1ProblemsRef.current.length === 0) level1ProblemsRef.current[0] = p;
         setProblemLoading(false);
         if (userId && p) {
@@ -220,9 +220,7 @@ export function useProblemNavigation({
         } else {
           onAttemptStart(null);
         }
-        if (level >= 2) {
-          triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
-        }
+        triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
         return p;
       }
       prefetchedProblem.current = null;
@@ -232,7 +230,9 @@ export function useProblemNavigation({
         const { problem, pagination: pag } = await generateProblem(difficulty, excludeIds, level);
         setCurrentProblem(problem);
         setPagination(pag ?? defaultPaginationForLevel(level as Level));
-        setCurrentDifficulty(difficulty);
+        // Use the difficulty the backend actually assigned (mastery-derived), not the request value.
+        // This keeps currentDifficulty in sync with the playlist key used on the backend.
+        setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
         if (level === 1 && level1ProblemsRef.current.length === 0) {
           level1ProblemsRef.current[0] = problem;
         }
@@ -250,9 +250,7 @@ export function useProblemNavigation({
         } else {
           onAttemptStart(null);
         }
-        if (level >= 2) {
-          triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
-        }
+        triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
         return problem;
       } catch (err) {
         const raw = err instanceof Error ? err.message : "Failed to load problem. Check your connection.";
@@ -279,7 +277,9 @@ export function useProblemNavigation({
     level1ProblemsRef.current = [];
   }, [unitId, lessonName]);
 
-  // ── Init: restore from localStorage or load fresh ────────────────────────
+  // ── Init: restore from localStorage or load fresh ─────────────────────────
+  // Cross-session / cross-device restore should use backend playlist (e.g. resume endpoint
+  // returning current level + current problem from playlist) + minimal answer storage, not a full state blob.
 
   useEffect(() => {
     if (hasInitializedRef.current) return;
@@ -464,6 +464,9 @@ export function useProblemNavigation({
           level1ProblemsRef.current[idx] = problem;
         }
         setCurrentProblem(problem);
+        // Keep currentDifficulty in sync with the navigated problem's actual difficulty
+        // so subsequent navigate/generate calls use the correct playlist key.
+        setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
         stepSettersRef.current.setHintLoading(new Set());
         restorePerProblemState(problem.id);
         setPagination(pag ?? defaultPaginationForLevel(lvl));
@@ -608,21 +611,23 @@ export function useProblemNavigation({
     onMarkInProgress?.();
   }, [unitId, lessonIndex, onMarkInProgress]);
 
-  // Fetch topic-specific reference example for Level 2 panel
+  // Fetch topic-specific reference example once per lesson (fallback when referenceCard absent)
+  const referenceExampleFetchedRef = useRef(false);
   useEffect(() => {
-    if (currentLevel !== 2) return;
+    if (referenceExampleFetchedRef.current) return;
+    referenceExampleFetchedRef.current = true;
     apiGetReferenceExample(unitId, lessonIndex).then((problem) => {
       if (!problem) return;
       const steps: ReferenceStep[] = problem.steps
-        .filter((s) => s.type === "given" && s.correct_answer)
-        .map((s) => ({
-          stepNumber: s.step_number,
-          title: s.label + ":",
-          content: s.correct_answer || "",
+        .filter((s: Record<string, unknown>) => s.type === "given" && s.correct_answer)
+        .map((s: Record<string, unknown>) => ({
+          stepNumber: s.step_number as number,
+          title: (s.label as string) + ":",
+          content: (s.correct_answer as string) || "",
         }));
       if (steps.length > 0) setDynamicReferenceSteps(steps);
     });
-  }, [currentLevel, unitId, lessonIndex]);
+  }, [unitId, lessonIndex]);
 
   // ── Return ────────────────────────────────────────────────────────────────
 
