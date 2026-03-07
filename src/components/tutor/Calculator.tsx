@@ -6,10 +6,23 @@ import { cn } from "@/lib/utils";
 
 interface CalculatorProps {
   enabled: boolean;
+  /** When true, no floating button; open/close controlled by parent (e.g. from ToolsWidget). */
+  embedded?: boolean;
+  /** Controlled open state when embedded. */
+  open?: boolean;
+  /** Called when embedded panel should close. */
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function Calculator({ enabled }: CalculatorProps) {
-  const [open, setOpen] = useState(false);
+export function Calculator({
+  enabled,
+  embedded = false,
+  open: controlledOpen,
+  onOpenChange,
+}: CalculatorProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = embedded ? (controlledOpen ?? false) : internalOpen;
+  const setOpen = embedded ? (onOpenChange ?? (() => {})) : setInternalOpen;
   const [display, setDisplay] = useState("0");
   const [hasResult, setHasResult] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -111,17 +124,19 @@ export function Calculator({ enabled }: CalculatorProps) {
 
   return (
     <>
-      {/* Floating toggle */}
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={cn(
-          "fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all",
-          "bg-primary text-primary-foreground hover:bg-primary/90",
-        )}
-        aria-label="Toggle calculator"
-      >
-        {open ? <X className="w-5 h-5" /> : <CalcIcon className="w-5 h-5" />}
-      </button>
+      {/* Floating toggle — only when not embedded */}
+      {!embedded && (
+        <button
+          onClick={() => setOpen(!open)}
+          className={cn(
+            "fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all",
+            "bg-primary text-primary-foreground hover:bg-primary/90",
+          )}
+          aria-label="Toggle calculator"
+        >
+          {open ? <X className="w-5 h-5" /> : <CalcIcon className="w-5 h-5" />}
+        </button>
+      )}
 
       {/* Calculator popup */}
       {open && (
@@ -134,8 +149,19 @@ export function Calculator({ enabled }: CalculatorProps) {
           {/* Display */}
           <div className="bg-secondary p-3 text-right">
             <div className="flex items-center justify-between mb-0.5">
-              <button
-                onClick={() => setScientific((s) => !s)}
+              <div className="flex items-center gap-2">
+                {embedded && (
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    className="p-1 rounded hover:bg-muted"
+                    aria-label="Close calculator"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <button
+                  onClick={() => setScientific((s) => !s)}
                 className={cn(
                   "flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded transition-colors",
                   scientific
@@ -147,6 +173,7 @@ export function Calculator({ enabled }: CalculatorProps) {
                 <FlaskConical className="w-3 h-3" />
                 SCI
               </button>
+              </div>
               <span className="text-[10px] text-muted-foreground">
                 {hasResult ? "Result" : ""}
               </span>

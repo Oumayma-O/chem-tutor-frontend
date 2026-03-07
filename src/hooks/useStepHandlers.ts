@@ -79,7 +79,7 @@ export function useStepHandlers({
     return currentProblem.steps.filter((s) => {
       if (currentLevel === 2) return s.type === "interactive";
       if (currentLevel === 3) {
-        return s.type !== "given" || !!s.equationParts || !!s.knownVariables;
+        return s.type !== "given" || !!s.equationParts || !!s.labeledValues;
       }
       return s.type !== "given";
     });
@@ -145,9 +145,12 @@ export function useStepHandlers({
 
       let isCorrect = false;
       try {
+        // Send the step being validated (step_id, step_number, correct_answer) so backend uses this step's key
         const data = await apiValidateStep({
           student_answer: studentText,
           correct_answer: step.correctAnswer,
+          step_id: step.id,
+          step_number: step.stepNumber,
           step_label: step.label,
           step_type: step.type,
           problem_context: currentProblem.description,
@@ -292,6 +295,8 @@ export function useStepHandlers({
         const result = await apiValidateStep({
           student_answer: mathExpr,
           correct_answer: step.correctAnswer || "",
+          step_id: step.id,
+          step_number: step.stepNumber,
           step_label: step.label,
           step_type: "drag_drop",
           problem_context: currentProblem?.description || "",

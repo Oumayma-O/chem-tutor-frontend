@@ -32,7 +32,8 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
     const content = (r["content"] as string | null | undefined) ?? undefined;
     const placeholder = (r["placeholder"] as string | null | undefined) ?? undefined;
     const equationParts = (r["equation_parts"] ?? r["equationParts"]) as string[] | null | undefined;
-    const knownVariables = (r["known_variables"] ?? r["knownVariables"]) as { variable: string; value: string; unit: string }[] | null | undefined;
+    const labeledValues = (r["labeled_values"] ?? r["labeledValues"]) as { variable: string; value: string; unit: string }[] | null | undefined;
+    const comparisonParts = (r["comparison_parts"] ?? r["comparisonParts"]) as string[] | null | undefined;
     const correctAnswer = (r["correct_answer"] ?? r["correctAnswer"]) as string | null | undefined;
     const hint = (r["hint"] as string | null | undefined) ?? undefined;
 
@@ -47,11 +48,8 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
       equationParts: equationParts ?? undefined,
       // correctEquation is the correct answer for drag_drop steps
       correctEquation: type === "drag_drop" ? (correctAnswer ?? undefined) : undefined,
-      knownVariables: knownVariables?.map((v) => ({
-        name: v.variable,
-        value: v.value,
-        unit: v.unit,
-      })),
+      labeledValues: labeledValues ?? undefined,
+      comparisonParts: comparisonParts ?? undefined,
       correctAnswer: correctAnswer ?? undefined,
       hint,
     };

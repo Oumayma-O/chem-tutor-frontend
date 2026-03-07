@@ -22,6 +22,7 @@ import { GivenStep } from "./GivenStep";
 import { InteractiveStep } from "./InteractiveStep";
 import { EquationBuilder } from "./EquationBuilder";
 import { KnownsIdentifier } from "./KnownsIdentifier";
+import { ComparisonStep } from "./ComparisonStep";
 import { ReferencePanel } from "./ReferencePanel";
 import { MasteryBreakdown } from "./MasteryBreakdown";
 import { ProgressionModal } from "./ProgressionModal";
@@ -30,6 +31,7 @@ import { ExitTicketMode } from "./ExitTicketMode";
 import { TimedModeLaunchScreen } from "./TimedModeLaunchScreen";
 import { TimedModeTransitionScreen } from "./TimedModeTransitionScreen";
 import { Calculator } from "./Calculator";
+import { ToolsWidget } from "./ToolsWidget";
 import { useAdaptiveProgression } from "@/hooks/useAdaptiveProgression";
 import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
 import { Button } from "@/components/ui/button";
@@ -82,6 +84,8 @@ interface ChemistryTutorProps {
   topicCompleted?: boolean;
   interests?: string[];
   gradeLevel?: string | null;
+  /** Tool keys for this lesson, e.g. ['periodic_table']. From API lesson.required_tools. */
+  requiredTools?: string[];
 }
 
 /**
@@ -103,6 +107,7 @@ export function ChemistryTutor({
   topicCompleted = false,
   interests = [],
   gradeLevel = null,
+  requiredTools = [],
 }: ChemistryTutorProps) {
   const currentTopicName = lessonName || unitTitle;
 
@@ -757,15 +762,37 @@ export function ChemistryTutor({
                         );
                       }
 
-                      // Level 3 structured knowns step: variable_id
-                      if (nav.currentLevel === 3 && step.type === "variable_id" && step.knownVariables) {
+                      // Multi-value input step: variable_id (any level)
+                      if (step.type === "variable_id" && step.labeledValues) {
                         return (
                           <KnownsIdentifier
                             key={step.id}
                             stepNumber={step.stepNumber}
                             label={step.label}
-                            instruction="Identify the known variables with their values and units"
-                            variables={step.knownVariables}
+                            instruction={step.instruction}
+                            variables={step.labeledValues}
+                            onComplete={(correct) =>
+                              steps.handleStructuredStepComplete(step.id, correct)
+                            }
+                            isComplete={!!steps.structuredStepComplete[step.id]}
+                            showHint={!!steps.hints[step.id]}
+                            hintText={steps.hints[step.id]}
+                            hintLoading={steps.hintLoading.has(step.id)}
+                            onRequestHint={() => steps.handleRequestHint(step.id)}
+                          />
+                        );
+                      }
+
+                      // Comparison step: pick <, >, or =
+                      if (step.type === "comparison" && step.comparisonParts?.length === 2) {
+                        return (
+                          <ComparisonStep
+                            key={step.id}
+                            stepNumber={step.stepNumber}
+                            label={step.label}
+                            instruction={step.instruction}
+                            comparisonParts={step.comparisonParts as [string, string]}
+                            correctAnswer={step.correctAnswer as "<" | ">" | "="}
                             onComplete={(correct) =>
                               steps.handleStructuredStepComplete(step.id, correct)
                             }
@@ -958,6 +985,9 @@ export function ChemistryTutor({
           </aside>
         </div>
       </main>
+
+      {/* Tools: calculator always; periodic table when lesson.required_tools includes it */}
+      <ToolsWidget requiredTools={requiredTools} />
 
       {/* Calculator */}
       <Calculator enabled={calculatorEnabled} />

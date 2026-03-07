@@ -1,7 +1,7 @@
-export type StepType = "given" | "interactive" | "drag_drop" | "variable_id";
+export type StepType = "given" | "interactive" | "drag_drop" | "variable_id" | "comparison";
 
-export interface KnownVariable {
-  name: string;
+export interface LabeledValue {
+  variable: string;
   value: string;
   unit: string;
 }
@@ -17,7 +17,8 @@ export interface SolutionStep {
   hint?: string;
   equationParts?: string[];
   correctEquation?: string;
-  knownVariables?: KnownVariable[];
+  labeledValues?: LabeledValue[];
+  comparisonParts?: string[];
 }
 
 export interface Problem {

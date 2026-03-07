@@ -11,7 +11,7 @@ export const problemPools = {
       difficulty: "easy" as const,
       steps: [
         { id: "e1-1", stepNumber: 1, type: "given" as const, label: "Equation", instruction: "Select the correct rate law:", content: "[A]ₜ = [A]₀ − k·t", equationParts: ["[A]ₜ", "=", "[A]₀", "−", "k", "·", "t"], correctEquation: "[A]ₜ = [A]₀ − k · t" },
-        { id: "e1-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.50 M\nk = 0.010 M/s\nt = 10 s", knownVariables: [{ name: "[A]₀", value: "0.50", unit: "M" }, { name: "k", value: "0.010", unit: "M/s" }, { name: "t", value: "10", unit: "s" }] },
+        { id: "e1-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.50 M\nk = 0.010 M/s\nt = 10 s", labeledValues: [{ variable: "[A]₀", value: "0.50", unit: "M" }, { variable: "k", value: "0.010", unit: "M/s" }, { variable: "t", value: "10", unit: "s" }] },
         { id: "e1-3", stepNumber: 3, type: "interactive" as const, label: "Substitute", instruction: "Multiply k × t:", correctAnswer: "0.10", hint: "Multiply the rate constant by time: 0.010 × 10 = ?" },
         { id: "e1-4", stepNumber: 4, type: "interactive" as const, label: "Calculate", instruction: "Subtract from [A]₀:", correctAnswer: "0.40", hint: "Subtract your previous result from the initial concentration: 0.50 − 0.10 = ?" },
         { id: "e1-5", stepNumber: 5, type: "interactive" as const, label: "Answer", instruction: "Final concentration with units:", correctAnswer: "0.40 M", hint: "Concentration is measured in molarity (M). Write your number followed by M." },
@@ -25,7 +25,7 @@ export const problemPools = {
       difficulty: "easy" as const,
       steps: [
         { id: "e2-1", stepNumber: 1, type: "given" as const, label: "Equation", instruction: "Select the correct rate law:", content: "[A]ₜ = [A]₀ − k·t", equationParts: ["[A]ₜ", "=", "[A]₀", "−", "k", "·", "t"], correctEquation: "[A]ₜ = [A]₀ − k · t" },
-        { id: "e2-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 1.00 M\nk = 0.020 M/s\nt = 5 s", knownVariables: [{ name: "[A]₀", value: "1.00", unit: "M" }, { name: "k", value: "0.020", unit: "M/s" }, { name: "t", value: "5", unit: "s" }] },
+        { id: "e2-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 1.00 M\nk = 0.020 M/s\nt = 5 s", labeledValues: [{ variable: "[A]₀", value: "1.00", unit: "M" }, { variable: "k", value: "0.020", unit: "M/s" }, { variable: "t", value: "5", unit: "s" }] },
         { id: "e2-3", stepNumber: 3, type: "interactive" as const, label: "Substitute", instruction: "Multiply k × t:", correctAnswer: "0.10", hint: "Multiply: 0.020 × 5 = ? Check your decimal placement." },
         { id: "e2-4", stepNumber: 4, type: "interactive" as const, label: "Calculate", instruction: "Subtract from [A]₀:", correctAnswer: "0.90", hint: "Apply the rate law: [A]₀ − k·t. What's 1.00 − 0.10?" },
         { id: "e2-5", stepNumber: 5, type: "interactive" as const, label: "Answer", instruction: "Final concentration with units:", correctAnswer: "0.90 M", hint: "Include the molarity unit (M) with your numerical answer." },
@@ -41,7 +41,7 @@ export const problemPools = {
       difficulty: "medium" as const,
       steps: [
         { id: "m1-1", stepNumber: 1, type: "given" as const, label: "Equation", instruction: "Select the correct rate law:", content: "[A]ₜ = [A]₀ − k·t", equationParts: ["[A]ₜ", "=", "[A]₀", "−", "k", "·", "t"], correctEquation: "[A]ₜ = [A]₀ − k · t" },
-        { id: "m1-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.60 M\nk = 0.015 M/s\nt = 10 s", knownVariables: [{ name: "[A]₀", value: "0.60", unit: "M" }, { name: "k", value: "0.015", unit: "M/s" }, { name: "t", value: "10", unit: "s" }] },
+        { id: "m1-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.60 M\nk = 0.015 M/s\nt = 10 s", labeledValues: [{ variable: "[A]₀", value: "0.60", unit: "M" }, { variable: "k", value: "0.015", unit: "M/s" }, { variable: "t", value: "10", unit: "s" }] },
         { id: "m1-3", stepNumber: 3, type: "interactive" as const, label: "Substitute", instruction: "Multiply k × t:", correctAnswer: "0.15", hint: "Multiply 0.015 × 10. Count decimal places carefully." },
         { id: "m1-4", stepNumber: 4, type: "interactive" as const, label: "Calculate", instruction: "Subtract from [A]₀:", correctAnswer: "0.45", hint: "How much concentration remains after subtracting the amount consumed?" },
         { id: "m1-5", stepNumber: 5, type: "interactive" as const, label: "Answer", instruction: "Final concentration with units:", correctAnswer: "0.45 M", hint: "Express your final answer with the molarity unit (M)." },
@@ -55,7 +55,7 @@ export const problemPools = {
       difficulty: "medium" as const,
       steps: [
         { id: "m2-1", stepNumber: 1, type: "given" as const, label: "Equation", instruction: "Select the correct rate law:", content: "[A]ₜ = [A]₀ − k·t", equationParts: ["[A]ₜ", "=", "[A]₀", "−", "k", "·", "t"], correctEquation: "[A]ₜ = [A]₀ − k · t" },
-        { id: "m2-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.75 M\nk = 0.025 M/s\nt = 8 s", knownVariables: [{ name: "[A]₀", value: "0.75", unit: "M" }, { name: "k", value: "0.025", unit: "M/s" }, { name: "t", value: "8", unit: "s" }] },
+        { id: "m2-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.75 M\nk = 0.025 M/s\nt = 8 s", labeledValues: [{ variable: "[A]₀", value: "0.75", unit: "M" }, { variable: "k", value: "0.025", unit: "M/s" }, { variable: "t", value: "8", unit: "s" }] },
         { id: "m2-3", stepNumber: 3, type: "interactive" as const, label: "Substitute", instruction: "Multiply k × t:", correctAnswer: "0.20", hint: "Think of 0.025 × 8 as (25 × 8) ÷ 1000 = ?" },
         { id: "m2-4", stepNumber: 4, type: "interactive" as const, label: "Calculate", instruction: "Subtract from [A]₀:", correctAnswer: "0.55", hint: "Subtract the consumed amount from the initial concentration." },
         { id: "m2-5", stepNumber: 5, type: "interactive" as const, label: "Answer", instruction: "Final concentration with units:", correctAnswer: "0.55 M", hint: "Include the molarity unit (M) with your result." },
@@ -71,7 +71,7 @@ export const problemPools = {
       difficulty: "hard" as const,
       steps: [
         { id: "h1-1", stepNumber: 1, type: "given" as const, label: "Equation", instruction: "Select the correct rate law:", content: "[A]ₜ = [A]₀ − k·t", equationParts: ["[A]ₜ", "=", "[A]₀", "−", "k", "·", "t"], correctEquation: "[A]ₜ = [A]₀ − k · t" },
-        { id: "h1-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.85 M\nk = 0.0125 M/s\nt = 24 s", knownVariables: [{ name: "[A]₀", value: "0.85", unit: "M" }, { name: "k", value: "0.0125", unit: "M/s" }, { name: "t", value: "24", unit: "s" }] },
+        { id: "h1-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 0.85 M\nk = 0.0125 M/s\nt = 24 s", labeledValues: [{ variable: "[A]₀", value: "0.85", unit: "M" }, { variable: "k", value: "0.0125", unit: "M/s" }, { variable: "t", value: "24", unit: "s" }] },
         { id: "h1-3", stepNumber: 3, type: "interactive" as const, label: "Substitute", instruction: "Multiply k × t:", correctAnswer: "0.30", hint: "Break it down: 0.0125 × 24 = 0.0125 × 20 + 0.0125 × 4 = 0.25 + 0.05 = ?" },
         { id: "h1-4", stepNumber: 4, type: "interactive" as const, label: "Calculate", instruction: "Subtract from [A]₀:", correctAnswer: "0.55", hint: "Initial minus consumed: 0.85 − 0.30 = ?" },
         { id: "h1-5", stepNumber: 5, type: "interactive" as const, label: "Answer", instruction: "Final concentration with units:", correctAnswer: "0.55 M", hint: "Express concentration in molarity (M)." },
@@ -85,7 +85,7 @@ export const problemPools = {
       difficulty: "hard" as const,
       steps: [
         { id: "h2-1", stepNumber: 1, type: "given" as const, label: "Equation", instruction: "Select the correct rate law:", content: "[A]ₜ = [A]₀ − k·t", equationParts: ["[A]ₜ", "=", "[A]₀", "−", "k", "·", "t"], correctEquation: "[A]ₜ = [A]₀ − k · t" },
-        { id: "h2-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 1.25 M\nk = 0.0175 M/s\nt = 30 s", knownVariables: [{ name: "[A]₀", value: "1.25", unit: "M" }, { name: "k", value: "0.0175", unit: "M/s" }, { name: "t", value: "30", unit: "s" }] },
+        { id: "h2-2", stepNumber: 2, type: "given" as const, label: "Knowns", instruction: "Identify known variables:", content: "[A]₀ = 1.25 M\nk = 0.0175 M/s\nt = 30 s", labeledValues: [{ variable: "[A]₀", value: "1.25", unit: "M" }, { variable: "k", value: "0.0175", unit: "M/s" }, { variable: "t", value: "30", unit: "s" }] },
         { id: "h2-3", stepNumber: 3, type: "interactive" as const, label: "Substitute", instruction: "Multiply k × t:", correctAnswer: "0.525", hint: "175 × 30 = 5250, then move the decimal: 0.0175 × 30 = ?" },
         { id: "h2-4", stepNumber: 4, type: "interactive" as const, label: "Calculate", instruction: "Subtract from [A]₀:", correctAnswer: "0.725", hint: "Line up decimals: 1.250 − 0.525 = ?" },
         { id: "h2-5", stepNumber: 5, type: "interactive" as const, label: "Answer", instruction: "Final concentration with units:", correctAnswer: "0.725 M", hint: "Report with molarity unit (M)." },

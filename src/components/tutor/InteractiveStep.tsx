@@ -46,14 +46,12 @@ export function InteractiveStep({
         !isCorrect && !isIncorrect && "bg-step-interactive border-step-interactive-border"
       )}
     >
-      <div className="flex items-start gap-3 mb-3">
+      <div className="flex items-center gap-2 flex-wrap mb-3">
         <StepBadge stepNumber={step.stepNumber} type="interactive" isComplete={isCorrect} />
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
-            {step.label}
-          </span>
-          <span className="text-foreground font-medium">{formatMathContent(step.instruction)}</span>
-        </div>
+        <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
+          {step.label}
+        </span>
+        <span className="text-foreground font-medium">{formatMathContent(step.instruction)}</span>
       </div>
 
       <div className="ml-16 space-y-3">

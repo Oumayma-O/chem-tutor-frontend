@@ -36,6 +36,9 @@ export default function TutorPage() {
   }
 
   const currentLessonName = lessonTitles[currentLessonIdx] ?? "Practice";
+  const sortedLessons = unit.lessons.slice().sort((a, b) => a.lesson_index - b.lesson_index);
+  const currentLesson = sortedLessons[currentLessonIdx] ?? null;
+  const requiredTools = currentLesson?.required_tools ?? [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -98,6 +101,7 @@ export default function TutorPage() {
             topicCompleted={getStatus(currentLessonIdx) === "completed"}
             interests={profile?.interests || []}
             gradeLevel={profile?.grade_level}
+            requiredTools={requiredTools}
           />
         </main>
       </div>

@@ -1,6 +1,6 @@
 import { get, post } from "./core";
 
-export interface KnownVariable {
+export interface LabeledValue {
   variable: string;
   value: string;
   unit: string;
@@ -9,12 +9,13 @@ export interface KnownVariable {
 export interface ProblemStep {
   id: string;
   step_number: number;
-  type: "given" | "interactive" | "drag_drop" | "variable_id";
+  type: "given" | "interactive" | "drag_drop" | "variable_id" | "comparison";
   label: string;
   instruction: string;
   correct_answer?: string | null;
   equation_parts?: string[] | null;
-  known_variables?: KnownVariable[] | null;
+  labeled_values?: LabeledValue[] | null;
+  comparison_parts?: string[] | null;
   hint?: string | null;
 }
 
@@ -39,7 +40,12 @@ export interface ProblemOutput {
   steps: ProblemStep[];
 }
 
-/** Wrapper returned by /problems/generate and /problems/navigate */
+/**
+ * Wrapper returned by /problems/generate and /problems/navigate.
+ * For "prev" to work, the backend playlist must persist the ordered list of problems
+ * (or at least current_index + previous problem IDs) per user/unit/lesson/level so that
+ * navigate(direction: "prev") can return the correct previous problem, including after a new session.
+ */
 export interface ProblemDeliveryResponse {
   problem: ProblemOutput;
   current_index: number;
@@ -135,6 +141,11 @@ export async function apiGetReferenceCard(
   ).catch(() => null);
 }
 
+/**
+ * Get prev/next problem in the playlist. Backend must persist the ordered playlist
+ * (problems seen so far for this user/unit/lesson/level) so that "prev" returns the
+ * correct problem and works across sessions.
+ */
 export async function apiNavigateProblem(body: {
   user_id: string;
   unit_id: string;
@@ -149,6 +160,8 @@ export async function apiNavigateProblem(body: {
 export async function apiValidateStep(body: {
   student_answer: string;
   correct_answer: string;
+  step_id: string;
+  step_number: number;
   step_label: string;
   step_type?: string;
   problem_context?: string;

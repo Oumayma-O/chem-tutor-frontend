@@ -148,14 +148,12 @@ export function EquationBuilder({
         !isComplete && !isIncorrect && "bg-step-interactive border-step-interactive-border"
       )}
     >
-      <div className="flex items-start gap-3 mb-3">
+      <div className="flex items-center gap-2 flex-wrap mb-3">
         <StepBadge stepNumber={stepNumber} type="interactive" isComplete={isComplete} />
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
-            {label}
-          </span>
-          <span className="text-foreground font-medium">{instruction}</span>
-        </div>
+        <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
+          {label}
+        </span>
+        <span className="text-foreground font-medium">{instruction}</span>
       </div>
 
       <div className="ml-16 space-y-3">

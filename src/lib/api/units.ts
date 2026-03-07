@@ -9,6 +9,8 @@ export interface LessonOut {
   key_equations: string[];
   standards: { code: string; framework: string; description: string }[];
   is_active: boolean;
+  /** Tool keys for this lesson, e.g. ['periodic_table', 'calculator']. From backend required_tools. */
+  required_tools?: string[];
 }
 
 export interface UnitListItem {

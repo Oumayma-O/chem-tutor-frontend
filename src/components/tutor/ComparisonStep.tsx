@@ -1,21 +1,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { StepBadge } from "./StepBadge";
 import { CheckCircle, XCircle, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface LabeledValue {
-  variable: string;
-  value: string;
-  unit: string;
-}
-
-interface KnownsIdentifierProps {
+interface ComparisonStepProps {
   stepNumber: number;
   label: string;
   instruction: string;
-  variables: LabeledValue[];
+  comparisonParts: [string, string];
+  correctAnswer: "<" | ">" | "=";
   onComplete: (isCorrect: boolean) => void;
   isComplete: boolean;
   showHint: boolean;
@@ -24,62 +18,36 @@ interface KnownsIdentifierProps {
   onRequestHint: () => void;
 }
 
-export function KnownsIdentifier({
+const OPERATORS = ["<", ">", "="] as const;
+
+export function ComparisonStep({
   stepNumber,
   label,
   instruction,
-  variables,
+  comparisonParts,
+  correctAnswer,
   onComplete,
   isComplete,
   showHint,
   hintText,
   hintLoading,
   onRequestHint,
-}: KnownsIdentifierProps) {
-  const [values, setValues] = useState<Record<string, { value: string; unit: string }>>(
-    Object.fromEntries(variables.map((v) => [v.variable, { value: "", unit: "" }]))
-  );
+}: ComparisonStepProps) {
+  const [selected, setSelected] = useState<"<" | ">" | "=" | null>(null);
   const [hasAttempted, setHasAttempted] = useState(false);
   const [isIncorrect, setIsIncorrect] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
 
-  const handleChange = (name: string, field: "value" | "unit", val: string) => {
-    setValues((prev) => ({
-      ...prev,
-      [name]: { ...prev[name], [field]: val },
-    }));
+  const handleSelect = (op: "<" | ">" | "=") => {
+    if (isComplete) return;
+    setSelected(op);
     setIsIncorrect(false);
   };
 
-  const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
-
   const handleCheck = () => {
+    if (!selected) return;
     setHasAttempted(true);
-    const errors: Record<string, boolean> = {};
-    let allCorrect = true;
-
-    variables.forEach((v) => {
-      const studentVal = normalize(values[v.variable]?.value || "");
-      const studentUnit = normalize(values[v.variable]?.unit || "");
-      const correctVal = normalize(v.value);
-      const correctUnit = normalize(v.unit);
-      
-      // Check numeric equivalence for values
-      const numStudent = parseFloat(studentVal);
-      const numCorrect = parseFloat(correctVal);
-      const valMatch = !isNaN(numStudent) && !isNaN(numCorrect) 
-        ? Math.abs(numStudent - numCorrect) < 0.001 
-        : studentVal === correctVal;
-      const unitMatch = studentUnit === correctUnit;
-
-      if (!valMatch || !unitMatch) {
-        errors[v.variable] = true;
-        allCorrect = false;
-      }
-    });
-
-    setFieldErrors(errors);
-    if (allCorrect) {
+    const correct = selected === correctAnswer;
+    if (correct) {
       onComplete(true);
     } else {
       setIsIncorrect(true);
@@ -105,40 +73,40 @@ export function KnownsIdentifier({
       </div>
 
       <div className="ml-16 space-y-3">
-        {/* Variable fields */}
-        <div className="space-y-2">
-          {variables.map((v) => (
-            <div key={v.variable} className="grid grid-cols-[100px_1fr_100px] gap-2 items-center">
-              <span className="text-sm font-mono font-medium text-foreground">{v.variable} →</span>
-              <Input
-                value={values[v.variable]?.value || ""}
-                onChange={(e) => handleChange(v.variable, "value", e.target.value)}
+        {/* Comparison row */}
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-sm bg-muted px-3 py-1.5 rounded border">
+            {comparisonParts[0]}
+          </span>
+
+          <div className="flex gap-1">
+            {OPERATORS.map((op) => (
+              <button
+                key={op}
+                onClick={() => handleSelect(op)}
                 disabled={isComplete}
-                placeholder="Enter your answer"
                 className={cn(
-                  "text-sm",
-                  isComplete && "border-success bg-success/10",
-                  fieldErrors[v.variable] && "border-destructive bg-destructive/10"
+                  "w-9 h-9 rounded-md border text-sm font-bold transition-colors",
+                  selected === op && !isComplete
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "bg-background text-foreground border-border hover:bg-muted",
+                  isComplete && selected === op && "bg-success/20 border-success text-success",
+                  isComplete && "cursor-default"
                 )}
-              />
-              <Input
-                value={values[v.variable]?.unit || ""}
-                onChange={(e) => handleChange(v.variable, "unit", e.target.value)}
-                disabled={isComplete}
-                placeholder="Unit"
-                className={cn(
-                  "text-sm",
-                  isComplete && "border-success bg-success/10",
-                  fieldErrors[v.variable] && "border-destructive bg-destructive/10"
-                )}
-              />
-            </div>
-          ))}
+              >
+                {op}
+              </button>
+            ))}
+          </div>
+
+          <span className="font-mono text-sm bg-muted px-3 py-1.5 rounded border">
+            {comparisonParts[1]}
+          </span>
         </div>
 
         {/* Check button */}
         {!isComplete && (
-          <Button size="sm" onClick={handleCheck}>
+          <Button size="sm" onClick={handleCheck} disabled={!selected}>
             Check
           </Button>
         )}
@@ -155,7 +123,7 @@ export function KnownsIdentifier({
           <div className="space-y-2 fade-in">
             <div className="flex items-center gap-2 text-destructive">
               <XCircle className="w-5 h-5" />
-              <span className="font-medium">Some values are incorrect. Check the highlighted fields.</span>
+              <span className="font-medium">Not quite. Try a different operator.</span>
             </div>
             {!showHint && !hintLoading && (
               <Button variant="outline" size="sm" onClick={onRequestHint} className="text-muted-foreground">
