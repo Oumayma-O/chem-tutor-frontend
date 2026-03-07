@@ -420,7 +420,6 @@ export function ChemistryTutor({
 
     if (result.shouldAdvance && result.nextLevel === 3 && nav.currentLevel === 2) {
       setHasCompletedLevel2(true);
-      persistLevel3Unlock();
     }
 
     const allFirstAttempt = interactiveStepIds.every(
@@ -514,7 +513,11 @@ export function ChemistryTutor({
     nav.setPagination(null);
     resetTracking();
     setShowProgressionModal(false);
-    delete nav.levelCacheRef.current[nav.currentLevel];
+    // When advancing 2 → 3, keep level 2 in cache so switching back shows the submitted attempt
+    const advancingToLevel3 = progressionResult.shouldAdvance && progressionResult.nextLevel === 3 && nav.currentLevel === 2;
+    if (!advancingToLevel3) {
+      delete nav.levelCacheRef.current[nav.currentLevel];
+    }
 
     const backendDiff = recommendedDifficulty;
     setRecommendedDifficulty(null);
@@ -639,12 +642,12 @@ export function ChemistryTutor({
 
       <main className="px-4 py-6 max-w-6xl mx-auto">
         {/* ── Controls bar ──────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+        <div className="mb-6 space-y-2">
           <div className="flex items-center gap-2">
             <FlaskConical className="w-4 h-4 text-primary" />
             <h2 className="text-xl font-bold text-foreground">{levelConfig.title}</h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center flex-wrap gap-2">
             <LevelSelector
               currentLevel={nav.currentLevel}
               onLevelChange={nav.handleLevelChange}
@@ -878,8 +881,8 @@ export function ChemistryTutor({
               level3Unlocked={hasCompletedLevel2}
             />
 
-            {/* Reference panel: Level 2 only (hidden in Level 3) */}
-            {nav.currentLevel === 2 && (
+            {/* Reference panel: Level 1 and 2 (hidden in Level 3) */}
+            {nav.currentLevel !== 3 && (
               <ReferencePanel
                 steps={
                   referenceCard
