@@ -12,7 +12,6 @@ export interface SolutionStep {
   type: StepType;
   label: string;
   instruction: string;
-  content?: string;
   placeholder?: string;
   correctAnswer?: string;
   hint?: string;

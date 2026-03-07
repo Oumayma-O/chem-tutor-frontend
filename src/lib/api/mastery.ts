@@ -25,6 +25,12 @@ export interface ProgressionDecision {
   feedback_message: string;
 }
 
+export interface SaveStepResponse {
+  mastery: MasteryState;
+  attempt_score: number;
+  attempted_steps: number;
+}
+
 export interface LessonProgressItem {
   lesson_index: number;
   status: "not-started" | "in-progress" | "completed";
@@ -55,6 +61,13 @@ export async function apiCompleteAttempt(body: {
   level: number;
 }): Promise<ProgressionDecision> {
   return post<ProgressionDecision>("/mastery/attempts/complete", body);
+}
+
+export async function apiSaveStep(body: {
+  attempt_id: string;
+  step_log: unknown[];
+}): Promise<SaveStepResponse> {
+  return post<SaveStepResponse>("/mastery/attempts/save-step", body);
 }
 
 export async function apiGetMastery(

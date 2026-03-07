@@ -7,6 +7,7 @@ import {
   apiGetMastery,
   apiUnlockLevel3,
   apiSetTopicStatus,
+  apiSaveStep,
   apiCompleteAttempt,
 } from "@/lib/api";
 import { apiGetReferenceCard, type ReferenceCardOutput } from "@/lib/api/problems";
@@ -58,6 +59,15 @@ const STEP_TYPE_TO_REASONING_PATTERN: Record<string, string> = {
   substitution: "Procedural",
   calculation: "Arithmetic",
   units_handling: "Units",
+};
+
+const REASONING_TO_ERROR_CATEGORY: Record<string, string> = {
+  Conceptual: "conceptual",
+  Procedural: "procedural",
+  Substitution: "procedural",
+  Arithmetic: "computational",
+  Units: "computational",
+  Symbolic: "representation",
 };
 
 interface ChemistryTutorProps {
@@ -146,6 +156,7 @@ export function ChemistryTutor({
     setStructuredStepComplete: (_v) => {},
     resetTracking: () => {},
   });
+  const lastSavedStepLogKeyRef = useRef<string>("");
 
   // ── Cognitive tracking ────────────────────────────────────────────────────
   const {
@@ -196,7 +207,6 @@ export function ChemistryTutor({
     updateSkillFromAttempt,
     classifyErrors,
     resetTracking,
-    setMasteryScore,
     onMarkInProgress,
   });
 
@@ -241,6 +251,7 @@ export function ChemistryTutor({
     masteryScore,
     answers: steps.answers,
     interactiveStepIds,
+    structuredStepComplete: steps.structuredStepComplete,
   });
 
   // ── Side effects ──────────────────────────────────────────────────────────
@@ -252,22 +263,16 @@ export function ChemistryTutor({
       .then((state) => {
         setHasCompletedLevel2((prev) => prev || !!state.level3_unlocked);
         const rawScore = state.mastery_score ?? 0;
-        const attempts = state.attempts_count ?? 0;
-        // Backend often defaults to 0.5 for new users — treat as 0 so new accounts start at 0%
-        const isDefaultEmpty = rawScore <= 0.5 && attempts === 0;
-        const apiScore = isDefaultEmpty ? 0 : Math.round(rawScore * 100);
-        setMasteryScore((prev) => (isDefaultEmpty ? 0 : apiScore > 0 ? apiScore : prev));
+        setMasteryScore(Math.round(rawScore * 100));
         const cs = state.category_scores;
-        // Only use category_scores when they're not the default 0.5-everywhere (new user)
-        const allDefaultHalf = cs && Object.values(cs).every((v) => typeof v === "number" && v === 0.5);
-        if (cs && !allDefaultHalf) {
+        if (cs) {
           setBackendCategoryScores({
             conceptual: cs.conceptual ?? 0.0,
             procedural: cs.procedural ?? 0.0,
             computational: cs.computational ?? 0.0,
             representation: cs.representation ?? 0.0,
           });
-        } else if (allDefaultHalf || isDefaultEmpty) {
+        } else {
           setBackendCategoryScores(null);
         }
       })
@@ -296,6 +301,80 @@ export function ChemistryTutor({
       }
     });
   }, [steps.interactiveSteps, steps.answers, startStepTimer]);
+
+  useEffect(() => {
+    lastSavedStepLogKeyRef.current = "";
+  }, [currentAttemptId, nav.currentProblem?.id]);
+
+  // Persist per-step progress and get a live mastery snapshot after each validated step.
+  useEffect(() => {
+    if (!userId || !currentAttemptId || nav.currentLevel === 1 || steps.interactiveSteps.length === 0) return;
+
+    const attempted = steps.interactiveSteps
+      .map((s) => {
+        const answerState = steps.answers[s.id];
+        const hasDecision =
+          typeof answerState?.isCorrect === "boolean" || steps.structuredStepComplete[s.id] === true;
+        if (!hasDecision) return null;
+        const isCorrect =
+          answerState?.isCorrect === true || steps.structuredStepComplete[s.id] === true;
+        const stepType = STEP_TYPE_MAP[s.stepNumber] ?? "calculation";
+        const reasoningPattern = STEP_TYPE_TO_REASONING_PATTERN[stepType] ?? "Procedural";
+        return {
+          stepId: s.id,
+          isCorrect,
+          reasoningPattern,
+          errorCategory: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
+        };
+      })
+      .filter(
+        (x): x is {
+          stepId: string;
+          isCorrect: boolean;
+          reasoningPattern: string;
+          errorCategory: string;
+        } => !!x
+      );
+
+    if (attempted.length === 0) return;
+
+    const requestStepLog = attempted.map((x) => ({
+      isCorrect: x.isCorrect,
+      reasoningPattern: x.reasoningPattern,
+      errorCategory: x.errorCategory,
+    }));
+    const payloadKey = JSON.stringify(requestStepLog);
+    if (payloadKey === lastSavedStepLogKeyRef.current) return;
+    lastSavedStepLogKeyRef.current = payloadKey;
+
+    apiSaveStep({
+      attempt_id: currentAttemptId,
+      step_log: requestStepLog,
+    })
+      .then((res) => {
+        const ms = res.mastery?.mastery_score;
+        if (typeof ms === "number") {
+          setMasteryScore(Math.round(ms * 100));
+        }
+        const cs = res.mastery?.category_scores;
+        if (cs) {
+          setBackendCategoryScores({
+            conceptual: cs.conceptual ?? 0.0,
+            procedural: cs.procedural ?? 0.0,
+            computational: cs.computational ?? 0.0,
+            representation: cs.representation ?? 0.0,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [
+    userId,
+    currentAttemptId,
+    nav.currentLevel,
+    steps.interactiveSteps,
+    steps.answers,
+    steps.structuredStepComplete,
+  ]);
 
   // Timed mode countdown
   useEffect(() => {
@@ -360,7 +439,11 @@ export function ChemistryTutor({
           steps.answers[s.id]?.isCorrect === true || steps.structuredStepComplete[s.id] === true;
         const stepType = STEP_TYPE_MAP[s.stepNumber] ?? "calculation";
         const reasoningPattern = STEP_TYPE_TO_REASONING_PATTERN[stepType] ?? "Procedural";
-        return { isCorrect, reasoningPattern };
+        return {
+          isCorrect,
+          reasoningPattern,
+          errorCategory: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
+        };
       });
       const correctCount = step_log.filter((e) => e.isCorrect).length;
       const score = correctCount / step_log.length;
@@ -378,6 +461,15 @@ export function ChemistryTutor({
             const ms = decision.mastery.mastery_score;
             setMasteryScore(typeof ms === "number" ? Math.round(ms * 100) : 0);
             if (decision.mastery.level3_unlocked) setHasCompletedLevel2(true);
+            const cs = decision.mastery.category_scores;
+            if (cs) {
+              setBackendCategoryScores({
+                conceptual: cs.conceptual ?? 0.0,
+                procedural: cs.procedural ?? 0.0,
+                computational: cs.computational ?? 0.0,
+                representation: cs.representation ?? 0.0,
+              });
+            }
           }
           if (decision.recommended_next_difficulty) {
             setRecommendedDifficulty(
@@ -550,11 +642,7 @@ export function ChemistryTutor({
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <FlaskConical className="w-4 h-4 text-primary" />
-            {nav.currentLevel === 1 ? (
-              <h2 className="text-xl font-bold text-foreground">Fully Worked Example</h2>
-            ) : (
-              <span className="text-sm font-semibold text-foreground">{levelConfig.title}</span>
-            )}
+            <h2 className="text-xl font-bold text-foreground">{levelConfig.title}</h2>
           </div>
           <div className="flex items-center gap-2">
             <LevelSelector
@@ -641,15 +729,11 @@ export function ChemistryTutor({
                     {displaySteps.map((step, index) => {
                       // Level 1: all steps shown as fully worked
                       if (nav.currentLevel === 1 || step.type === "given") {
-                        const displayStep =
-                          !step.content && step.correctAnswer
-                            ? { ...step, content: step.correctAnswer }
-                            : step;
-                        return <GivenStep key={step.id} step={displayStep} />;
+                        return <GivenStep key={step.id} step={step} />;
                       }
 
-                      // Level 3 Step 1: EquationBuilder
-                      if (nav.currentLevel === 3 && index === 0 && step.equationParts) {
+                      // Level 3 structured equation step: drag_drop
+                      if (nav.currentLevel === 3 && step.type === "drag_drop" && step.equationParts) {
                         return (
                           <EquationBuilder
                             key={step.id}
@@ -670,8 +754,8 @@ export function ChemistryTutor({
                         );
                       }
 
-                      // Level 3 Step 2: KnownsIdentifier
-                      if (nav.currentLevel === 3 && index === 1 && step.knownVariables) {
+                      // Level 3 structured knowns step: variable_id
+                      if (nav.currentLevel === 3 && step.type === "variable_id" && step.knownVariables) {
                         return (
                           <KnownsIdentifier
                             key={step.id}
@@ -784,7 +868,13 @@ export function ChemistryTutor({
               score={masteryScore}
               skillMap={skillMap}
               errors={classifiedErrors}
-              categoryScores={backendCategoryScores ?? undefined}
+              categoryScores={
+                thinkingSteps.length === 0 &&
+                Object.keys(steps.answers).length === 0 &&
+                Object.keys(steps.structuredStepComplete).length === 0
+                  ? backendCategoryScores ?? undefined
+                  : undefined
+              }
               level3Unlocked={hasCompletedLevel2}
             />
 

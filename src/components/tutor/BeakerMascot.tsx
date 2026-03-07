@@ -3,9 +3,10 @@ import happyPng from "@/assets/mascot/happy.png";
 import thinkingPng from "@/assets/mascot/thinking.png";
 import sleepingPng from "@/assets/mascot/sleeping.png";
 import relaxedPng from "@/assets/mascot/relaxed.png";
+import sadPng from "@/assets/mascot/sad.png";
 import { cn } from "@/lib/utils";
 
-export type MascotMood = "default" | "happy" | "thinking" | "sleeping" | "relaxed";
+export type MascotMood = "default" | "happy" | "thinking" | "sleeping" | "relaxed" | "sad";
 
 export type MascotPose =
   | "idle"
@@ -23,6 +24,7 @@ const MOOD_ASSETS: Record<MascotMood, string> = {
   thinking: thinkingPng,
   sleeping: sleepingPng,
   relaxed: relaxedPng,
+  sad: sadPng,
 };
 
 const POSE_TO_MOOD: Record<MascotPose, MascotMood> = {
@@ -33,7 +35,7 @@ const POSE_TO_MOOD: Record<MascotPose, MascotMood> = {
   celebrating: "happy",
   thinking: "thinking",
   pointing: "default",
-  warning: "thinking",
+  warning: "sad",
 };
 
 interface BeakerMascotProps {
@@ -57,7 +59,7 @@ export function BeakerMascot({
   return (
     <img
       src={src}
-      alt="ChemTutor mascot"
+      alt="Catalyst mascot"
       width={size}
       height={size}
       className={cn("inline-block shrink-0 select-none object-contain", className)}

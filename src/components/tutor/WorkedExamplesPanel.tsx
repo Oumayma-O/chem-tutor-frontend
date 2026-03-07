@@ -36,8 +36,8 @@ export function WorkedExamplesPanel({ examples }: WorkedExamplesPanelProps) {
                       <span className="text-xs font-medium text-foreground">{step.label}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{formatMathContent(step.instruction)}</p>
-                    {step.content && (
-                      <p className="text-xs text-foreground mt-1 equation">{formatMathContent(step.content)}</p>
+                    {step.correctAnswer && (
+                      <p className="text-xs text-foreground mt-1 equation">{formatMathContent(step.correctAnswer)}</p>
                     )}
                   </div>
                 ))}

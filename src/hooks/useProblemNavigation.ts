@@ -349,20 +349,28 @@ export function useProblemNavigation({
       currentDifficulty: diff,
       completedProblemIds: cpi,
     } = stateSnapshot.current;
-    if (!p) return;
-    const { answers: a, hints: h, structuredStepComplete: s } = stepStateRef.current;
-    perProblemCacheRef.current[p.id] = { answers: a, hints: h, structuredStepComplete: s };
-    levelCacheRef.current[lvl] = {
-      problem: p,
-      answers: a,
-      hints: h,
-      structuredStepComplete: s,
-      pagination: pag,
-      difficulty: diff,
-    };
     if (userId && unitId != null) {
       const key = `${LESSON_STATE_STORAGE_KEY}_${userId}_${unitId}_${lessonIndex}`;
       try {
+        if (!p) {
+          // Problem still loading — update just currentLevel so reload restores to correct level
+          const existing = localStorage.getItem(key);
+          if (existing) {
+            const parsed = JSON.parse(existing);
+            localStorage.setItem(key, JSON.stringify({ ...parsed, currentLevel: lvl }));
+          }
+          return;
+        }
+        const { answers: a, hints: h, structuredStepComplete: s } = stepStateRef.current;
+        perProblemCacheRef.current[p.id] = { answers: a, hints: h, structuredStepComplete: s };
+        levelCacheRef.current[lvl] = {
+          problem: p,
+          answers: a,
+          hints: h,
+          structuredStepComplete: s,
+          pagination: pag,
+          difficulty: diff,
+        };
         localStorage.setItem(
           key,
           JSON.stringify({
@@ -606,11 +614,11 @@ export function useProblemNavigation({
     apiGetReferenceExample(unitId, lessonIndex).then((problem) => {
       if (!problem) return;
       const steps: ReferenceStep[] = problem.steps
-        .filter((s) => s.type === "given" && (s.content || s.correct_answer))
+        .filter((s) => s.type === "given" && s.correct_answer)
         .map((s) => ({
           stepNumber: s.step_number,
           title: s.label + ":",
-          content: s.content || s.correct_answer || "",
+          content: s.correct_answer || "",
         }));
       if (steps.length > 0) setDynamicReferenceSteps(steps);
     });

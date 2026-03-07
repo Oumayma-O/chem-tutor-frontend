@@ -11,6 +11,7 @@ interface UseAdaptiveProgressionProps {
   masteryScore: number;
   answers: Record<string, StudentAnswer>;
   interactiveStepIds: string[];
+  structuredStepComplete?: Record<string, boolean>;
 }
 
 export function useAdaptiveProgression({
@@ -18,11 +19,12 @@ export function useAdaptiveProgression({
   masteryScore,
   answers,
   interactiveStepIds,
+  structuredStepComplete = {},
 }: UseAdaptiveProgressionProps) {
   const checkProgression = useCallback((): ProgressionResult => {
     // Check if all interactive steps are complete
     const allComplete = interactiveStepIds.every(
-      (id) => answers[id]?.isCorrect === true
+      (id) => answers[id]?.isCorrect === true || structuredStepComplete[id] === true
     );
 
     if (!allComplete) {
@@ -67,7 +69,7 @@ export function useAdaptiveProgression({
       nextLevel: currentLevel,
       reason: "Continue practicing",
     };
-  }, [currentLevel, masteryScore, answers, interactiveStepIds]);
+  }, [currentLevel, masteryScore, answers, interactiveStepIds, structuredStepComplete]);
 
   return { checkProgression };
 }

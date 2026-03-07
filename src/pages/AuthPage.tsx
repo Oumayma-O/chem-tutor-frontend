@@ -94,7 +94,7 @@ export default function AuthPage() {
       const { error } = await signIn(loginEmail, loginPassword);
       if (error) {
         const msg = error.message.toLowerCase().includes("failed to fetch")
-          ? "Can't reach the server. Check your connection and that the backend is running (see .env VITE_API_URL)."
+          ? "Unable to connect. Please try again."
           : error.message;
         setError(msg);
       } else toast.success("Welcome back!");
@@ -156,7 +156,7 @@ export default function AuthPage() {
       );
       if (error) {
         const msg = error.message.toLowerCase().includes("failed to fetch")
-          ? "Can't reach the server. Check your connection and that the backend is running (see .env VITE_API_URL)."
+          ? "Unable to connect. Please try again."
           : error.message;
         setError(msg);
       } else toast.success("Account created! You're all set.");
@@ -281,7 +281,7 @@ export default function AuthPage() {
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center gap-3">
             <BeakerMascot pose="encouraging" size={56} />
-            <h1 className="text-3xl font-bold text-foreground">Chem Tutor</h1>
+            <h1 className="text-3xl font-bold text-foreground">Catalyst</h1>
           </div>
           <p className="text-muted-foreground">
             AI-powered chemistry tutoring with adaptive scaffolding

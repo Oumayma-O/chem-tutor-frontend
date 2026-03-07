@@ -21,12 +21,14 @@ export function GivenStep({ step }: GivenStepProps) {
       </div>
       <div className="ml-16 bg-card rounded-md p-4 border border-border">
         <p className="equation text-foreground">
-          {step.content?.split(", ").map((line, i) => (
-            <React.Fragment key={i}>
-              {i > 0 && <br />}
-              {formatMathContent(line)}
-            </React.Fragment>
-          ))}
+          {(step.correctAnswer || "")
+            .split(", ")
+            .map((line, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <br />}
+                {formatMathContent(line)}
+              </React.Fragment>
+            ))}
         </p>
       </div>
     </div>

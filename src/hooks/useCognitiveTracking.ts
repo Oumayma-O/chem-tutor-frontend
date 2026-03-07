@@ -96,36 +96,32 @@ export function useCognitiveTracking() {
       if (useBackendApi()) {
         const data = await apiClassifyErrors({
           steps: incorrectSteps.map(s => ({
-            id: s.id,
-            type: s.type,
-            category: s.category,
-            label: s.label,
+            step_id: s.id,
+            step_label: s.label,
             student_input: s.studentInput,
-            expected_value: s.expectedValue,
             is_correct: s.isCorrect,
-            time_spent: s.timeSpent,
+            time_spent_seconds: s.timeSpent,
+            attempt_count: 1,
           })),
           problem_context: problemContext,
           all_steps: steps.map(s => ({
-            id: s.id,
-            type: s.type,
-            category: s.category,
-            label: s.label,
+            step_id: s.id,
+            step_label: s.label,
             student_input: s.studentInput,
             expected_value: s.expectedValue,
             is_correct: s.isCorrect,
-            time_spent: s.timeSpent,
+            time_spent_seconds: s.timeSpent,
           })),
         });
         errors = (data.errors || []).map(e => ({
           stepId: e.step_id,
-          category: e.category as ClassifiedError["category"],
-          subcategory: e.subcategory as ClassifiedError["subcategory"],
+          category: (e.category ?? e.error_category) as ClassifiedError["category"],
+          subcategory: (e.subcategory ?? e.error_subcategory) as ClassifiedError["subcategory"],
           severity: e.severity as ClassifiedError["severity"],
-          description: e.description,
+          description: e.description ?? `Issue in ${e.step_label ?? "step"}`,
           conceptMissing: e.concept_missing ?? undefined,
           misconception_tag: e.misconception_tag,
-          suggestedIntervention: e.suggested_intervention as ClassifiedError["suggestedIntervention"],
+          suggestedIntervention: (e.suggested_intervention ?? "concept_refresher") as ClassifiedError["suggestedIntervention"],
         }));
         setClassifiedErrors(errors);
         setLearningInsight(data.insight || "");

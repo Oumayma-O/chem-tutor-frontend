@@ -1,16 +1,21 @@
 import { get, post } from "./core";
 
+export interface KnownVariable {
+  variable: string;
+  value: string;
+  unit: string;
+}
+
 export interface ProblemStep {
+  id: string;
   step_number: number;
-  type: string;
+  type: "given" | "interactive" | "drag_drop" | "variable_id";
   label: string;
   instruction: string;
-  content: string;
-  placeholder?: string;
-  correct_answer: string;
-  hint?: string;
-  equation_parts?: unknown[];
-  known_variables?: unknown[];
+  correct_answer?: string | null;
+  equation_parts?: string[] | null;
+  known_variables?: KnownVariable[] | null;
+  hint?: string | null;
 }
 
 export interface ProblemPagination {
@@ -59,6 +64,13 @@ export interface HintOutput {
   hint_level: number;
 }
 
+export interface LessonContext {
+  equations?: string[];
+  objectives?: string[];
+  key_rules?: string[];
+  misconceptions?: string[];
+}
+
 export async function apiGenerateProblemV2(body: {
   unit_id: string;
   lesson_index: number;
@@ -70,7 +82,7 @@ export async function apiGenerateProblemV2(body: {
   user_id?: string;
   focus_areas?: string[];
   problem_style?: string;
-  rag_context?: Record<string, string[]>;
+  lesson_context?: LessonContext;
   exclude_ids?: string[];
 }): Promise<ProblemDeliveryResponse> {
   return post<ProblemDeliveryResponse>("/problems/generate", body);
@@ -87,8 +99,16 @@ export async function apiGetReferenceExample(
 
 // ── Reference card (fiche de cours) ───────────────────────────────────────
 
+export type ReferenceCardStepLabel =
+  // quantitative (4 steps)
+  | "Knowns" | "Equation" | "Substitute" | "Answer"
+  // conceptual (3 steps)
+  | "Governing Principle" | "Concept Application" | "Final Justification"
+  // analytical (3 steps)
+  | "Data Observation" | "Feature Correlation" | "Scientific Inference";
+
 export interface ReferenceCardStep {
-  label: "Equation" | "Knowns" | "Substitute" | "Calculate" | "Answer";
+  label: ReferenceCardStepLabel;
   content: string;
 }
 
@@ -206,7 +226,7 @@ export async function apiGenerateProblem(body: {
   interests?: string[];
   grade_level?: string | null;
   mastery_score?: number;
-  rag_context?: Record<string, string[]>;
+  lesson_context?: LessonContext;
 }) {
   return post<{
     id: string;

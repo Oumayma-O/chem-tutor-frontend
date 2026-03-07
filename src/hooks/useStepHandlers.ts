@@ -3,7 +3,7 @@
  * validation, hints, reset, structured steps, and error classification.
  */
 
-import { useState, useCallback, useEffect, useMemo, useRef, Dispatch, SetStateAction } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Level, Problem, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { ThinkingStep, ThinkingStepType, ClassifiedError } from "@/types/cognitive";
 import { apiValidateStep, apiGetHint } from "@/lib/api";
@@ -45,7 +45,6 @@ interface UseStepHandlersOptions {
   ) => void;
   classifyErrors: (steps: ThinkingStep[], problemContext: string) => Promise<ClassifiedError[]>;
   resetTracking: () => void;
-  setMasteryScore: Dispatch<SetStateAction<number>>;
   onMarkInProgress?: () => void;
 }
 
@@ -62,7 +61,6 @@ export function useStepHandlers({
   updateSkillFromAttempt,
   classifyErrors,
   resetTracking,
-  setMasteryScore,
   onMarkInProgress,
 }: UseStepHandlersOptions) {
   const [answers, setAnswers] = useState<Record<string, StudentAnswer>>({});
@@ -207,11 +205,7 @@ export function useStepHandlers({
       updateSkillFromAttempt(classifiedErrors, updatedSteps, Object.keys(hints).length, currentLevel);
 
       if (isCorrect) {
-        const bonus = isFirstAttempt ? 8 : 4;
-        setMasteryScore((prev) => Math.min(100, prev + bonus));
         toast.success(isFirstAttempt ? "Perfect! First try!" : "Correct!");
-      } else {
-        setMasteryScore((prev) => Math.max(0, prev - 3));
       }
     },
     [currentProblem, answers, checkingAnswer, onMarkInProgress, recordThinkingStep, calculatorEnabled], // eslint-disable-line react-hooks/exhaustive-deps
@@ -225,7 +219,6 @@ export function useStepHandlers({
       const step = currentProblem.steps.find((s) => s.id === stepId);
       if (!step) return;
 
-      setMasteryScore((prev) => Math.max(0, prev - 2));
       setHintLoading((prev) => new Set(prev).add(stepId));
 
       try {
@@ -270,15 +263,27 @@ export function useStepHandlers({
 
   const handleStructuredStepComplete = useCallback(
     (stepId: string, isCorrect: boolean) => {
+      setAnswers((prev) => {
+        const attempts = (prev[stepId]?.attempts || 0) + 1;
+        const isFirstAttempt = !prev[stepId]?.attempts || prev[stepId]?.attempts === 0;
+        return {
+          ...prev,
+          [stepId]: {
+            stepId,
+            answer: prev[stepId]?.answer || "",
+            isCorrect,
+            attempts,
+            firstAttemptCorrect: prev[stepId]?.firstAttemptCorrect ?? (isFirstAttempt && isCorrect),
+          },
+        };
+      });
+
       if (isCorrect) {
         setStructuredStepComplete((prev) => ({ ...prev, [stepId]: true }));
-        setMasteryScore((prev) => Math.min(100, prev + 6));
         toast.success("Correct!");
-      } else {
-        setMasteryScore((prev) => Math.max(0, prev - 3));
       }
     },
-    [setMasteryScore],
+    [],
   );
 
   const handleValidateEquation = useCallback(
