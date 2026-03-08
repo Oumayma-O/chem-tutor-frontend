@@ -30,7 +30,6 @@ import { ThinkingTracker } from "./ThinkingTracker";
 import { ExitTicketMode } from "./ExitTicketMode";
 import { TimedModeLaunchScreen } from "./TimedModeLaunchScreen";
 import { TimedModeTransitionScreen } from "./TimedModeTransitionScreen";
-import { Calculator } from "./Calculator";
 import { ToolsWidget } from "./ToolsWidget";
 import { useAdaptiveProgression } from "@/hooks/useAdaptiveProgression";
 import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
@@ -248,7 +247,7 @@ export function ChemistryTutor({
       (s) => steps.answers[s.id]?.isCorrect === true || steps.structuredStepComplete[s.id],
     );
 
-  const levelConfig = LEVEL_CONFIGS.find((c) => c.level === nav.currentLevel)!;
+  const levelConfig = LEVEL_CONFIGS.find((c) => c.level === nav.currentLevel) ?? LEVEL_CONFIGS[0];
 
   // ── Adaptive progression ──────────────────────────────────────────────────
   const { checkProgression } = useAdaptiveProgression({
@@ -646,13 +645,13 @@ export function ChemistryTutor({
       )}
 
       <main className="px-4 py-6 max-w-6xl mx-auto">
-        {/* ── Controls bar ──────────────────────────────────────────────────── */}
-        <div className="mb-6 space-y-2">
-          <div className="flex items-center gap-2">
+        {/* ── Title left, level tabs + Exit Ticket right (space-between); tabs wrap under on small screens ── */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex items-center gap-2 shrink-0">
             <FlaskConical className="w-4 h-4 text-primary" />
             <h2 className="text-xl font-bold text-foreground">{levelConfig.title}</h2>
           </div>
-          <div className="flex items-center flex-wrap gap-2">
+          <div className="flex items-center flex-wrap gap-2 shrink-0">
             <LevelSelector
               currentLevel={nav.currentLevel}
               onLevelChange={nav.handleLevelChange}
@@ -989,8 +988,6 @@ export function ChemistryTutor({
       {/* Tools: calculator always; periodic table when lesson.required_tools includes it */}
       <ToolsWidget requiredTools={requiredTools} />
 
-      {/* Calculator */}
-      <Calculator enabled={calculatorEnabled} />
 
       {/* Progression Modal */}
       {showProgressionModal && progressionResult && (

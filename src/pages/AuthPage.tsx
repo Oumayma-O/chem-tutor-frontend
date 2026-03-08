@@ -15,7 +15,7 @@ import {
 import { GraduationCap, User, AlertCircle, ArrowRight, ArrowLeft, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
+import happyMascot from "@/assets/mascot/happy.png";
 
 const GRADE_RANGE_OPTIONS = [
   { value: "middle-school", label: "Middle School" },
@@ -176,11 +176,11 @@ export default function AuthPage() {
   // Step 2 — Interests (Netflix-style)
   if (signupStep === 2) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <div className="w-full max-w-lg space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+      <div className="min-h-screen bg-background flex flex-col overflow-y-auto p-4">
+        <div className="w-full max-w-lg mx-auto space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 my-auto py-4">
           {/* Header */}
           <div className="text-center space-y-3">
-            <BeakerMascot pose="encouraging" size={64} />
+            <img src={happyMascot} alt="Catalyst mascot" className="w-24 h-24 object-contain mx-auto" />
             <h1 className="text-2xl font-bold text-foreground">What interests you?</h1>
             <p className="text-muted-foreground text-sm max-w-sm mx-auto">
               We'll use these to personalize your chemistry problems with real-world examples you care about.
@@ -275,15 +275,15 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
+    <div className="min-h-screen bg-background flex flex-col overflow-y-auto p-4">
+      <div className="w-full max-w-md mx-auto flex flex-col gap-4 my-auto py-4">
         {/* Logo */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-3">
-            <BeakerMascot pose="encouraging" size={56} />
-            <h1 className="text-3xl font-bold text-foreground">Catalyst</h1>
+        <div className="text-center space-y-1">
+          <div className="flex items-center justify-center gap-2">
+            <img src={happyMascot} alt="Catalyst mascot" className="w-16 h-16 object-contain" />
+            <h1 className="text-2xl font-bold text-foreground">Catalyst</h1>
           </div>
-          <p className="text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             AI-powered chemistry tutoring with adaptive scaffolding
           </p>
         </div>
@@ -322,51 +322,51 @@ export default function AuthPage() {
               </TabsContent>
 
               <TabsContent value="signup">
-                <form onSubmit={handleStep1Next} className="space-y-4">
+                <form onSubmit={handleStep1Next} className="space-y-3">
                   {/* Role */}
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label>I am a</Label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setSignupRole("student")}
                         className={cn(
-                          "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
+                          "flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 transition-all",
                           signupRole === "student"
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-muted-foreground/30"
                         )}
                       >
-                        <User className={cn("w-6 h-6", signupRole === "student" ? "text-primary" : "text-muted-foreground")} />
+                        <User className={cn("w-4 h-4", signupRole === "student" ? "text-primary" : "text-muted-foreground")} />
                         <span className={cn("text-sm font-medium", signupRole === "student" ? "text-primary" : "text-muted-foreground")}>Student</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setSignupRole("teacher")}
                         className={cn(
-                          "flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all",
+                          "flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 transition-all",
                           signupRole === "teacher"
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-muted-foreground/30"
                         )}
                       >
-                        <GraduationCap className={cn("w-6 h-6", signupRole === "teacher" ? "text-primary" : "text-muted-foreground")} />
+                        <GraduationCap className={cn("w-4 h-4", signupRole === "teacher" ? "text-primary" : "text-muted-foreground")} />
                         <span className={cn("text-sm font-medium", signupRole === "teacher" ? "text-primary" : "text-muted-foreground")}>Teacher</span>
                       </button>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label htmlFor="signup-name">Name</Label>
                     <Input id="signup-name" placeholder="Your name" value={signupName} onChange={(e) => setSignupName(e.target.value)} required maxLength={100} />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label htmlFor="signup-email">Email</Label>
                     <Input id="signup-email" type="email" placeholder="you@school.edu" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} required maxLength={255} />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label htmlFor="signup-password">Password</Label>
                     <Input id="signup-password" type="password" placeholder="At least 6 characters" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} required minLength={6} />
                   </div>

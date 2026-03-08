@@ -1,17 +1,27 @@
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { FlaskConical, Calculator as CalcIcon, Atom, X } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Calculator } from "./Calculator";
 import { PeriodicTablePanel } from "./PeriodicTablePanel";
 import { cn } from "@/lib/utils";
 
-const FAB_BASE =
-  "fixed z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all";
+const RADIUS = 72; // px — arc radius
+const FAB_SIZE = 48;
+const FAB_RIGHT = 24;
+const FAB_BOTTOM = 24;
+
+// Spread N tool buttons in a 90° arc from "left" (π) to "up" (π/2)
+function fanOffset(i: number, total: number): { x: number; y: number } {
+  const start = Math.PI;       // 180° → left
+  const end   = Math.PI / 2;  // 90°  → up
+  const angle = total === 1
+    ? (start + end) / 2        // single tool: diagonal
+    : start + (end - start) * (i / (total - 1));
+  return {
+    x: Math.round(RADIUS * Math.cos(angle)),   // negative = left
+    y: Math.round(-RADIUS * Math.sin(angle)),  // negative = up (CSS y-flip)
+  };
+}
 
 export const TOOL_KEYS = ["calculator", "periodic_table"] as const;
 export type ToolKey = (typeof TOOL_KEYS)[number];
@@ -23,7 +33,6 @@ interface ToolDef {
 }
 
 interface ToolsWidgetProps {
-  /** Tool keys required for the current lesson. Calculator is always available. */
   requiredTools?: string[];
 }
 
@@ -43,78 +52,125 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
       : []),
   ];
 
-  const handleToolSelect = (toolId: string) => {
-    setActiveTool((prev) => (prev === toolId ? null : toolId));
-    setMenuOpen(false);
-  };
+  const isAnyOpen = menuOpen || !!activeTool;
 
   const handleFlaskClick = () => {
     if (activeTool) {
       setActiveTool(null);
       setMenuOpen(false);
+      return;
+    }
+    if (availableTools.length === 1) {
+      setActiveTool(availableTools[0].id);
+    } else {
+      setMenuOpen((prev) => !prev);
     }
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (open && activeTool) setMenuOpen(false);
-    else setMenuOpen(open);
+  const handleToolSelect = (toolId: string) => {
+    setActiveTool((prev) => (prev === toolId ? null : toolId));
+    setMenuOpen(false);
   };
-
-  const isOpen = menuOpen || !!activeTool;
 
   return (
     <>
-      <Popover open={menuOpen} onOpenChange={handleOpenChange}>
-        <PopoverTrigger asChild>
-          <button
-            onClick={handleFlaskClick}
-            className={cn("bottom-6 right-6", FAB_BASE, "bg-primary text-primary-foreground hover:bg-primary/90")}
-            aria-label={activeTool ? "Close tool" : "Open tools"}
-          >
-            {activeTool ? (
-              <X className="w-5 h-5" />
-            ) : (
-              <span
-                className={cn(
-                  "inline-flex transition-transform duration-200 ease-out",
-                  isOpen && "-rotate-12"
-                )}
-                style={{ transformOrigin: "bottom center" }}
-              >
-                <FlaskConical className="w-5 h-5" />
-              </span>
-            )}
-          </button>
-        </PopoverTrigger>
-        <PopoverContent
-          side="top"
-          align="end"
-          sideOffset={12}
-          className="bg-transparent border-0 shadow-none p-0 min-w-0 w-auto"
-        >
-          <div className="flex flex-col gap-3">
-            {availableTools.map((tool) => (
-              <button
+      {/* Fan arc tool buttons */}
+      <AnimatePresence>
+        {menuOpen &&
+          availableTools.map((tool, i) => {
+            const { x, y } = fanOffset(i, availableTools.length);
+            return (
+              <motion.button
                 key={tool.id}
-                type="button"
-                onClick={() => handleToolSelect(tool.id)}
+                initial={{ opacity: 0, x: 0, y: 0, scale: 0.6 }}
+                animate={{ opacity: 1, x, y, scale: 1 }}
+                exit={{ opacity: 0, x: 0, y: 0, scale: 0.6 }}
+                transition={{
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 26,
+                  delay: i * 0.05,
+                }}
+                style={{
+                  position: "fixed",
+                  bottom: FAB_BOTTOM,
+                  right: FAB_RIGHT,
+                  width: FAB_SIZE,
+                  height: FAB_SIZE,
+                  zIndex: 40,
+                  borderRadius: "9999px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.18)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  border: "none",
+                  cursor: "pointer",
+                }}
                 className={cn(
-                  FAB_BASE,
-                  "relative w-12 h-12 shadow-md",
+                  "transition-colors",
                   activeTool === tool.id
                     ? "bg-accent text-accent-foreground ring-2 ring-primary"
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 )}
                 title={tool.label}
                 aria-label={`Open ${tool.label}`}
+                onClick={() => handleToolSelect(tool.id)}
               >
                 {tool.icon}
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+              </motion.button>
+            );
+          })}
+      </AnimatePresence>
 
+      {/* Main FAB */}
+      <button
+        onClick={handleFlaskClick}
+        style={{
+          position: "fixed",
+          bottom: FAB_BOTTOM,
+          right: FAB_RIGHT,
+          width: FAB_SIZE,
+          height: FAB_SIZE,
+          zIndex: 41,
+          borderRadius: "9999px",
+          boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "none",
+          cursor: "pointer",
+        }}
+        className="bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        aria-label={isAnyOpen ? "Close tools" : "Open tools"}
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          {isAnyOpen ? (
+            <motion.span
+              key="x"
+              initial={{ rotate: -90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: 90, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ display: "inline-flex" }}
+            >
+              <X className="w-5 h-5" />
+            </motion.span>
+          ) : (
+            <motion.span
+              key="flask"
+              initial={{ rotate: 90, opacity: 0 }}
+              animate={{ rotate: 0, opacity: 1 }}
+              exit={{ rotate: -90, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              style={{ display: "inline-flex" }}
+            >
+              <FlaskConical className="w-5 h-5" />
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </button>
+
+      {/* Calculator panel — wrapper matches Calculator position (bottom-20 right-6) so no jump */}
       <AnimatePresence mode="wait">
         {activeTool === "calculator" && (
           <motion.div
@@ -122,8 +178,8 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="fixed bottom-20 right-6 z-40 pointer-events-auto"
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="fixed bottom-20 right-6 z-40"
           >
             <Calculator
               enabled
@@ -135,18 +191,21 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
         )}
       </AnimatePresence>
 
+      {/* Periodic Table panel — responsive: anchored bottom-right on desktop, centered on mobile */}
       <AnimatePresence mode="wait">
         {activeTool === "periodic_table" && (
           <motion.div
             key="periodic_table"
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="fixed z-40"
-            style={{ bottom: "5.5rem", right: "1.5rem" }}
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            style={{ position: "fixed", zIndex: 50, inset: 0, pointerEvents: "none" }}
+            className="origin-bottom-right max-md:origin-center"
           >
-            <PeriodicTablePanel onClose={() => setActiveTool(null)} />
+            <div style={{ pointerEvents: "auto" }} className="h-full w-full">
+              <PeriodicTablePanel onClose={() => setActiveTool(null)} />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

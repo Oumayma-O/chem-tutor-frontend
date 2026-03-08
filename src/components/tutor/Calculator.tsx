@@ -138,11 +138,12 @@ export function Calculator({
         </button>
       )}
 
-      {/* Calculator popup */}
+      {/* Calculator popup — when embedded, no fixed (wrapper in ToolsWidget owns position) to prevent jump */}
       {open && (
         <div
           className={cn(
-            "fixed bottom-20 right-6 z-40 bg-card border border-border rounded-xl shadow-xl overflow-hidden transition-all",
+            "bg-card border border-border rounded-xl shadow-xl overflow-hidden",
+            embedded ? "relative" : "fixed bottom-20 right-6 z-40 transition-all",
             scientific ? "w-80" : "w-64",
           )}
         >
