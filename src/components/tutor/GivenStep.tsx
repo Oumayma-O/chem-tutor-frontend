@@ -26,16 +26,22 @@ function formatLabeledValues(
   );
 }
 
-/** Format comparison step as "first operator second" (e.g. "39.95 amu > 39.10 amu"). */
+/**
+ * Format comparison step as a single structured string: "firstPart operator secondPart"
+ * e.g. "KE in Container A < KE in Container B" or "39.95 amu > 39.10 amu"
+ */
 function formatComparison(
   comparisonParts: string[],
   correctAnswer: string
 ): React.ReactNode {
-  const [first, second] = comparisonParts;
+  const first = comparisonParts[0];
+  const second = comparisonParts[1];
   if (first == null || second == null) return null;
+  const operator = correctAnswer.trim();
+  const structured = `${first} ${operator} ${second}`;
   return (
-    <p className="equation text-foreground">
-      {formatMathContent(first)} {formatMathContent(correctAnswer.trim())}{" "}
+    <p className="equation text-foreground" title={structured}>
+      {formatMathContent(first)} {formatMathContent(operator)}{" "}
       {formatMathContent(second)}
     </p>
   );

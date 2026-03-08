@@ -133,6 +133,7 @@ export function ChemistryTutor({
 
   // ── Reference card (fiche de cours) — fetched once per topic ─────────────
   const [referenceCard, setReferenceCard] = useState<ReferenceCardOutput | null>(null);
+  const [referenceCardLoading, setReferenceCardLoading] = useState(false);
 
   // ── Timed mode state ──────────────────────────────────────────────────────
   const [timedModeActive, setTimedModeActive] = useState(false);
@@ -292,8 +293,10 @@ export function ChemistryTutor({
   // Fetch reference card once per topic (topic-level cache — backend persists it)
   useEffect(() => {
     setReferenceCard(null);
+    setReferenceCardLoading(true);
     apiGetReferenceCard(unitId, lessonIndex, currentTopicName).then((card) => {
       if (card) setReferenceCard(card);
+      setReferenceCardLoading(false);
     });
   }, [unitId, lessonIndex, currentTopicName]);
 
@@ -533,6 +536,22 @@ export function ChemistryTutor({
       const difficulty = backendDiff ?? getDifficultyForMastery(masteryScore);
       nav.loadNewProblem(difficulty, nextExcludeIds, 3);
       toast.success(`Level 3 unlocked! Loading ${difficulty} difficulty problem…`);
+      // Re-fetch mastery so sidebar shows latest backend category scores (in case complete response omitted them).
+      if (userId) {
+        apiGetMastery(userId, unitId, lessonIndex).then((state) => {
+          const rawScore = state.mastery_score ?? 0;
+          setMasteryScore(Math.round(rawScore * 100));
+          const cs = state.category_scores;
+          if (cs) {
+            setBackendCategoryScores({
+              conceptual: cs.conceptual ?? 0.0,
+              procedural: cs.procedural ?? 0.0,
+              computational: cs.computational ?? 0.0,
+              representation: cs.representation ?? 0.0,
+            });
+          }
+        }).catch(() => {});
+      }
     } else if (nav.currentLevel === 3) {
       onTopicComplete?.();
       if (userId) apiSetTopicStatus(userId, unitId, lessonIndex, "completed").catch(() => {});
@@ -897,13 +916,7 @@ export function ChemistryTutor({
               score={masteryScore}
               skillMap={skillMap}
               errors={classifiedErrors}
-              categoryScores={
-                thinkingSteps.length === 0 &&
-                Object.keys(steps.answers).length === 0 &&
-                Object.keys(steps.structuredStepComplete).length === 0
-                  ? backendCategoryScores ?? undefined
-                  : undefined
-              }
+              categoryScores={backendCategoryScores ?? undefined}
               level3Unlocked={hasCompletedLevel2}
             />
 
@@ -911,14 +924,17 @@ export function ChemistryTutor({
             {nav.currentLevel !== 3 && (
               <ReferencePanel
                 steps={
-                  referenceCard
-                    ? referenceCard.steps.map((s, i) => ({
-                        stepNumber: i + 1,
-                        title: s.label,
-                        content: s.content,
-                      }))
-                    : (nav.dynamicReferenceSteps ?? referenceSteps)
+                  referenceCardLoading
+                    ? []
+                    : referenceCard
+                      ? referenceCard.steps.map((s, i) => ({
+                          stepNumber: i + 1,
+                          title: s.label,
+                          content: s.content,
+                        }))
+                      : (nav.dynamicReferenceSteps ?? referenceSteps)
                 }
+                isLoading={referenceCardLoading}
                 hint={referenceCard?.hint}
               />
             )}

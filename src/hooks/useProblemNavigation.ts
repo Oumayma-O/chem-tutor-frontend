@@ -20,7 +20,7 @@ import {
   apiNavigateProblem,
   apiGetReferenceExample,
 } from "@/lib/api";
-import { useGeneratedProblem, parseProblemOutput } from "@/hooks/useGeneratedProblem";
+import { useGeneratedProblem, parseProblemOutput, type GenerateResult } from "@/hooks/useGeneratedProblem";
 import { getDifficultyForMastery } from "@/data/sampleProblems";
 import { toast } from "sonner";
 
@@ -129,6 +129,8 @@ export function useProblemNavigation({
   const prefetchedProblem = useRef<Problem | null>(null);
   const prefetchedLevel = useRef<number>(0);
   const prefetchInFlight = useRef(false);
+  /** When non-null, a prefetch for this level is in progress; loadNewProblem can await it. */
+  const prefetchPromiseRef = useRef<{ promise: Promise<GenerateResult>; level: number } | null>(null);
   const lastMarkedRef = useRef<string>("");
   // Tracks ALL Level 1 examples the user has already seen so they are properly excluded
   // when requesting a new one. Lives as a ref to avoid mixing with Level 2/3 completedProblemIds.
@@ -170,21 +172,66 @@ export function useProblemNavigation({
   const triggerPrefetch = useCallback(
     (difficulty: "easy" | "medium" | "hard", excludeIds: string[], level: number) => {
       if (prefetchInFlight.current) return;
-      setTimeout(() => {
+      const levelToPrefetch = level;
+      const start = () => {
         if (prefetchInFlight.current) return;
         prefetchInFlight.current = true;
-        generateProblem(difficulty, excludeIds, level)
-          .then(({ problem }) => {
-            prefetchedProblem.current = problem;
-            prefetchedLevel.current = level;
+        prefetchPromiseRef.current = null;
+        const promise = generateProblem(difficulty, excludeIds, levelToPrefetch)
+          .then((result) => {
+            prefetchedProblem.current = result.problem;
+            prefetchedLevel.current = levelToPrefetch;
+            return result;
           })
-          .catch(() => {})
+          .catch(() => {
+            prefetchedProblem.current = null;
+            prefetchedLevel.current = 0;
+            throw new Error("Prefetch failed");
+          })
           .finally(() => {
             prefetchInFlight.current = false;
+            prefetchPromiseRef.current = null;
           });
-      }, 5000);
+        prefetchPromiseRef.current = { promise, level: levelToPrefetch };
+      };
+      // Eager loading: Level 3 prefetch starts immediately when Level 2 is active (zero-wait transition).
+      // Level 2 prefetch after Level 1 uses a short delay to avoid hammering the API.
+      const delayMs = levelToPrefetch === 3 ? 0 : 400;
+      setTimeout(start, delayMs);
     },
     [generateProblem],
+  );
+
+  const applyPrefetchedProblem = useCallback(
+    (
+      p: Problem,
+      level: number,
+      difficulty: "easy" | "medium" | "hard",
+    ): void => {
+      prefetchedProblem.current = null;
+      prefetchedLevel.current = 0;
+      setCurrentProblem(p);
+      setPagination(defaultPaginationForLevel(level as Level));
+      setCurrentDifficulty(p.difficulty as "easy" | "medium" | "hard");
+      if (level === 1 && level1ProblemsRef.current.length === 0) level1ProblemsRef.current[0] = p;
+      setProblemLoading(false);
+      if (userId && p) {
+        apiStartAttempt({
+          user_id: userId,
+          unit_id: unitId,
+          lesson_index: lessonIndex,
+          problem_id: p.id,
+          difficulty,
+          level,
+        })
+          .then(({ attempt_id }) => onAttemptStart(attempt_id))
+          .catch(() => onAttemptStart(null));
+      } else {
+        onAttemptStart(null);
+      }
+      triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
+    },
+    [userId, unitId, lessonIndex, onAttemptStart, triggerPrefetch],
   );
 
   const loadNewProblem = useCallback(
@@ -199,29 +246,26 @@ export function useProblemNavigation({
         !excludeIds.includes(prefetchedProblem.current.id)
       ) {
         const p = prefetchedProblem.current;
-        prefetchedProblem.current = null;
-        prefetchedLevel.current = 0;
-        setCurrentProblem(p);
-        setPagination(defaultPaginationForLevel(level as Level));
-        setCurrentDifficulty(p.difficulty as "easy" | "medium" | "hard");
-        if (level === 1 && level1ProblemsRef.current.length === 0) level1ProblemsRef.current[0] = p;
-        setProblemLoading(false);
-        if (userId && p) {
-          apiStartAttempt({
-            user_id: userId,
-            unit_id: unitId,
-            lesson_index: lessonIndex,
-            problem_id: p.id,
-            difficulty,
-            level,
-          })
-            .then(({ attempt_id }) => onAttemptStart(attempt_id))
-            .catch(() => onAttemptStart(null));
-        } else {
-          onAttemptStart(null);
-        }
-        triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
+        applyPrefetchedProblem(p, level, difficulty);
         return p;
+      }
+      const inFlight = prefetchPromiseRef.current;
+      if (inFlight?.level === level) {
+        setProblemLoading(true);
+        try {
+          await inFlight.promise;
+          if (
+            prefetchedProblem.current &&
+            prefetchedLevel.current === level &&
+            !excludeIds.includes(prefetchedProblem.current.id)
+          ) {
+            const p = prefetchedProblem.current;
+            applyPrefetchedProblem(p, level, difficulty);
+            return p;
+          }
+        } catch {
+          /* prefetch failed; fall through to fresh generation */
+        }
       }
       prefetchedProblem.current = null;
       prefetchedLevel.current = 0;
@@ -266,7 +310,7 @@ export function useProblemNavigation({
         setProblemLoading(false);
       }
     },
-    [generateProblem, triggerPrefetch, userId, unitId, lessonIndex, onAttemptStart],
+    [generateProblem, triggerPrefetch, applyPrefetchedProblem, userId, unitId, lessonIndex, onAttemptStart],
   );
 
   // ── Init: reset guard on chapter/topic change ────────────────────────────
@@ -406,8 +450,12 @@ export function useProblemNavigation({
       setCurrentLevel(level);
       stepSettersRef.current.resetTracking();
       setPagination(entry.pagination ?? defaultPaginationForLevel(level));
+      // Eager loading: when restoring to Level 2, start Level 3 prefetch so advance is zero-wait.
+      if (level === 2) {
+        triggerPrefetch(entry.difficulty, [], 3);
+      }
     },
-    [], // stepSettersRef is a stable ref
+    [triggerPrefetch], // stepSettersRef is a stable ref
   );
 
   const restorePerProblemState = useCallback((problemId: string) => {

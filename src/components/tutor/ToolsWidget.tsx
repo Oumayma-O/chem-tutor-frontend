@@ -45,6 +45,15 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
     return normalized === "periodictable";
   });
 
+  /** True if the only required tool is the calculator (or none specified) → show Calculator icon on FAB. */
+  const isCalculatorOnly =
+    requiredTools.length === 0 ||
+    (requiredTools.length === 1 &&
+      (() => {
+        const n = String(requiredTools[0]).toLowerCase().replace(/[\s-_]/g, "");
+        return n === "calculator" || n === "calc";
+      })());
+
   const availableTools: ToolDef[] = [
     { id: "calculator", label: "Calculator", icon: <CalcIcon className="w-5 h-5" /> },
     ...(hasPeriodicTable
@@ -157,14 +166,18 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
             </motion.span>
           ) : (
             <motion.span
-              key="flask"
+              key={isCalculatorOnly ? "calculator" : "flask"}
               initial={{ rotate: 90, opacity: 0 }}
               animate={{ rotate: 0, opacity: 1 }}
               exit={{ rotate: -90, opacity: 0 }}
               transition={{ duration: 0.15 }}
               style={{ display: "inline-flex" }}
             >
-              <FlaskConical className="w-5 h-5" />
+              {isCalculatorOnly ? (
+                <CalcIcon className="w-5 h-5" />
+              ) : (
+                <FlaskConical className="w-5 h-5" />
+              )}
             </motion.span>
           )}
         </AnimatePresence>
