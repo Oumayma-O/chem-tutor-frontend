@@ -13,6 +13,8 @@ export interface SolutionStep {
   label: string;
   instruction: string;
   placeholder?: string;
+  /** Show-your-work trace (≤20 words). Only rendered in Level 1 given steps. Null for trivial reads. */
+  explanation?: string;
   correctAnswer?: string;
   hint?: string;
   equationParts?: string[];

@@ -12,6 +12,8 @@ export interface ProblemStep {
   type: "given" | "interactive" | "drag_drop" | "variable_id" | "comparison";
   label: string;
   instruction: string;
+  /** Show-your-work trace (≤20 words). Displayed in Level 1 and on wrong answers in L2/L3. */
+  explanation?: string | null;
   correct_answer?: string | null;
   equation_parts?: string[] | null;
   labeled_values?: LabeledValue[] | null;

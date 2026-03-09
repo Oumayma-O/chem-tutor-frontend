@@ -36,6 +36,7 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
     const comparisonParts = (r["comparison_parts"] ?? r["comparisonParts"]) as string[] | null | undefined;
     const correctAnswer = (r["correct_answer"] ?? r["correctAnswer"]) as string | null | undefined;
     const hint = (r["hint"] as string | null | undefined) ?? undefined;
+    const explanation = (r["explanation"] as string | null | undefined) ?? undefined;
 
     return {
       id: id || `${pd.id}-step-${stepNumber}`,
@@ -45,6 +46,7 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
       instruction,
       content,
       placeholder,
+      explanation: explanation || undefined,
       equationParts: equationParts ?? undefined,
       // correctEquation is the correct answer for drag_drop steps
       correctEquation: type === "drag_drop" ? (correctAnswer ?? undefined) : undefined,

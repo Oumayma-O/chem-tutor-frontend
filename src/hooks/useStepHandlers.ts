@@ -159,11 +159,17 @@ export function useStepHandlers({
       } catch {
         const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
         const numStudent = parseFloat(normalize(studentText));
-        const numCorrect = parseFloat(normalize(step.correctAnswer));
+        const numCorrect = parseFloat(normalize(step.correctAnswer ?? ""));
         if (!isNaN(numStudent) && !isNaN(numCorrect)) {
-          isCorrect = Math.abs(numStudent - numCorrect) < 0.01;
+          // Final "Answer" / "Final Answer" steps: strict 1% tolerance (sig figs matter).
+          // All intermediate steps: 5% tolerance (rounding variations are acceptable).
+          const isFinalStep = step.label.toLowerCase().includes("answer");
+          const tolerance = isFinalStep ? 0.01 : 0.05;
+          isCorrect = numCorrect === 0
+            ? Math.abs(numStudent) < 1e-9
+            : Math.abs(numStudent - numCorrect) / Math.abs(numCorrect) <= tolerance;
         } else {
-          isCorrect = normalize(studentText) === normalize(step.correctAnswer);
+          isCorrect = normalize(studentText) === normalize(step.correctAnswer ?? "");
         }
       } finally {
         setCheckingAnswer((prev) => {
