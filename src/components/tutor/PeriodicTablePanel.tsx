@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, GripVertical } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { GripVertical } from "lucide-react";
 import {
   getMainGrid,
   getLanthanoidRow,
@@ -192,9 +191,6 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
       >
         <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
         <span className="text-sm font-medium flex-1">Interactive Periodic Table of the Elements</span>
-        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={(e) => { e.stopPropagation(); onClose(); }} aria-label="Close">
-          <X className="w-4 h-4" />
-        </Button>
       </div>
 
       <div className="p-3 overflow-auto flex-1 min-h-0">

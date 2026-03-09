@@ -5,6 +5,9 @@ import { Calculator } from "./Calculator";
 import { PeriodicTablePanel } from "./PeriodicTablePanel";
 import { cn } from "@/lib/utils";
 
+// fab visual state: idle | menu | close
+type FabState = "idle" | "menu" | "close";
+
 const RADIUS = 72; // px — arc radius
 const FAB_SIZE = 48;
 const FAB_RIGHT = 24;
@@ -61,17 +64,21 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
       : []),
   ];
 
-  const isAnyOpen = menuOpen || !!activeTool;
+  // Derive FAB state from app state
+  const fabState: FabState = activeTool ? "close" : menuOpen ? "menu" : "idle";
 
   const handleFlaskClick = () => {
     if (activeTool) {
+      // State 3 → close active tool, return to idle
       setActiveTool(null);
       setMenuOpen(false);
       return;
     }
     if (availableTools.length === 1) {
+      // Single tool — open it directly
       setActiveTool(availableTools[0].id);
     } else {
+      // Multiple tools — toggle menu
       setMenuOpen((prev) => !prev);
     }
   };
@@ -140,7 +147,7 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
           right: FAB_RIGHT,
           width: FAB_SIZE,
           height: FAB_SIZE,
-          zIndex: 41,
+          zIndex: 55,
           borderRadius: "9999px",
           boxShadow: "0 4px 14px rgba(0,0,0,0.22)",
           display: "flex",
@@ -150,34 +157,53 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
           cursor: "pointer",
         }}
         className="bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        aria-label={isAnyOpen ? "Close tools" : "Open tools"}
+        aria-label={fabState === "close" ? "Close tool" : "Open tools"}
       >
-        <AnimatePresence mode="wait" initial={false}>
-          {isAnyOpen ? (
+        {/* Icons are absolute so enter/exit overlap without layout shift */}
+        <AnimatePresence mode="sync" initial={false}>
+          {fabState === "close" ? (
             <motion.span
-              key="x"
+              key="close"
+              initial={{ rotate: 90, opacity: 0, scale: 0.7 }}
+              animate={{ rotate: 0, opacity: 1, scale: 1 }}
+              exit={{ rotate: -90, opacity: 0, scale: 0.7 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              style={{ position: "absolute", display: "inline-flex" }}
+            >
+              <X className="w-5 h-5" />
+            </motion.span>
+          ) : isCalculatorOnly ? (
+            <motion.span
+              key="calc"
               initial={{ rotate: -90, opacity: 0 }}
               animate={{ rotate: 0, opacity: 1 }}
               exit={{ rotate: 90, opacity: 0 }}
               transition={{ duration: 0.15 }}
-              style={{ display: "inline-flex" }}
+              style={{ position: "absolute", display: "inline-flex" }}
             >
-              <X className="w-5 h-5" />
+              <CalcIcon className="w-5 h-5" />
+            </motion.span>
+          ) : fabState === "menu" ? (
+            <motion.span
+              key="flask-menu"
+              initial={{ rotate: 0, opacity: 0 }}
+              animate={{ rotate: 25, opacity: 1 }}
+              exit={{ rotate: 0, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 350, damping: 22 }}
+              style={{ position: "absolute", display: "inline-flex" }}
+            >
+              <FlaskConical className="w-5 h-5" />
             </motion.span>
           ) : (
             <motion.span
-              key={isCalculatorOnly ? "calculator" : "flask"}
-              initial={{ rotate: 90, opacity: 0 }}
+              key="flask-idle"
+              initial={{ rotate: 25, opacity: 0 }}
               animate={{ rotate: 0, opacity: 1 }}
-              exit={{ rotate: -90, opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              style={{ display: "inline-flex" }}
+              exit={{ rotate: 25, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 350, damping: 22 }}
+              style={{ position: "absolute", display: "inline-flex" }}
             >
-              {isCalculatorOnly ? (
-                <CalcIcon className="w-5 h-5" />
-              ) : (
-                <FlaskConical className="w-5 h-5" />
-              )}
+              <FlaskConical className="w-5 h-5" />
             </motion.span>
           )}
         </AnimatePresence>
@@ -216,9 +242,8 @@ export function ToolsWidget({ requiredTools = [] }: ToolsWidgetProps) {
             style={{ position: "fixed", zIndex: 50, inset: 0, pointerEvents: "none" }}
             className="origin-bottom-right max-md:origin-center"
           >
-            <div style={{ pointerEvents: "auto" }} className="h-full w-full">
-              <PeriodicTablePanel onClose={() => setActiveTool(null)} />
-            </div>
+            {/* pointerEvents: none on wrapper — PeriodicTablePanel is fixed-positioned and handles its own events */}
+            <PeriodicTablePanel onClose={() => setActiveTool(null)} />
           </motion.div>
         )}
       </AnimatePresence>

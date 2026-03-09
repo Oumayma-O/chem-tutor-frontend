@@ -151,16 +151,6 @@ export function Calculator({
           <div className="bg-secondary p-3 text-right">
             <div className="flex items-center justify-between mb-0.5">
               <div className="flex items-center gap-2">
-                {embedded && (
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="p-1 rounded hover:bg-muted"
-                    aria-label="Close calculator"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
                 <button
                   onClick={() => setScientific((s) => !s)}
                 className={cn(

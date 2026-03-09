@@ -2,41 +2,108 @@ import React from "react";
 
 /**
  * Lightweight math parser for reference cards and inline chemistry.
- * Converts ^x to superscript, _x to subscript, \frac{N}{D} to stacked fraction.
+ * Converts LaTeX-style notation to React elements.
+ *
+ * Supported: \text{}, \frac{}{}, ^{}, _{}, \times, \rightarrow,
+ *            \circ, ^{} / ^x shorthands, _{} / _x shorthands.
+ *
+ * Uses findMatchingBrace() for all brace-delimited constructs so that
+ * nested braces (e.g. \frac{24.31 \text{ g Mg}}{1 \text{ mol Mg}}) parse correctly.
  */
+
+// ── Brace matching ──────────────────────────────────────────────────────────
+
+/**
+ * Find the index of the closing `}` that matches the `{` whose content starts at `afterOpen`.
+ * Returns -1 if not found.
+ */
+function findMatchingBrace(str: string, afterOpen: number): number {
+  let depth = 1;
+  let i = afterOpen;
+  while (i < str.length) {
+    if (str[i] === "{") depth++;
+    else if (str[i] === "}") {
+      depth--;
+      if (depth === 0) return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
+// ── Core parser ─────────────────────────────────────────────────────────────
+
 function parseMathSegment(math: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let i = 0;
   let key = 0;
 
   while (i < math.length) {
-    if (math.startsWith("\\circ", i)) {
-      nodes.push("°");
-      i += 5;
-    } else if (math.startsWith("^\\circ", i)) {
+    // ── \circ / ^circ ───────────────────────────────────────────────────────
+    if (math.startsWith("^\\circ", i)) {
       nodes.push("°");
       i += 6;
+    } else if (math.startsWith("\\circ", i)) {
+      nodes.push("°");
+      i += 5;
+
+    // ── \times ──────────────────────────────────────────────────────────────
     } else if (math.startsWith("\\times", i)) {
       nodes.push("×");
       i += 6;
+
+    // ── \rightarrow ─────────────────────────────────────────────────────────
+    } else if (math.startsWith("\\rightarrow", i)) {
+      nodes.push("→");
+      i += 11;
+
+    // ── \leftarrow ──────────────────────────────────────────────────────────
+    } else if (math.startsWith("\\leftarrow", i)) {
+      nodes.push("←");
+      i += 10;
+
+    // ── \geq ────────────────────────────────────────────────────────────────
+    } else if (math.startsWith("\\geq", i)) {
+      nodes.push("≥");
+      i += 4;
+
+    // ── \leq ────────────────────────────────────────────────────────────────
+    } else if (math.startsWith("\\leq", i)) {
+      nodes.push("≤");
+      i += 4;
+
+    // ── \pm ─────────────────────────────────────────────────────────────────
+    } else if (math.startsWith("\\pm", i)) {
+      nodes.push("±");
+      i += 3;
+
+    // ── \Delta ──────────────────────────────────────────────────────────────
+    } else if (math.startsWith("\\Delta", i)) {
+      nodes.push("Δ");
+      i += 6;
+
+    // ── \text{...} ──────────────────────────────────────────────────────────
     } else if (math.startsWith("\\text{", i)) {
-      const end = math.indexOf("}", i + 6);
+      const contentStart = i + 6; // index after the opening {
+      const end = findMatchingBrace(math, contentStart);
       if (end !== -1) {
-        nodes.push(math.slice(i + 6, end));
+        nodes.push(math.slice(contentStart, end));
         i = end + 1;
       } else {
         nodes.push(math[i]);
         i++;
       }
+
+    // ── \frac{num}{den} ─────────────────────────────────────────────────────
     } else if (math.startsWith("\\frac{", i)) {
-      // Stacked fraction: \frac{numerator}{denominator}
-      const numEnd = math.indexOf("}", i + 6);
+      const numStart = i + 6; // index after opening { of numerator
+      const numEnd = findMatchingBrace(math, numStart);
       if (numEnd !== -1 && math[numEnd + 1] === "{") {
-        const denEnd = math.indexOf("}", numEnd + 2);
+        const denStart = numEnd + 2; // index after opening { of denominator
+        const denEnd = findMatchingBrace(math, denStart);
         if (denEnd !== -1) {
-          const numContent = math.slice(i + 6, numEnd);
-          const denRaw = math.slice(numEnd + 2, denEnd);
-          // Strip outer parentheses from denominator for cleaner display
+          const numContent = math.slice(numStart, numEnd);
+          const denRaw = math.slice(denStart, denEnd);
           const denContent =
             denRaw.startsWith("(") && denRaw.endsWith(")")
               ? denRaw.slice(1, -1)
@@ -64,15 +131,20 @@ function parseMathSegment(math: string): React.ReactNode[] {
         nodes.push(math[i]);
         i++;
       }
+
+    // ── ^{...} superscript ──────────────────────────────────────────────────
     } else if (math.startsWith("^{", i)) {
-      const end = math.indexOf("}", i + 2);
+      const contentStart = i + 2;
+      const end = findMatchingBrace(math, contentStart);
       if (end !== -1) {
-        nodes.push(<sup key={key++}>{parseMathSegment(math.slice(i + 2, end))}</sup>);
+        nodes.push(<sup key={key++}>{parseMathSegment(math.slice(contentStart, end))}</sup>);
         i = end + 1;
       } else {
         nodes.push(math[i]);
         i++;
       }
+
+    // ── ^ shorthand (single char/digit superscript) ─────────────────────────
     } else if (math[i] === "^" && i + 1 < math.length && math[i + 1] !== "{") {
       let sup = "";
       let j = i + 1;
@@ -86,15 +158,20 @@ function parseMathSegment(math: string): React.ReactNode[] {
       }
       nodes.push(<sup key={key++}>{sup}</sup>);
       i = j;
+
+    // ── _{...} subscript ────────────────────────────────────────────────────
     } else if (math.startsWith("_{", i)) {
-      const end = math.indexOf("}", i + 2);
+      const contentStart = i + 2;
+      const end = findMatchingBrace(math, contentStart);
       if (end !== -1) {
-        nodes.push(<sub key={key++}>{parseMathSegment(math.slice(i + 2, end))}</sub>);
+        nodes.push(<sub key={key++}>{parseMathSegment(math.slice(contentStart, end))}</sub>);
         i = end + 1;
       } else {
         nodes.push(math[i]);
         i++;
       }
+
+    // ── _ shorthand (single digit subscript) ────────────────────────────────
     } else if (math[i] === "_" && i + 1 < math.length && math[i + 1] !== "{") {
       let sub = "";
       let j = i + 1;
@@ -108,6 +185,8 @@ function parseMathSegment(math: string): React.ReactNode[] {
       }
       nodes.push(<sub key={key++}>{sub}</sub>);
       i = j;
+
+    // ── plain character ──────────────────────────────────────────────────────
     } else {
       nodes.push(math[i]);
       i++;
@@ -117,11 +196,8 @@ function parseMathSegment(math: string): React.ReactNode[] {
   return nodes;
 }
 
-/**
- * Preprocess common chemistry notation into parseable form.
- * [A]t → [A]_t, [A]0/[A]o → [A]_0, t1/2 → t_{1/2}
- * 1/[A]_t → \frac{1}{[A]_t} (proper stacked fraction)
- */
+// ── Pre-processing ──────────────────────────────────────────────────────────
+
 function toScientificStr(n: number): string {
   const exp = Math.floor(Math.log10(Math.abs(n)));
   const mantissa = n / Math.pow(10, exp);
@@ -129,13 +205,18 @@ function toScientificStr(n: number): string {
   return `${mantStr} \\times 10^{${exp}}`;
 }
 
+/**
+ * Preprocess common chemistry notation into parseable LaTeX-ish form.
+ */
 function preprocessChemistryNotation(text: string): string {
   return text
+    .replace(/\\dfrac\{/g, "\\frac{")
+    .replace(/\\cdot/g, "·")
     .replace(/\[([A-Za-z])\]t(?=[\s\](),;=+\-*]|$)/g, "[$1]_t")
     .replace(/\[([A-Za-z])\]0(?=[\s\](),;=+\-*]|$)/g, "[$1]_0")
     .replace(/\[([A-Za-z])\]o(?=[\s\](),;=+\-*]|$)/g, "[$1]_0")
     .replace(/\bt1\/2\b/g, "t_{1/2}")
-    // Convert N/(expr) and N/[conc] to \frac{N}{D} — but NOT inside _{...} (e.g. t_{1/2})
+    // Convert N/(expr) and N/[conc] to \frac{N}{D} — but NOT inside _{...}
     .replace(
       /(\d+)\/((?:\([^)]+\)|\[[A-Za-z]\][_{}0-9a-zA-Z]*|[a-zA-Z][a-zA-Z0-9_{}]*))/g,
       "\\frac{$1}{$2}"
@@ -154,27 +235,44 @@ function preprocessChemistryNotation(text: string): string {
     });
 }
 
-/** Render text with inline math as superscript/subscript/fractions.
- *  When " or " separates two equations (both sides contain "="), a line break is inserted. */
+// ── Public API ──────────────────────────────────────────────────────────────
+
+/**
+ * Render text that may contain $...$ inline math delimiters.
+ * Segments outside $ are plain text; segments inside $ are parsed as math.
+ */
 export function formatMathContent(text: string): React.ReactNode {
-  const normalized = preprocessChemistryNotation(text);
-  const parts = normalized.split(" or ");
+  const segments = text.split(/\$([^$]+)\$/);
 
-  // Only break on "or" when it sits between two equation expressions
-  const shouldBreak = parts.length > 1 && parts[0].includes("=");
-
-  if (!shouldBreak) {
-    return <>{parseMathSegment(normalized)}</>;
+  if (segments.length === 1) {
+    // No $...$ delimiters — treat whole string as math (legacy path)
+    const normalized = preprocessChemistryNotation(text);
+    const parts = normalized.split(" or ");
+    const shouldBreak = parts.length > 1 && parts[0].includes("=");
+    if (!shouldBreak) return <>{parseMathSegment(normalized)}</>;
+    return (
+      <>
+        {parts.map((part, i) => (
+          <React.Fragment key={i}>
+            {i > 0 && <br />}
+            {parseMathSegment(part)}
+          </React.Fragment>
+        ))}
+      </>
+    );
   }
 
+  // Mixed text/math rendering
   return (
     <>
-      {parts.map((part, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && <br />}
-          {parseMathSegment(part)}
-        </React.Fragment>
-      ))}
+      {segments.map((seg, i) => {
+        if (i % 2 === 0) {
+          return seg ? <React.Fragment key={i}>{seg}</React.Fragment> : null;
+        } else {
+          const normalized = preprocessChemistryNotation(seg);
+          return <React.Fragment key={i}>{parseMathSegment(normalized)}</React.Fragment>;
+        }
+      })}
     </>
   );
 }
