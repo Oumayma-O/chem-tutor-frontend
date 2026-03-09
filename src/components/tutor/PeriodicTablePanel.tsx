@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { GripVertical } from "lucide-react";
 import {
   getMainGrid,
   getLanthanoidRow,
   getActinoidRow,
   getCategoryColor,
+  CATEGORY_LABELS,
   type ElementCategory,
+  type Cell,
 } from "@/data/periodicTableElements";
 import { cn } from "@/lib/utils";
 
@@ -29,18 +32,35 @@ interface PeriodicTablePanelProps {
   initialY?: number;
 }
 
-function ElementCell({ cell, className }: { cell: { number: number; symbol: string; category: ElementCategory }; className?: string }) {
+function ElementCell({
+  cell,
+  className,
+  onMouseEnter,
+  onMouseLeave,
+}: {
+  cell: Cell;
+  className?: string;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+}) {
+  const massDisplay = Number.isInteger(cell.atomicMass)
+    ? `[${cell.atomicMass}]`
+    : cell.atomicMass.toFixed(2);
+
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center border border-border min-w-[28px] min-h-[32px] py-0.5 px-0.5",
+        "flex flex-col items-center justify-center border border-border min-w-[28px] min-h-[42px] py-0.5 px-0.5 cursor-default hover:ring-1 hover:ring-primary hover:z-10 hover:relative",
         getCategoryColor(cell.category),
         className
       )}
       title={`${cell.symbol} — ${cell.number}`}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       <span className="text-[9px] text-muted-foreground leading-none self-start">{cell.number}</span>
       <span className="text-xs font-bold leading-tight -mt-0.5">{cell.symbol}</span>
+      <span className="text-[8px] text-muted-foreground leading-none mt-0.5">{massDisplay}</span>
     </div>
   );
 }
@@ -57,6 +77,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
   const [position, setPosition] = useState({ x: 0, y: 0 });
   /** null = wrap contents; set to explicit size when user resizes */
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
+  const [hoveredElement, setHoveredElement] = useState<Cell | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ x: 0, y: 0, left: 0, top: 0 });
   const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
@@ -177,8 +198,8 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
       )}
       style={
         hasUserMoved
-          ? { left: position.x, top: position.y, ...(size && { width: size.w, height: size.h }) }
-          : { ...(size && { width: size.w, height: size.h }) }
+          ? { left: position.x, top: position.y, pointerEvents: "auto", ...(size && { width: size.w, height: size.h }) }
+          : { pointerEvents: "auto", ...(size && { width: size.w, height: size.h }) }
       }
     >
       {/* Header — draggable */}
@@ -191,6 +212,58 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
       >
         <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
         <span className="text-sm font-medium flex-1">Interactive Periodic Table of the Elements</span>
+      </div>
+
+      {/* Hover info panel — always visible, not inside scroll area */}
+      <div className="px-3 pt-2 pb-1 border-b border-border/50 shrink-0">
+        <div
+          className="flex items-center rounded border border-dashed border-border/40 bg-muted/20"
+          style={{ minHeight: "48px" }}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {hoveredElement == null ? (
+              <motion.span
+                key="placeholder"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+                className="text-[10px] text-muted-foreground italic px-3"
+              >
+                Hover over an element for details
+              </motion.span>
+            ) : (
+              <motion.div
+                key={hoveredElement.number}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.1 }}
+                className="flex items-center gap-3 px-3 w-full py-1"
+              >
+                {/* Symbol badge */}
+                <div className={cn(
+                  "flex flex-col items-center justify-center rounded border border-border min-w-[40px] h-10 shrink-0",
+                  getCategoryColor(hoveredElement.category)
+                )}>
+                  <span className="text-[9px] text-muted-foreground leading-none">{hoveredElement.number}</span>
+                  <span className="text-base font-bold leading-tight">{hoveredElement.symbol}</span>
+                </div>
+                {/* Details */}
+                <div className="flex flex-col gap-0">
+                  <span className="text-[11px] font-semibold text-foreground leading-tight">{hoveredElement.name}</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight">
+                    Atomic mass: {Number.isInteger(hoveredElement.atomicMass) ? `[${hoveredElement.atomicMass}]` : hoveredElement.atomicMass.toFixed(3)} u
+                  </span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <div className={cn("w-2.5 h-2.5 rounded-sm border border-border/60 shrink-0", getCategoryColor(hoveredElement.category))} />
+                    <span className="text-[9px] text-muted-foreground">{CATEGORY_LABELS[hoveredElement.category]}</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
       <div className="p-3 overflow-auto flex-1 min-h-0">
@@ -222,9 +295,14 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
               <div className="flex gap-0.5">
                 {row.map((cell, ci) =>
                   cell ? (
-                    <ElementCell key={`${ri}-${ci}`} cell={cell} />
+                    <ElementCell
+                      key={`${ri}-${ci}`}
+                      cell={cell}
+                      onMouseEnter={() => setHoveredElement(cell)}
+                      onMouseLeave={() => setHoveredElement(null)}
+                    />
                   ) : (
-                    <div key={`${ri}-${ci}`} className="min-w-[28px] min-h-[32px]" />
+                    <div key={`${ri}-${ci}`} className="min-w-[28px] min-h-[42px]" />
                   )
                 )}
               </div>
@@ -237,7 +315,12 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
           <div className="text-[10px] text-muted-foreground mb-1">Lanthanoid series (period 6)</div>
           <div className="flex gap-0.5 flex-wrap">
             {lanthanoidRow.map((cell) => (
-              <ElementCell key={cell.number} cell={cell} />
+              <ElementCell
+                key={cell.number}
+                cell={cell}
+                onMouseEnter={() => setHoveredElement(cell)}
+                onMouseLeave={() => setHoveredElement(null)}
+              />
             ))}
           </div>
         </div>
@@ -247,7 +330,12 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
           <div className="text-[10px] text-muted-foreground mb-1">Actinoid series (period 7)</div>
           <div className="flex gap-0.5 flex-wrap">
             {actinoidRow.map((cell) => (
-              <ElementCell key={cell.number} cell={cell} />
+              <ElementCell
+                key={cell.number}
+                cell={cell}
+                onMouseEnter={() => setHoveredElement(cell)}
+                onMouseLeave={() => setHoveredElement(null)}
+              />
             ))}
           </div>
         </div>
