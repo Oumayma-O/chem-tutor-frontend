@@ -18,7 +18,8 @@ function formatLabeledValues(
         <React.Fragment key={item.variable}>
           {i > 0 && <br />}
           <span className="equation text-foreground">
-            {formatMathContent(item.variable)} = {formatMathContent(item.value)}{" "}
+            {formatMathContent(item.variable)} ={" "}
+            {formatMathContent(item.value)}{" "}
             {formatMathContent(item.unit)}
           </span>
         </React.Fragment>
