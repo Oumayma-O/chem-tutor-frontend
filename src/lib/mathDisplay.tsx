@@ -19,6 +19,19 @@ import type { ComponentPropsWithoutRef } from "react";
 const REMARK_PLUGINS = [remarkMath] as const;
 const REHYPE_PLUGINS = [rehypeKatex] as const;
 
+/**
+ * remark-math only parses $...$ delimiters, not \(...\).
+ * CommonMark also treats \( as an escaped paren, swallowing the backslash.
+ * Pre-process \(...\) → $...$ and \[...\] → $$...$$ before remark-math runs.
+ */
+function normalizeMathDelimiters(text: string): string {
+  return text
+    .replace(/\\\(/g, "$")
+    .replace(/\\\)/g, "$")
+    .replace(/\\\[/g, "$$\n")
+    .replace(/\\\]/g, "\n$$");
+}
+
 /** Strips the <p> wrapper react-markdown adds, so math renders inline. */
 const InlineParagraph = ({ children }: ComponentPropsWithoutRef<"p">) => (
   <>{children}</>
@@ -32,7 +45,7 @@ export function formatMathContent(text: string): React.ReactNode {
       rehypePlugins={REHYPE_PLUGINS}
       components={{ p: InlineParagraph }}
     >
-      {text}
+      {normalizeMathDelimiters(text)}
     </ReactMarkdown>
   );
 }
@@ -50,7 +63,7 @@ export function formatMathBlock(text: string, paraClassName?: string): React.Rea
       rehypePlugins={REHYPE_PLUGINS}
       components={Para ? { p: Para } : undefined}
     >
-      {text}
+      {normalizeMathDelimiters(text)}
     </ReactMarkdown>
   );
 }
