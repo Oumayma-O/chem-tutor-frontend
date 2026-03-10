@@ -135,7 +135,7 @@ export const LESSON_SKILLS: Record<string, SkillDef[]> = {
 // ──────────────────────────────────────────────
 export interface FewShotExample {
   type: "worked" | "faded" | "practice";
-  topic: string;
+  lesson: string;
   problem: {
     title: string;
     description: string;
@@ -146,7 +146,7 @@ export interface FewShotExample {
 export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
   {
     type: "worked",
-    topic: "Zero-Order Kinetics",
+    lesson: "Zero-Order Kinetics",
     problem: {
       title: "Zero-Order Reaction Kinetics",
       description: "The decomposition of compound X follows zero-order kinetics with k = 0.020 M/s. Initial concentration [A]₀ = 0.80 M. Find [A] after 20 s.",
@@ -161,7 +161,7 @@ export const FEW_SHOT_EXAMPLES: FewShotExample[] = [
   },
   {
     type: "faded",
-    topic: "Zero-Order Kinetics",
+    lesson: "Zero-Order Kinetics",
     problem: {
       title: "Zero-Order Reaction Kinetics",
       description: "The decomposition of compound Y follows zero-order kinetics with k = 0.015 M/s. Initial concentration [A]₀ = 0.60 M. Find [A] after 10 s.",
@@ -201,7 +201,7 @@ export function buildRagContext(unitId: string, lessonName?: string) {
   const skills = LESSON_SKILLS[unitId] || [];
   const equations = KEY_EQUATIONS[unitId] || [];
   const examples = FEW_SHOT_EXAMPLES.filter(
-    (ex) => !lessonName || ex.topic.toLowerCase().includes(lessonName.toLowerCase().split(" ")[0])
+    (ex) => !lessonName || ex.lesson.toLowerCase().includes(lessonName.toLowerCase().split(" ")[0])
   );
 
   return {

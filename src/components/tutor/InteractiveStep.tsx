@@ -30,8 +30,8 @@ export function InteractiveStep({
   checkingAnswer,
   onRequestHint,
 }: InteractiveStepProps) {
-  const isCorrect = answer?.isCorrect === true;
-  const isIncorrect = answer?.isCorrect === false;
+  const isCorrect = answer?.is_correct === true;
+  const isIncorrect = answer?.is_correct === false;
   const displayHint = hintText || step.hint;
   const [dismissed, setDismissed] = useState(false);
   // Reset dismiss when the student changes their answer (new attempt)
@@ -47,7 +47,7 @@ export function InteractiveStep({
       )}
     >
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge stepNumber={step.stepNumber} type="interactive" isComplete={isCorrect} />
+        <StepBadge step_number={step.step_number} type="interactive" isComplete={isCorrect} />
         <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
           {step.label}
         </span>

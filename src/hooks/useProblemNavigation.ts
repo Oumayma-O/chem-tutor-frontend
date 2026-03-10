@@ -13,12 +13,11 @@ import {
   Dispatch,
   SetStateAction,
 } from "react";
-import { Level, Problem, ReferenceStep, StudentAnswer } from "@/types/chemistry";
+import { Level, Problem, StudentAnswer } from "@/types/chemistry";
 import { ProblemPagination } from "@/lib/api";
 import {
   apiStartAttempt,
   apiNavigateProblem,
-  apiGetReferenceExample,
 } from "@/lib/api";
 import { useGeneratedProblem, parseProblemOutput, type GenerateResult } from "@/hooks/useGeneratedProblem";
 import { getDifficultyForMastery } from "@/data/sampleProblems";
@@ -120,7 +119,6 @@ export function useProblemNavigation({
   const [problemLoading, setProblemLoading] = useState(true);
   const [completedProblemIds, setCompletedProblemIds] = useState<string[]>([]);
   const [levelSolved, setLevelSolved] = useState<Record<Level, number>>({ 1: 0, 2: 0, 3: 0 });
-  const [dynamicReferenceSteps, setDynamicReferenceSteps] = useState<ReferenceStep[] | null>(null);
 
   const levelCacheRef = useRef<Partial<Record<Level, LevelCacheEntry>>>({});
   const perProblemCacheRef = useRef<Record<string, PerProblemState>>({});
@@ -131,6 +129,10 @@ export function useProblemNavigation({
   const prefetchInFlight = useRef(false);
   /** When non-null, a prefetch for this level is in progress; loadNewProblem can await it. */
   const prefetchPromiseRef = useRef<{ promise: Promise<GenerateResult>; level: number } | null>(null);
+  /** Per-level lock: true while an active API call (in-flight await or fresh generate) is in
+   *  the slow path for that level. Prevents concurrent fresh-generate calls from different
+   *  entry points (handleContinueAfterProgression + tab click) creating duplicate problems. */
+  const isFetchingLevelRef = useRef<Partial<Record<Level, boolean>>>({});
   const lastMarkedRef = useRef<string>("");
   // Tracks ALL Level 1 examples the user has already seen so they are properly excluded
   // when requesting a new one. Lives as a ref to avoid mixing with Level 2/3 completedProblemIds.
@@ -181,6 +183,18 @@ export function useProblemNavigation({
           .then((result) => {
             prefetchedProblem.current = result.problem;
             prefetchedLevel.current = levelToPrefetch;
+            // Eagerly populate levelCacheRef so handleLevelChange finds the problem via the
+            // cache check and never falls through to loadNewProblem — eliminates duplicate calls.
+            if (!levelCacheRef.current[levelToPrefetch as Level]) {
+              levelCacheRef.current[levelToPrefetch as Level] = {
+                problem: result.problem,
+                answers: {},
+                hints: {},
+                structuredStepComplete: {},
+                pagination: result.pagination ?? defaultPaginationForLevel(levelToPrefetch as Level),
+                difficulty: result.problem.difficulty as "easy" | "medium" | "hard",
+              };
+            }
             return result;
           })
           .catch(() => {
@@ -229,7 +243,19 @@ export function useProblemNavigation({
       } else {
         onAttemptStart(null);
       }
-      triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
+      // Prefetch the next level only when there is a next level and it isn't already ready.
+      // Guard "level < 3" prevents a spurious re-prefetch when we're already at the max level
+      // (previously: nextLevel = level < 3 ? level+1 : level → always 3 when level===3,
+      //  then prefetchedLevel.current=0 !== 3 → triggerPrefetch fired again for L3).
+      if (level < 3) {
+        const nextLevel = level + 1;
+        const nextAlreadyReady =
+          prefetchedLevel.current === nextLevel ||
+          !!levelCacheRef.current[nextLevel as Level];
+        if (!nextAlreadyReady) {
+          triggerPrefetch(difficulty, [], nextLevel);
+        }
+      }
     },
     [userId, unitId, lessonIndex, onAttemptStart, triggerPrefetch],
   );
@@ -249,8 +275,12 @@ export function useProblemNavigation({
         applyPrefetchedProblem(p, level, difficulty);
         return p;
       }
+      // ── In-flight path: a background prefetch is already running for this level ──
+      // Only one caller should wait on it; subsequent callers bail out immediately.
       const inFlight = prefetchPromiseRef.current;
       if (inFlight?.level === level) {
+        if (isFetchingLevelRef.current[level as Level]) return null;
+        isFetchingLevelRef.current[level as Level] = true;
         setProblemLoading(true);
         try {
           await inFlight.promise;
@@ -265,17 +295,29 @@ export function useProblemNavigation({
           }
         } catch {
           /* prefetch failed; fall through to fresh generation */
+        } finally {
+          isFetchingLevelRef.current[level as Level] = false;
         }
       }
-      prefetchedProblem.current = null;
-      prefetchedLevel.current = 0;
+
+      // ── Slow path: fresh API generation ──────────────────────────────────────
+      // Block concurrent callers for the same level so we never fire duplicate requests.
+      if (isFetchingLevelRef.current[level as Level]) return null;
+      isFetchingLevelRef.current[level as Level] = true;
+
+      // Only clear a same-level stale prefetch. A cross-level prefetch (e.g. L2 prefetch
+      // while we generate a new L1 "See Another") should be preserved — it's still valid.
+      if (prefetchedLevel.current === level) {
+        prefetchedProblem.current = null;
+        prefetchedLevel.current = 0;
+      }
       setProblemLoading(true);
       try {
         const { problem, pagination: pag } = await generateProblem(difficulty, excludeIds, level);
         setCurrentProblem(problem);
         setPagination(pag ?? defaultPaginationForLevel(level as Level));
-        // Use the difficulty the backend actually assigned (mastery-derived), not the request value.
-        // This keeps currentDifficulty in sync with the playlist key used on the backend.
+        // Use the difficulty the backend actually assigned, not the request value,
+        // so currentDifficulty stays in sync with the backend playlist key.
         setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
         if (level === 1 && level1ProblemsRef.current.length === 0) {
           level1ProblemsRef.current[0] = problem;
@@ -294,7 +336,16 @@ export function useProblemNavigation({
         } else {
           onAttemptStart(null);
         }
-        triggerPrefetch(difficulty, [], level < 3 ? level + 1 : level);
+        // Same "level < 3" guard as applyPrefetchedProblem — no spurious L3 re-prefetch.
+        if (level < 3) {
+          const nextLevel = level + 1;
+          const nextAlreadyReady =
+            prefetchedLevel.current === nextLevel ||
+            !!levelCacheRef.current[nextLevel as Level];
+          if (!nextAlreadyReady) {
+            triggerPrefetch(difficulty, [], nextLevel);
+          }
+        }
         return problem;
       } catch (err) {
         const raw = err instanceof Error ? err.message : "Failed to load problem. Check your connection.";
@@ -308,6 +359,7 @@ export function useProblemNavigation({
         return null;
       } finally {
         setProblemLoading(false);
+        isFetchingLevelRef.current[level as Level] = false;
       }
     },
     [generateProblem, triggerPrefetch, applyPrefetchedProblem, userId, unitId, lessonIndex, onAttemptStart],
@@ -636,10 +688,10 @@ export function useProblemNavigation({
       stepSettersRef.current.setStructuredStepComplete({});
       setPagination(defaultPaginationForLevel(level));
       stepSettersRef.current.resetTracking();
-      const difficulty =
-        level === 3 ? getDifficultyForMastery(masteryScoreRef.current) : "medium";
+      // Level 3 default difficulty is "medium" — backend recommendations override this
+      // in handleContinueAfterProgression via the backendDiff path.
       const { completedProblemIds: cpi } = stateSnapshot.current;
-      loadNewProblem(difficulty, cpi, level);
+      loadNewProblem("medium", cpi, level);
     },
     [saveCurrentStateToCache, restoreFromCache, loadNewProblem], // refs are stable
   );
@@ -659,24 +711,6 @@ export function useProblemNavigation({
     onMarkInProgress?.();
   }, [unitId, lessonIndex, onMarkInProgress]);
 
-  // Fetch topic-specific reference example once per lesson (fallback when referenceCard absent)
-  const referenceExampleFetchedRef = useRef(false);
-  useEffect(() => {
-    if (referenceExampleFetchedRef.current) return;
-    referenceExampleFetchedRef.current = true;
-    apiGetReferenceExample(unitId, lessonIndex).then((problem) => {
-      if (!problem) return;
-      const steps: ReferenceStep[] = problem.steps
-        .filter((s: Record<string, unknown>) => s.type === "given" && s.correct_answer)
-        .map((s: Record<string, unknown>) => ({
-          stepNumber: s.step_number as number,
-          title: (s.label as string) + ":",
-          content: (s.correct_answer as string) || "",
-        }));
-      if (steps.length > 0) setDynamicReferenceSteps(steps);
-    });
-  }, [unitId, lessonIndex]);
-
   // ── Return ────────────────────────────────────────────────────────────────
 
   return {
@@ -693,7 +727,6 @@ export function useProblemNavigation({
     setCompletedProblemIds,
     levelSolved,
     setLevelSolved,
-    dynamicReferenceSteps,
     levelCacheRef,
     perProblemCacheRef,
     loadNewProblem,

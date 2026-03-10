@@ -206,17 +206,17 @@ export function TeacherAnalyticsPanel({ profile, standardsAlignment }: TeacherAn
       {/* Problem Timeline */}
       <LearningTimeline attempts={profile.recentAttempts} />
 
-      {/* Weak Topics */}
-      {profile.weakTopics.length > 0 && (
+      {/* Weak Lessons */}
+      {profile.weakLessons.length > 0 && (
         <div className="bg-destructive/5 border border-destructive/20 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-destructive" />
-            Topics Needing Attention
+            Lessons Needing Attention
           </h4>
           <div className="flex flex-wrap gap-2">
-            {profile.weakTopics.map(topic => (
-              <Badge key={topic} variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
-                {topic}
+            {profile.weakLessons.map(lesson => (
+              <Badge key={lesson} variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                {lesson}
               </Badge>
             ))}
           </div>

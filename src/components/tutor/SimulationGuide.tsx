@@ -59,7 +59,7 @@ export function SimulationGuide({ unitId, lessonName, interests, gradeLevel, mas
     (useBackendApi()
       ? apiGenerateGuide({
           chapter_id: unitId,
-          topic_name: lessonName || "",
+          lesson_name: lessonName || "",
           guide_step_index: step,
           interests: interests || [],
           grade_level: gradeLevel,

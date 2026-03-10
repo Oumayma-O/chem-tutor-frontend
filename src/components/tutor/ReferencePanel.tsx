@@ -70,7 +70,7 @@ export function ReferencePanel({ steps, hideContent, hint, isLoading }: Referenc
             <>
               {steps.map((step) => (
                 <div
-                  key={step.stepNumber}
+                  key={step.step_number}
                   className="bg-card rounded-md p-3 border border-success/30"
                 >
                   <p className="text-sm font-semibold text-success mb-1">{step.title}</p>

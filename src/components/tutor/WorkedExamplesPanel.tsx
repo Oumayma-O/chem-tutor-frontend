@@ -31,13 +31,13 @@ export function WorkedExamplesPanel({ examples }: WorkedExamplesPanelProps) {
                   <div key={step.id} className="bg-secondary/50 rounded p-2">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                        {step.stepNumber}
+                        {step.step_number}
                       </span>
                       <span className="text-xs font-medium text-foreground">{step.label}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{formatMathContent(step.instruction)}</p>
-                    {step.correctAnswer && (
-                      <p className="text-xs text-foreground mt-1 equation">{formatMathContent(step.correctAnswer)}</p>
+                    {step.correct_answer && (
+                      <p className="text-xs text-foreground mt-1 equation">{formatMathContent(step.correct_answer)}</p>
                     )}
                   </div>
                 ))}

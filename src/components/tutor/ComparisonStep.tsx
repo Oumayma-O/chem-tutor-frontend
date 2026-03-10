@@ -12,7 +12,7 @@ import { CheckCircle, XCircle, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface ComparisonStepProps {
-  stepNumber: number;
+  step_number: number;
   label: string;
   instruction: string;
   comparisonParts: [string, string];
@@ -29,7 +29,7 @@ const OPERATORS = ["<", "=", ">"] as const;
 type Operator = (typeof OPERATORS)[number];
 
 export function ComparisonStep({
-  stepNumber,
+  step_number,
   label,
   instruction,
   comparisonParts,
@@ -70,7 +70,7 @@ export function ComparisonStep({
       )}
     >
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge stepNumber={stepNumber} type="interactive" isComplete={isComplete} />
+        <StepBadge step_number={step_number} type="interactive" isComplete={isComplete} />
         <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
           {label}
         </span>

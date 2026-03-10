@@ -72,7 +72,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
     try {
       if (useBackendApi()) {
         const data = await apiGenerateExitTicket({
-          topic_name: lessonName,
+          lesson_name: lessonName,
           unit_id: selectedUnitId,
           difficulty,
           format,
@@ -104,7 +104,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
     try {
       if (useBackendApi()) {
         const data = await apiGenerateExitTicket({
-          topic_name: lessonName,
+          lesson_name: lessonName,
           unit_id: selectedUnitId,
           difficulty,
           format: questions[index].format,

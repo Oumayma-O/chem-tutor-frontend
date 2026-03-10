@@ -2,12 +2,12 @@ import { cn } from "@/lib/utils";
 import { StepType } from "@/types/chemistry";
 
 interface StepBadgeProps {
-  stepNumber: number;
+  step_number: number;
   type: StepType;
   isComplete?: boolean;
 }
 
-export function StepBadge({ stepNumber, type, isComplete }: StepBadgeProps) {
+export function StepBadge({ step_number, type, isComplete }: StepBadgeProps) {
   return (
     <span
       className={cn(
@@ -17,7 +17,7 @@ export function StepBadge({ stepNumber, type, isComplete }: StepBadgeProps) {
         isComplete && "bg-success text-success-foreground"
       )}
     >
-      Step {stepNumber}
+      Step {step_number}
     </span>
   );
 }

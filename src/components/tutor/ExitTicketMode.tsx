@@ -182,16 +182,16 @@ export function ExitTicketMode({ problem, timeLimit: propTimeLimit, onComplete, 
 
   const handleCheckAnswer = (stepId: string) => {
     const step = problem?.steps.find(s => s.id === stepId);
-    if (!step?.correctAnswer) return;
+    if (!step?.correct_answer) return;
     const currentAnswer = answers[stepId];
-    const isCorrect = currentAnswer?.answer.trim().toLowerCase() === step.correctAnswer.toLowerCase();
+    const isCorrect = currentAnswer?.answer.trim().toLowerCase() === step.correct_answer.toLowerCase();
     setAnswers(prev => ({
       ...prev,
-      [stepId]: { ...prev[stepId], isCorrect, attempts: (prev[stepId]?.attempts || 0) + 1 },
+      [stepId]: { ...prev[stepId], is_correct: isCorrect, attempts: (prev[stepId]?.attempts || 0) + 1 },
     }));
     const allAnswered = steps.every(s => {
-      const ans = stepId === s.id ? { ...answers[stepId], isCorrect } : answers[s.id];
-      return ans?.isCorrect !== undefined;
+      const ans = stepId === s.id ? { ...answers[stepId], is_correct: isCorrect } : answers[s.id];
+      return ans?.is_correct !== undefined;
     });
     if (allAnswered) {
       setIsComplete(true);
@@ -200,17 +200,17 @@ export function ExitTicketMode({ problem, timeLimit: propTimeLimit, onComplete, 
   };
 
   const calculateResult = useCallback((): ExitTicketResult => {
-    const correctCount = Object.values(answers).filter(a => a.isCorrect === true).length;
+    const correctCount = Object.values(answers).filter(a => a.is_correct === true).length;
     const totalSteps = steps.length;
     const finalScore = totalSteps > 0 ? (correctCount / totalSteps) * 100 : 0;
     // Support 3–6 steps: formula (0), variable (1), calculation (middle or 2), final (last)
     const lastIdx = totalSteps - 1;
     const calcIdx = totalSteps >= 4 ? 2 : totalSteps === 3 ? 1 : 0;
     const conceptualBreakdown: Record<string, number> = {
-      formula_selection: steps[0] && answers[steps[0].id]?.isCorrect ? 100 : 0,
-      variable_identification: steps[1] && answers[steps[1].id]?.isCorrect ? 100 : 0,
-      calculation: steps[calcIdx] && answers[steps[calcIdx].id]?.isCorrect ? 100 : 0,
-      final_answer: steps[lastIdx] && answers[steps[lastIdx].id]?.isCorrect ? 100 : 0,
+      formula_selection: steps[0] && answers[steps[0].id]?.is_correct ? 100 : 0,
+      variable_identification: steps[1] && answers[steps[1].id]?.is_correct ? 100 : 0,
+      calculation: steps[calcIdx] && answers[steps[calcIdx].id]?.is_correct ? 100 : 0,
+      final_answer: steps[lastIdx] && answers[steps[lastIdx].id]?.is_correct ? 100 : 0,
     };
     const timeUsed = timeLimit - timeRemaining;
     const timeEfficiency = Math.max(0, 100 - (timeUsed / timeLimit) * 50);

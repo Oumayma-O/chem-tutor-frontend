@@ -50,19 +50,19 @@ function formatComparison(
 
 export function GivenStep({ step }: GivenStepProps) {
   const [explanationOpen, setExplanationOpen] = useState(false);
-  // Show "first operator second" for any step (given or comparison) that has comparison data
-  const hasComparison =
-    step.comparisonParts &&
-    step.comparisonParts.length >= 2 &&
-    step.correctAnswer != null &&
-    step.correctAnswer !== "";
-  const hasLabeledValues = step.labeledValues && step.labeledValues.length > 0;
 
-  const answerText = (step.correctAnswer ?? "").trim();
+  const hasComparison =
+    step.comparison_parts != null &&
+    step.comparison_parts.length >= 2 &&
+    step.correct_answer != null &&
+    step.correct_answer !== "";
+  const hasLabeledValues = step.labeled_values && step.labeled_values.length > 0;
+
+  const answerText = (step.correct_answer ?? "").trim();
   const content = hasComparison ? (
-    formatComparison(step.comparisonParts!, step.correctAnswer!)
+    formatComparison(step.comparison_parts!, step.correct_answer!)
   ) : hasLabeledValues ? (
-    formatLabeledValues(step.labeledValues!)
+    formatLabeledValues(step.labeled_values!)
   ) : answerText ? (
     <p className="equation text-foreground font-medium">
       {answerText.split(", ").map((line, i) => (
@@ -72,6 +72,10 @@ export function GivenStep({ step }: GivenStepProps) {
         </React.Fragment>
       ))}
     </p>
+  ) : step.equation_parts && step.equation_parts.length > 0 ? (
+    <p className="equation text-foreground font-medium">
+      {formatMathContent(step.equation_parts.join(" "))}
+    </p>
   ) : (
     <p className="text-muted-foreground text-sm">—</p>
   );
@@ -79,7 +83,7 @@ export function GivenStep({ step }: GivenStepProps) {
   return (
     <div className="step-card bg-step-given border-l-4 border-step-given-border rounded-lg p-5 shadow-step">
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge stepNumber={step.stepNumber} type="given" />
+        <StepBadge step_number={step.step_number} type="given" />
         <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
           {step.label}
         </span>

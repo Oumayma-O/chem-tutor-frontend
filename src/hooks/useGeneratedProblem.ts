@@ -18,52 +18,33 @@ export interface GenerateResult {
 }
 
 export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResult {
-  const pd = data.problem; // nested problem object
-  const steps: SolutionStep[] = pd.steps.map((s) => {
-    // Backend serialises as snake_case (FastAPI default) but Pydantic aliases
-    // may produce camelCase depending on the version/config. Handle both.
-    const r = s as unknown as Record<string, unknown>;
-
-    const id = (r["id"] as string | undefined);
-    const stepNumber = (r["step_number"] ?? r["stepNumber"]) as number;
-    const type = r["type"] as string;
-    const label = r["label"] as string;
-    const instruction = r["instruction"] as string;
-    const content = (r["content"] as string | null | undefined) ?? undefined;
-    const placeholder = (r["placeholder"] as string | null | undefined) ?? undefined;
-    const equationParts = (r["equation_parts"] ?? r["equationParts"]) as string[] | null | undefined;
-    const labeledValues = (r["labeled_values"] ?? r["labeledValues"]) as { variable: string; value: string; unit: string }[] | null | undefined;
-    const comparisonParts = (r["comparison_parts"] ?? r["comparisonParts"]) as string[] | null | undefined;
-    const correctAnswer = (r["correct_answer"] ?? r["correctAnswer"]) as string | null | undefined;
-    const hint = (r["hint"] as string | null | undefined) ?? undefined;
-    const explanation = (r["explanation"] as string | null | undefined) ?? undefined;
-
-    return {
-      id: id || `${pd.id}-step-${stepNumber}`,
-      stepNumber,
-      type: type as SolutionStep["type"],
-      label,
-      instruction,
-      content,
-      placeholder,
-      explanation: explanation || undefined,
-      equationParts: equationParts ?? undefined,
-      // correctEquation is the correct answer for drag_drop steps
-      correctEquation: type === "drag_drop" ? (correctAnswer ?? undefined) : undefined,
-      labeledValues: labeledValues ?? undefined,
-      comparisonParts: comparisonParts ?? undefined,
-      correctAnswer: correctAnswer ?? undefined,
-      hint,
-    };
-  });
+  const pd = data.problem;
+  const steps: SolutionStep[] = pd.steps.map((s) => ({
+    id: s.id || `${pd.id}-step-${s.step_number}`,
+    step_number: s.step_number,
+    type: s.type as SolutionStep["type"],
+    label: s.label,
+    instruction: s.instruction,
+    content: s.content ?? undefined,
+    placeholder: s.placeholder ?? undefined,
+    explanation: s.explanation ?? undefined,
+    equation_parts: s.equation_parts ?? undefined,
+    // correct_equation stores the answer for drag_drop steps
+    correct_equation: s.type === "drag_drop" ? (s.correct_answer ?? undefined) : undefined,
+    labeled_values: s.labeled_values ?? undefined,
+    comparison_parts: s.comparison_parts ?? undefined,
+    correct_answer: s.correct_answer ?? undefined,
+    hint: s.hint ?? undefined,
+  }));
 
   const problem: Problem = {
     id: pd.id,
     title: pd.title,
     description: pd.statement,
-    topic: pd.topic,
+    lesson: pd.lesson,
     difficulty: pd.difficulty as Problem["difficulty"],
     steps,
+    blueprint: (pd.blueprint as Problem["blueprint"]) ?? undefined,
   };
 
   // Show pagination nav only when the playlist has meaningful data
@@ -108,7 +89,7 @@ export function useGeneratedProblem({
         const data = await apiGenerateProblemV2({
           unit_id: unitId,
           lesson_index: lessonIndex,
-          topic_name: lessonName,
+          lesson_name: lessonName,
           difficulty,
           level,
           interests: interests || [],

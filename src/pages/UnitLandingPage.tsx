@@ -30,6 +30,8 @@ export default function UnitLandingPage() {
   const { profile, user } = useAuth();
   const { getStatus } = useLessonCompletion(unitId || "", user?.id);
 
+  const currentLessonTitle = lessonTitles[currentLessonIdx] ?? "";
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [unitId, lessonIndex]);
@@ -58,7 +60,6 @@ export default function UnitLandingPage() {
     isAtomicStructure ||
     (isKinetics && currentLessonIdx === RATE_LAWS_LESSON_INDEX);
 
-  const currentLessonTitle = lessonTitles[currentLessonIdx] ?? "";
   const totalLessons = lessonTitles.length;
   const hasPrev = currentLessonIdx > 0;
   const hasNext = currentLessonIdx < totalLessons - 1;

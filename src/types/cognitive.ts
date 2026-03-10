@@ -103,7 +103,7 @@ export interface StudentCognitiveProfile {
   }[];
   learningPatternSummary?: string;
   predictedProficiency: Record<string, number>; // standard -> predicted score
-  weakTopics: string[];
+  weakLessons: string[];
 }
 
 export interface LearningInsight {

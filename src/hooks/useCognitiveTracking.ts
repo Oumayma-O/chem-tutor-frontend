@@ -295,7 +295,7 @@ export function useCognitiveTracking() {
       return acc;
     }, [] as StudentCognitiveProfile["errorPatterns"]);
 
-    const weakTopics = skillMap
+    const weakLessons = skillMap
       .filter(s => s.status === "at_risk")
       .map(s => s.skillName);
 
@@ -307,7 +307,7 @@ export function useCognitiveTracking() {
       errorPatterns,
       learningPatternSummary: learningInsight,
       predictedProficiency: {},
-      weakTopics,
+      weakLessons,
     };
   }, [skillMap, recentAttempts, classifiedErrors, learningInsight]);
 

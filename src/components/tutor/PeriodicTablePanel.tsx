@@ -27,9 +27,6 @@ const LEGEND_ITEMS: { label: string; category: ElementCategory }[] = [
 
 interface PeriodicTablePanelProps {
   onClose: () => void;
-  /** @deprecated Position is now responsive (anchor bottom-right on desktop, center on mobile). */
-  initialX?: number;
-  initialY?: number;
 }
 
 function ElementCell({

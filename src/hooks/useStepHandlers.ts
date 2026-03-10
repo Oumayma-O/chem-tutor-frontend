@@ -79,7 +79,7 @@ export function useStepHandlers({
     return currentProblem.steps.filter((s) => {
       if (currentLevel === 2) return s.type === "interactive";
       if (currentLevel === 3) {
-        return s.type !== "given" || !!s.equationParts || !!s.labeledValues;
+        return s.type !== "given" || !!s.equation_parts || !!s.labeled_values;
       }
       return s.type !== "given";
     });
@@ -94,7 +94,7 @@ export function useStepHandlers({
   useEffect(() => {
     if (hasClassifiedRef.current) return;
     const allAttempted = interactiveSteps.every(
-      (s) => answers[s.id]?.isCorrect !== undefined || structuredStepComplete[s.id],
+      (s) => answers[s.id]?.is_correct !== undefined || structuredStepComplete[s.id],
     );
     if (allAttempted && thinkingSteps.length > 0) {
       hasClassifiedRef.current = true;
@@ -108,11 +108,11 @@ export function useStepHandlers({
     setAnswers((prev) => ({
       ...prev,
       [stepId]: {
-        stepId,
+        step_id: stepId,
         answer,
-        isCorrect: undefined,
+        is_correct: undefined,
         attempts: prev[stepId]?.attempts || 0,
-        firstAttemptCorrect: prev[stepId]?.firstAttemptCorrect,
+        first_attempt_correct: prev[stepId]?.first_attempt_correct,
       },
     }));
   };
@@ -123,8 +123,8 @@ export function useStepHandlers({
       onMarkInProgress?.();
       const step = currentProblem.steps.find((s) => s.id === stepId);
       if (!step) return;
-      if (!step.correctAnswer) {
-        console.warn("Step has no correctAnswer — skipping validation", step);
+      if (!step.correct_answer) {
+        console.warn("Step has no correct_answer — skipping validation", step);
         return;
       }
       if (checkingAnswer.has(stepId)) return;
@@ -148,9 +148,9 @@ export function useStepHandlers({
         // Send the step being validated (step_id, step_number, correct_answer) so backend uses this step's key
         const data = await apiValidateStep({
           student_answer: studentText,
-          correct_answer: step.correctAnswer,
+          correct_answer: step.correct_answer,
           step_id: step.id,
-          step_number: step.stepNumber,
+          step_number: step.step_number,
           step_label: step.label,
           step_type: step.type,
           problem_context: currentProblem.description,
@@ -159,7 +159,7 @@ export function useStepHandlers({
       } catch {
         const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
         const numStudent = parseFloat(normalize(studentText));
-        const numCorrect = parseFloat(normalize(step.correctAnswer ?? ""));
+        const numCorrect = parseFloat(normalize(step.correct_answer ?? ""));
         if (!isNaN(numStudent) && !isNaN(numCorrect)) {
           // Final "Answer" / "Final Answer" steps: strict 1% tolerance (sig figs matter).
           // All intermediate steps: 5% tolerance (rounding variations are acceptable).
@@ -169,7 +169,7 @@ export function useStepHandlers({
             ? Math.abs(numStudent) < 1e-9
             : Math.abs(numStudent - numCorrect) / Math.abs(numCorrect) <= tolerance;
         } else {
-          isCorrect = normalize(studentText) === normalize(step.correctAnswer ?? "");
+          isCorrect = normalize(studentText) === normalize(step.correct_answer ?? "");
         }
       } finally {
         setCheckingAnswer((prev) => {
@@ -183,14 +183,14 @@ export function useStepHandlers({
         ...prev,
         [stepId]: {
           ...prev[stepId],
-          isCorrect,
+          is_correct: isCorrect,
           attempts: (prev[stepId]?.attempts || 0) + 1,
-          firstAttemptCorrect: prev[stepId]?.firstAttemptCorrect ?? (isFirstAttempt && isCorrect),
+          first_attempt_correct: prev[stepId]?.first_attempt_correct ?? (isFirstAttempt && isCorrect),
         },
       }));
 
-      const stepType = STEP_TYPE_MAP[step.stepNumber] || "calculation";
-      recordThinkingStep(stepId, stepType, studentText, step.correctAnswer, isCorrect);
+      const stepType = STEP_TYPE_MAP[step.step_number] || "calculation";
+      recordThinkingStep(stepId, stepType, studentText, step.correct_answer, isCorrect);
 
       const updatedSteps = [
         ...thinkingSteps,
@@ -205,7 +205,7 @@ export function useStepHandlers({
                 : ("procedural" as const),
           label: stepType,
           studentInput: studentText,
-          expectedValue: step.correctAnswer,
+          expectedValue: step.correct_answer,
           isCorrect,
           timestamp: Date.now(),
           timeSpent: 0,
@@ -236,7 +236,7 @@ export function useStepHandlers({
           step_label: step.label,
           step_instruction: step.instruction,
           student_input: answers[stepId]?.answer || "",
-          correct_answer: step.correctAnswer || "",
+          correct_answer: step.correct_answer || "",
           attempt_count: answers[stepId]?.attempts || 1,
           interests: interests || [],
           grade_level: gradeLevel,
@@ -278,11 +278,11 @@ export function useStepHandlers({
         return {
           ...prev,
           [stepId]: {
-            stepId,
+            step_id: stepId,
             answer: prev[stepId]?.answer || "",
-            isCorrect,
+            is_correct: isCorrect,
             attempts,
-            firstAttemptCorrect: prev[stepId]?.firstAttemptCorrect ?? (isFirstAttempt && isCorrect),
+            first_attempt_correct: prev[stepId]?.first_attempt_correct ?? (isFirstAttempt && isCorrect),
           },
         };
       });
@@ -300,9 +300,9 @@ export function useStepHandlers({
       try {
         const result = await apiValidateStep({
           student_answer: mathExpr,
-          correct_answer: step.correctAnswer || "",
+          correct_answer: step.correct_answer || "",
           step_id: step.id,
-          step_number: step.stepNumber,
+          step_number: step.step_number,
           step_label: step.label,
           step_type: "drag_drop",
           problem_context: currentProblem?.description || "",

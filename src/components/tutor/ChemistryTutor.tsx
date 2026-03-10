@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } fr
 import { useNavigate } from "react-router-dom";
 import { Level, LEVEL_CONFIGS, StudentAnswer, ProgressionResult } from "@/types/chemistry";
 import { ExitTicketResult } from "@/types/cognitive";
-import { referenceSteps, getRandomProblem, getDifficultyForMastery } from "@/data/sampleProblems";
+import { getRandomProblem, getDifficultyForMastery } from "@/data/sampleProblems";
 import {
   apiGetMastery,
   apiUnlockLevel3,
@@ -53,6 +53,34 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+/**
+ * Module-level reference card client cache.
+ * Avoids the loading flicker when a student switches back to a lesson they already viewed.
+ * The backend already persists the card globally; this just prevents the redundant
+ * round-trip and skeleton flash within the same browser session.
+ */
+const _refCardCache = new Map<string, ReferenceCardOutput>();
+
+/** Derive overall mastery % from backend state. Use category_scores average when mastery_score is 0 or missing. */
+function overallMasteryPercent(
+  mastery_score: number | undefined | null,
+  category_scores?: { conceptual?: number; procedural?: number; computational?: number; representation?: number } | null
+): number {
+  const vals = category_scores
+    ? [
+        category_scores.conceptual,
+        category_scores.procedural,
+        category_scores.computational,
+        category_scores.representation,
+      ].filter((v): v is number => typeof v === "number")
+    : [];
+  if (vals.length > 0 && (typeof mastery_score !== "number" || mastery_score === 0)) {
+    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    return Math.round(avg * 100);
+  }
+  return typeof mastery_score === "number" ? Math.round(mastery_score * 100) : 0;
+}
+
 /** Map step type to backend reasoningPattern for mastery step_log. */
 const STEP_TYPE_TO_REASONING_PATTERN: Record<string, string> = {
   formula_selection: "Conceptual",
@@ -80,7 +108,7 @@ interface ChemistryTutorProps {
   onTopicComplete?: () => void;
   onMarkInProgress?: () => void;
   /** When true, Level 3 is shown as unlocked (from parent's lesson completion state — avoids extra progress API call). */
-  topicCompleted?: boolean;
+  lessonCompleted?: boolean;
   interests?: string[];
   gradeLevel?: string | null;
   /** Tool keys for this lesson, e.g. ['periodic_table']. From API lesson.required_tools. */
@@ -103,7 +131,7 @@ export function ChemistryTutor({
   userId,
   onTopicComplete,
   onMarkInProgress,
-  topicCompleted = false,
+  lessonCompleted = false,
   interests = [],
   gradeLevel = null,
   requiredTools = [],
@@ -162,6 +190,8 @@ export function ChemistryTutor({
     resetTracking: () => {},
   });
   const lastSavedStepLogKeyRef = useRef<string>("");
+  /** Stores the in-flight apiCompleteAttempt promise so handleContinueAfterProgression can await it. */
+  const completeAttemptPromiseRef = useRef<Promise<unknown> | null>(null);
 
   // ── Cognitive tracking ────────────────────────────────────────────────────
   const {
@@ -240,12 +270,12 @@ export function ChemistryTutor({
   const isLevel3Locked = !hasCompletedLevel2;
 
   const completedSteps = steps.interactiveSteps.filter(
-    (s) => steps.answers[s.id]?.isCorrect === true || steps.structuredStepComplete[s.id],
+    (s) => steps.answers[s.id]?.is_correct === true || steps.structuredStepComplete[s.id],
   );
   const allComplete =
     steps.interactiveSteps.length > 0 &&
     steps.interactiveSteps.every(
-      (s) => steps.answers[s.id]?.isCorrect === true || steps.structuredStepComplete[s.id],
+      (s) => steps.answers[s.id]?.is_correct === true || steps.structuredStepComplete[s.id],
     );
 
   const levelConfig = LEVEL_CONFIGS.find((c) => c.level === nav.currentLevel) ?? LEVEL_CONFIGS[0];
@@ -267,8 +297,6 @@ export function ChemistryTutor({
     apiGetMastery(userId, unitId, lessonIndex)
       .then((state) => {
         setHasCompletedLevel2((prev) => prev || !!state.level3_unlocked);
-        const rawScore = state.mastery_score ?? 0;
-        setMasteryScore(Math.round(rawScore * 100));
         const cs = state.category_scores;
         if (cs) {
           setBackendCategoryScores({
@@ -280,6 +308,7 @@ export function ChemistryTutor({
         } else {
           setBackendCategoryScores(null);
         }
+        setMasteryScore(overallMasteryPercent(state.mastery_score, state.category_scores));
       })
       .catch(() => {});
 
@@ -287,18 +316,34 @@ export function ChemistryTutor({
 
   // Level 3 unlock from parent's lesson completion (avoids duplicate progress API)
   useEffect(() => {
-    if (topicCompleted) setHasCompletedLevel2((prev) => prev || true);
-  }, [topicCompleted]);
+    if (lessonCompleted) setHasCompletedLevel2((prev) => prev || true);
+  }, [lessonCompleted]);
 
-  // Fetch reference card once per topic (topic-level cache — backend persists it)
+  // Fetch reference card once per lesson for Level 1 and 2 only. Client cache avoids
+  // the loading flicker when revisiting a lesson — the backend already persists globally on first generation.
   useEffect(() => {
+    const level = nav.currentLevel;
+    if (level === 3) {
+      setReferenceCardLoading(false);
+      return;
+    }
+    const cacheKey = `${unitId}:${lessonIndex}`;
+    const clientCached = _refCardCache.get(cacheKey);
+    if (clientCached) {
+      setReferenceCard(clientCached);
+      setReferenceCardLoading(false);
+      return;
+    }
     setReferenceCard(null);
     setReferenceCardLoading(true);
     apiGetReferenceCard(unitId, lessonIndex, currentTopicName).then((card) => {
-      if (card) setReferenceCard(card);
+      if (card) {
+        setReferenceCard(card);
+        _refCardCache.set(cacheKey, card);
+      }
       setReferenceCardLoading(false);
     });
-  }, [unitId, lessonIndex, currentTopicName]);
+  }, [unitId, lessonIndex, currentTopicName, nav.currentLevel]);
 
   // Start step timer when interactive steps become available
   useEffect(() => {
@@ -321,34 +366,34 @@ export function ChemistryTutor({
       .map((s) => {
         const answerState = steps.answers[s.id];
         const hasDecision =
-          typeof answerState?.isCorrect === "boolean" || steps.structuredStepComplete[s.id] === true;
+          typeof answerState?.is_correct === "boolean" || steps.structuredStepComplete[s.id] === true;
         if (!hasDecision) return null;
         const isCorrect =
-          answerState?.isCorrect === true || steps.structuredStepComplete[s.id] === true;
-        const stepType = STEP_TYPE_MAP[s.stepNumber] ?? "calculation";
+          answerState?.is_correct === true || steps.structuredStepComplete[s.id] === true;
+        const stepType = STEP_TYPE_MAP[s.step_number] ?? "calculation";
         const reasoningPattern = STEP_TYPE_TO_REASONING_PATTERN[stepType] ?? "Procedural";
         return {
-          stepId: s.id,
-          isCorrect,
-          reasoningPattern,
-          errorCategory: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
+          step_id: s.id,
+          is_correct: isCorrect,
+          reasoning_pattern: reasoningPattern,
+          error_category: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
         };
       })
       .filter(
         (x): x is {
-          stepId: string;
-          isCorrect: boolean;
-          reasoningPattern: string;
-          errorCategory: string;
+          step_id: string;
+          is_correct: boolean;
+          reasoning_pattern: string;
+          error_category: string;
         } => !!x
       );
 
     if (attempted.length === 0) return;
 
     const requestStepLog = attempted.map((x) => ({
-      isCorrect: x.isCorrect,
-      reasoningPattern: x.reasoningPattern,
-      errorCategory: x.errorCategory,
+      is_correct: x.is_correct,
+      reasoning_pattern: x.reasoning_pattern,
+      error_category: x.error_category,
     }));
     const payloadKey = JSON.stringify(requestStepLog);
     if (payloadKey === lastSavedStepLogKeyRef.current) return;
@@ -359,10 +404,6 @@ export function ChemistryTutor({
       step_log: requestStepLog,
     })
       .then((res) => {
-        const ms = res.mastery?.mastery_score;
-        if (typeof ms === "number") {
-          setMasteryScore(Math.round(ms * 100));
-        }
         const cs = res.mastery?.category_scores;
         if (cs) {
           setBackendCategoryScores({
@@ -372,6 +413,7 @@ export function ChemistryTutor({
             representation: cs.representation ?? 0.0,
           });
         }
+        setMasteryScore(overallMasteryPercent(res.mastery?.mastery_score, res.mastery?.category_scores));
       })
       .catch(() => {});
   }, [
@@ -425,12 +467,12 @@ export function ChemistryTutor({
     setProgressionResult(result);
     setShowProgressionModal(true);
 
-    if (result.shouldAdvance && result.nextLevel === 3 && nav.currentLevel === 2) {
+    if (result.should_advance && result.next_level === 3 && nav.currentLevel === 2) {
       setHasCompletedLevel2(true);
     }
 
     const allFirstAttempt = interactiveStepIds.every(
-      (id) => steps.answers[id]?.firstAttemptCorrect === true,
+      (id) => steps.answers[id]?.first_attempt_correct === true,
     );
     completeProblemAttempt(
       nav.currentProblem.id,
@@ -442,18 +484,18 @@ export function ChemistryTutor({
     if (userId && currentAttemptId && steps.interactiveSteps.length > 0) {
       const step_log = steps.interactiveSteps.map((s) => {
         const isCorrect =
-          steps.answers[s.id]?.isCorrect === true || steps.structuredStepComplete[s.id] === true;
-        const stepType = STEP_TYPE_MAP[s.stepNumber] ?? "calculation";
+          steps.answers[s.id]?.is_correct === true || steps.structuredStepComplete[s.id] === true;
+        const stepType = STEP_TYPE_MAP[s.step_number] ?? "calculation";
         const reasoningPattern = STEP_TYPE_TO_REASONING_PATTERN[stepType] ?? "Procedural";
         return {
-          isCorrect,
-          reasoningPattern,
-          errorCategory: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
+          is_correct: isCorrect,
+          reasoning_pattern: reasoningPattern,
+          error_category: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
         };
       });
-      const correctCount = step_log.filter((e) => e.isCorrect).length;
+      const correctCount = step_log.filter((e) => e.is_correct).length;
       const score = correctCount / step_log.length;
-      apiCompleteAttempt({
+      const completePromise = apiCompleteAttempt({
         attempt_id: currentAttemptId,
         user_id: userId,
         unit_id: unitId,
@@ -461,11 +503,11 @@ export function ChemistryTutor({
         score,
         step_log,
         level: nav.currentLevel,
-      })
+      });
+      completeAttemptPromiseRef.current = completePromise;
+      completePromise
         .then((decision) => {
           if (decision.mastery) {
-            const ms = decision.mastery.mastery_score;
-            setMasteryScore(typeof ms === "number" ? Math.round(ms * 100) : 0);
             if (decision.mastery.level3_unlocked) setHasCompletedLevel2(true);
             const cs = decision.mastery.category_scores;
             if (cs) {
@@ -476,6 +518,7 @@ export function ChemistryTutor({
                 representation: cs.representation ?? 0.0,
               });
             }
+            setMasteryScore(overallMasteryPercent(decision.mastery.mastery_score, decision.mastery.category_scores));
           }
           if (decision.recommended_next_difficulty) {
             setRecommendedDifficulty(
@@ -505,8 +548,15 @@ export function ChemistryTutor({
     lessonIndex,
   ]);
 
-  const handleContinueAfterProgression = useCallback(() => {
+  const handleContinueAfterProgression = useCallback(async () => {
     if (!progressionResult || !nav.currentProblem) return;
+
+    // Await the in-flight complete-attempt response so mastery scores are up-to-date
+    // before the next problem loads, eliminating the 0% sidebar desync.
+    if (completeAttemptPromiseRef.current) {
+      try { await completeAttemptPromiseRef.current; } catch { /* non-blocking */ }
+      completeAttemptPromiseRef.current = null;
+    }
 
     nav.saveCurrentStateToCache();
     nav.setLevelSolved((prev) => ({ ...prev, [nav.currentLevel]: prev[nav.currentLevel] + 1 }));
@@ -521,7 +571,7 @@ export function ChemistryTutor({
     resetTracking();
     setShowProgressionModal(false);
     // When advancing 2 → 3, keep level 2 in cache so switching back shows the submitted attempt
-    const advancingToLevel3 = progressionResult.shouldAdvance && progressionResult.nextLevel === 3 && nav.currentLevel === 2;
+    const advancingToLevel3 = progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2;
     if (!advancingToLevel3) {
       delete nav.levelCacheRef.current[nav.currentLevel];
     }
@@ -529,18 +579,15 @@ export function ChemistryTutor({
     const backendDiff = recommendedDifficulty;
     setRecommendedDifficulty(null);
 
-    if (progressionResult.shouldAdvance && progressionResult.nextLevel === 3 && nav.currentLevel === 2) {
+    if (progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2) {
       setHasCompletedLevel2(true);
       persistLevel3Unlock();
       nav.setCurrentLevel(3);
-      const difficulty = backendDiff ?? getDifficultyForMastery(masteryScore);
-      nav.loadNewProblem(difficulty, nextExcludeIds, 3);
-      toast.success(`Level 3 unlocked! Loading ${difficulty} difficulty problem…`);
+      nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
+      toast.success("Level 3 unlocked! Here's your first challenge…");
       // Re-fetch mastery so sidebar shows latest backend category scores (in case complete response omitted them).
       if (userId) {
         apiGetMastery(userId, unitId, lessonIndex).then((state) => {
-          const rawScore = state.mastery_score ?? 0;
-          setMasteryScore(Math.round(rawScore * 100));
           const cs = state.category_scores;
           if (cs) {
             setBackendCategoryScores({
@@ -550,14 +597,14 @@ export function ChemistryTutor({
               representation: cs.representation ?? 0.0,
             });
           }
+          setMasteryScore(overallMasteryPercent(state.mastery_score, state.category_scores));
         }).catch(() => {});
       }
     } else if (nav.currentLevel === 3) {
       onTopicComplete?.();
       if (userId) apiSetTopicStatus(userId, unitId, lessonIndex, "completed").catch(() => {});
-      const difficulty = backendDiff ?? getDifficultyForMastery(masteryScore);
-      nav.loadNewProblem(difficulty, nextExcludeIds, 3);
-      toast.success(`Next problem: ${difficulty} difficulty!`);
+      nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
+      toast.success("Next challenge loaded!");
     } else {
       nav.setCurrentLevel(2);
       nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 2);
@@ -596,8 +643,7 @@ export function ChemistryTutor({
       nav.loadNewProblem("medium", nextExcludeIds, 2);
       toast.info("Great choice! Here's another Level 2 problem for extra practice.");
     } else if (nav.currentLevel === 3) {
-      const difficulty = getDifficultyForMastery(masteryScore);
-      nav.loadNewProblem(difficulty, nextExcludeIds, 3);
+      nav.loadNewProblem("medium", nextExcludeIds, 3);
       toast.success("Another Level 3 problem loaded!");
     }
   }, [nav, steps, masteryScore, resetTracking]);
@@ -759,14 +805,14 @@ export function ChemistryTutor({
                       }
 
                       // Level 3 structured equation step: drag_drop
-                      if (nav.currentLevel === 3 && step.type === "drag_drop" && step.equationParts) {
+                      if (nav.currentLevel === 3 && step.type === "drag_drop" && step.equation_parts) {
                         return (
                           <EquationBuilder
                             key={step.id}
-                            stepNumber={step.stepNumber}
+                            step_number={step.step_number}
                             label={step.label}
                             instruction="Drag and drop to form the correct equation"
-                            availableParts={step.equationParts}
+                            availableParts={step.equation_parts}
                             onValidate={(expr) => steps.handleValidateEquation(expr, step)}
                             onComplete={(correct) =>
                               steps.handleStructuredStepComplete(step.id, correct)
@@ -781,14 +827,14 @@ export function ChemistryTutor({
                       }
 
                       // Multi-value input step: variable_id (any level)
-                      if (step.type === "variable_id" && step.labeledValues) {
+                      if (step.type === "variable_id" && step.labeled_values) {
                         return (
                           <KnownsIdentifier
                             key={step.id}
-                            stepNumber={step.stepNumber}
+                            step_number={step.step_number}
                             label={step.label}
                             instruction={step.instruction}
-                            variables={step.labeledValues}
+                            variables={step.labeled_values}
                             onComplete={(correct) =>
                               steps.handleStructuredStepComplete(step.id, correct)
                             }
@@ -802,15 +848,15 @@ export function ChemistryTutor({
                       }
 
                       // Comparison step: pick <, >, or =
-                      if (step.type === "comparison" && step.comparisonParts?.length === 2) {
+                      if (step.type === "comparison" && step.comparison_parts?.length === 2) {
                         return (
                           <ComparisonStep
                             key={step.id}
-                            stepNumber={step.stepNumber}
+                            step_number={step.step_number}
                             label={step.label}
                             instruction={step.instruction}
-                            comparisonParts={step.comparisonParts as [string, string]}
-                            correctAnswer={step.correctAnswer as "<" | ">" | "="}
+                            comparisonParts={step.comparison_parts as [string, string]}
+                            correctAnswer={step.correct_answer as "<" | ">" | "="}
                             onComplete={(correct) =>
                               steps.handleStructuredStepComplete(step.id, correct)
                             }
@@ -865,13 +911,7 @@ export function ChemistryTutor({
                           variant="outline"
                           className="gap-2"
                           onClick={nav.handleSeeAnother}
-                          disabled={
-                            nav.problemLoading ||
-                            nav.isNavigating ||
-                            (!!nav.pagination &&
-                              nav.pagination.at_limit &&
-                              !nav.pagination.has_next)
-                          }
+                          disabled={nav.problemLoading || nav.isNavigating}
                         >
                           <BookOpen className="w-4 h-4" />
                           See Another Worked Example
@@ -920,21 +960,19 @@ export function ChemistryTutor({
               level3Unlocked={hasCompletedLevel2}
             />
 
-            {/* Reference panel: Level 1 and 2 (hidden in Level 3) */}
-            {nav.currentLevel !== 3 && (
+            {/* Reference panel: Level 1 and 2 only, fetched once per lesson; always show area (skeleton until loaded) */}
+            {nav.currentLevel !== 3 && (referenceCardLoading || referenceCard || (unitId != null && lessonIndex != null)) && (
               <ReferencePanel
                 steps={
-                  referenceCardLoading
+                  referenceCardLoading || !referenceCard
                     ? []
-                    : referenceCard
-                      ? referenceCard.steps.map((s, i) => ({
-                          stepNumber: i + 1,
-                          title: s.label,
-                          content: s.content,
-                        }))
-                      : (nav.dynamicReferenceSteps ?? referenceSteps)
+                    : referenceCard.steps.map((s, i) => ({
+                        step_number: i + 1,
+                        title: s.label,
+                        content: s.content,
+                      }))
                 }
-                isLoading={referenceCardLoading}
+                isLoading={referenceCardLoading || !referenceCard}
                 hint={referenceCard?.hint}
               />
             )}
@@ -947,14 +985,14 @@ export function ChemistryTutor({
                     <div
                       key={step.id}
                       className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
-                        steps.answers[step.id]?.isCorrect || steps.structuredStepComplete[step.id]
+                        steps.answers[step.id]?.is_correct || steps.structuredStepComplete[step.id]
                           ? "bg-success text-success-foreground"
-                          : steps.answers[step.id]?.isCorrect === false
+                          : steps.answers[step.id]?.is_correct === false
                             ? "bg-destructive/20 text-destructive border-2 border-destructive"
                             : "bg-secondary text-muted-foreground"
                       }`}
                     >
-                      {step.stepNumber}
+                      {step.step_number}
                     </div>
                   ))}
                 </div>

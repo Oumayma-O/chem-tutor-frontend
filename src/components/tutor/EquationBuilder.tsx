@@ -35,7 +35,7 @@ function buildMathExpression(tokens: string[]): string {
 }
 
 interface EquationBuilderProps {
-  stepNumber: number;
+  step_number: number;
   label: string;
   instruction: string;
   availableParts: string[];
@@ -50,7 +50,7 @@ interface EquationBuilderProps {
 }
 
 export function EquationBuilder({
-  stepNumber,
+  step_number,
   label,
   instruction,
   availableParts,
@@ -149,7 +149,7 @@ export function EquationBuilder({
       )}
     >
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge stepNumber={stepNumber} type="interactive" isComplete={isComplete} />
+        <StepBadge step_number={step_number} type="interactive" isComplete={isComplete} />
         <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
           {label}
         </span>

@@ -8,8 +8,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Trophy, ArrowRight, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BeakerMascot } from "./BeakerMascot";
 
 interface ProgressionModalProps {
   isOpen: boolean;
@@ -32,28 +33,18 @@ export function ProgressionModal({
 }: ProgressionModalProps) {
   if (!result) return null;
 
-  const isAdvancingToLevel3 = result.shouldAdvance && result.nextLevel === 3 && currentLevel === 2;
+  const isAdvancingToLevel3 = result.should_advance && result.next_level === 3 && currentLevel === 2;
   const isLevel3Complete = currentLevel === 3;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <div className="flex justify-center mb-4">
-            <div
-              className={cn(
-                "w-16 h-16 rounded-full flex items-center justify-center",
-                isAdvancingToLevel3 ? "bg-success/20" : "bg-primary/20"
-              )}
-            >
-              {isAdvancingToLevel3 ? (
-                <Trophy className="w-8 h-8 text-success" />
-              ) : isLevel3Complete ? (
-                <Sparkles className="w-8 h-8 text-primary" />
-              ) : (
-                <RotateCcw className="w-8 h-8 text-primary" />
-              )}
-            </div>
+          <div className="flex justify-center mb-2">
+            <BeakerMascot
+              pose={isAdvancingToLevel3 || isLevel3Complete ? "celebrating" : "encouraging"}
+              size={72}
+            />
           </div>
           <DialogTitle className="text-center">
             {isAdvancingToLevel3
@@ -102,7 +93,7 @@ export function ProgressionModal({
               <div>
                 <p className="font-medium text-foreground">
                   {isAdvancingToLevel3
-                    ? `Level 3: ${result.suggestedDifficulty} difficulty`
+                    ? `Level 3: ${result.suggested_difficulty} difficulty`
                     : isLevel3Complete
                     ? "Try another independent problem"
                     : "Level 2: New faded example"}

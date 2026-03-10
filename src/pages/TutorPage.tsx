@@ -98,7 +98,7 @@ export default function TutorPage() {
             userId={user?.id}
             onTopicComplete={() => markCompleted(currentLessonIdx)}
             onMarkInProgress={() => markInProgress(currentLessonIdx)}
-            topicCompleted={getStatus(currentLessonIdx) === "completed"}
+            lessonCompleted={getStatus(currentLessonIdx) === "completed"}
             interests={profile?.interests || []}
             gradeLevel={profile?.grade_level}
             requiredTools={requiredTools}

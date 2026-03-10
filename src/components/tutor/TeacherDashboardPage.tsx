@@ -50,12 +50,12 @@ interface TeacherDashboardPageProps {
 
 // Mock class data for demonstration (used as fallback when no real data)
 const MOCK_STUDENTS = [
-  { id: "s1", name: "Alex Chen", mastery: 82, trend: "up" as const, problems: 12, weakTopics: ["unit_conversion"], lastActive: Date.now() - 3600000 },
-  { id: "s2", name: "Maria Santos", mastery: 65, trend: "stable" as const, problems: 8, weakTopics: ["rate_laws", "variable_isolation"], lastActive: Date.now() - 7200000 },
-  { id: "s3", name: "James Wilson", mastery: 45, trend: "down" as const, problems: 15, weakTopics: ["reaction_concepts", "rate_laws", "unit_conversion"], lastActive: Date.now() - 86400000 },
-  { id: "s4", name: "Priya Patel", mastery: 91, trend: "up" as const, problems: 10, weakTopics: [], lastActive: Date.now() - 1800000 },
-  { id: "s5", name: "Ethan Brown", mastery: 58, trend: "up" as const, problems: 6, weakTopics: ["variable_isolation"], lastActive: Date.now() - 43200000 },
-  { id: "s6", name: "Sofia Lopez", mastery: 73, trend: "stable" as const, problems: 9, weakTopics: ["unit_conversion"], lastActive: Date.now() - 14400000 },
+  { id: "s1", name: "Alex Chen", mastery: 82, trend: "up" as const, problems: 12, weakLessons: ["unit_conversion"], lastActive: Date.now() - 3600000 },
+  { id: "s2", name: "Maria Santos", mastery: 65, trend: "stable" as const, problems: 8, weakLessons: ["rate_laws", "variable_isolation"], lastActive: Date.now() - 7200000 },
+  { id: "s3", name: "James Wilson", mastery: 45, trend: "down" as const, problems: 15, weakLessons: ["reaction_concepts", "rate_laws", "unit_conversion"], lastActive: Date.now() - 86400000 },
+  { id: "s4", name: "Priya Patel", mastery: 91, trend: "up" as const, problems: 10, weakLessons: [], lastActive: Date.now() - 1800000 },
+  { id: "s5", name: "Ethan Brown", mastery: 58, trend: "up" as const, problems: 6, weakLessons: ["variable_isolation"], lastActive: Date.now() - 43200000 },
+  { id: "s6", name: "Sofia Lopez", mastery: 73, trend: "stable" as const, problems: 9, weakLessons: ["unit_conversion"], lastActive: Date.now() - 14400000 },
 ];
 
 const STANDARDS = [
@@ -83,7 +83,7 @@ interface ClassStudent {
   mastery: number;
   trend: "up" | "down" | "stable";
   problems: number;
-  weakTopics: string[];
+  weakLessons: string[];
   lastActive: number;
 }
 
@@ -136,7 +136,7 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
               mastery: Math.round(Math.random() * 60 + 30), // placeholder until real mastery tracking
               trend: (["up", "stable", "down"] as const)[Math.floor(Math.random() * 3)],
               problems: Math.floor(Math.random() * 15 + 1),
-              weakTopics: [],
+              weakLessons: [],
               lastActive: Date.now() - Math.random() * 86400000,
             }))
           );
@@ -360,21 +360,21 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
                     <AlertTriangle className="w-5 h-5 text-warning" />
                     Common Weak Areas
                   </CardTitle>
-                  <CardDescription>Topics where multiple students struggle</CardDescription>
+                  <CardDescription>Lessons where multiple students struggle</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {(() => {
-                    const topicCounts: Record<string, number> = {};
-                    displayStudents.forEach(s => s.weakTopics.forEach(t => {
-                      topicCounts[t] = (topicCounts[t] || 0) + 1;
+                    const lessonCounts: Record<string, number> = {};
+                    displayStudents.forEach(s => s.weakLessons.forEach(t => {
+                      lessonCounts[t] = (lessonCounts[t] || 0) + 1;
                     }));
-                    const sorted = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
+                    const sorted = Object.entries(lessonCounts).sort((a, b) => b[1] - a[1]);
                     return (
                       <div className="space-y-3">
-                        {sorted.map(([topic, count]) => (
-                          <div key={topic}>
+                        {sorted.map(([lesson, count]) => (
+                          <div key={lesson}>
                             <div className="flex items-center justify-between text-sm mb-1">
-                              <span className="capitalize text-foreground font-medium">{topic.replace(/_/g, " ")}</span>
+                              <span className="capitalize text-foreground font-medium">{lesson.replace(/_/g, " ")}</span>
                               <span className="text-muted-foreground">{count}/{displayStudents.length} students</span>
                             </div>
                             <div className="h-2 bg-secondary rounded-full overflow-hidden">
@@ -438,9 +438,9 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
                         </Badge>
                       </div>
                     </div>
-                    {student.weakTopics.length > 0 && (
+                    {student.weakLessons.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-2">
-                        {student.weakTopics.map(t => (
+                        {student.weakLessons.map(t => (
                           <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
                             {t.replace(/_/g, " ")}
                           </span>
@@ -524,12 +524,12 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
                             <div className="grid grid-cols-2 gap-3 mb-4">
                               <div className="p-3 bg-success/5 border border-success/20 rounded-lg">
                                 <span className="text-xs font-medium text-success">Strengths</span>
-                                {student.weakTopics.length === 0 ? (
+                                {student.weakLessons.length === 0 ? (
                                   <p className="text-sm text-foreground mt-1">All areas strong</p>
                                 ) : (
                                   <p className="text-sm text-foreground mt-1">
                                     {["formula_selection", "substitution", "calculation"]
-                                      .filter(s => !student.weakTopics.includes(s))
+                                      .filter(s => !student.weakLessons.includes(s))
                                       .slice(0, 2)
                                       .map(s => s.replace(/_/g, " "))
                                       .join(", ") || "Building foundations"}
@@ -539,8 +539,8 @@ export function TeacherDashboardPage({ profile, exitTicketResults, onBack }: Tea
                               <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
                                 <span className="text-xs font-medium text-destructive">Weak Areas</span>
                                 <p className="text-sm text-foreground mt-1">
-                                  {student.weakTopics.length > 0
-                                    ? student.weakTopics.map(t => t.replace(/_/g, " ")).join(", ")
+                                  {student.weakLessons.length > 0
+                                    ? student.weakLessons.map(t => t.replace(/_/g, " ")).join(", ")
                                     : "None identified"}
                                 </p>
                               </div>

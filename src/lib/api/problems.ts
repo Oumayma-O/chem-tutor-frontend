@@ -35,10 +35,12 @@ export interface ProblemOutput {
   id: string;
   title: string;
   statement: string;
-  topic: string;
+  lesson: string;
   difficulty: string;
   level: number;
   context_tag?: string | null;
+  /** Cognitive blueprint: solver | recipe | architect | detective | lawyer */
+  blueprint?: string | null;
   steps: ProblemStep[];
 }
 
@@ -82,7 +84,7 @@ export interface LessonContext {
 export async function apiGenerateProblemV2(body: {
   unit_id: string;
   lesson_index: number;
-  topic_name: string;
+  lesson_name: string;
   difficulty?: string;
   level?: number;
   interests?: string[];
@@ -93,16 +95,12 @@ export async function apiGenerateProblemV2(body: {
   lesson_context?: LessonContext;
   exclude_ids?: string[];
 }): Promise<ProblemDeliveryResponse> {
-  return post<ProblemDeliveryResponse>("/problems/generate", body);
-}
-
-export async function apiGetReferenceExample(
-  unitId: string,
-  lessonIndex: number,
-): Promise<ProblemOutput | null> {
-  return get<ProblemOutput>(
-    `/problems/worked-example?unit_id=${encodeURIComponent(unitId)}&lesson_index=${lessonIndex}`,
-  ).catch(() => null);
+  const { lesson_name, ...rest } = body;
+  return post<ProblemDeliveryResponse>("/problems/generate", {
+    ...rest,
+    lesson_name,
+    topic_name: lesson_name,
+  });
 }
 
 // ── Reference card (fiche de cours) ───────────────────────────────────────
@@ -121,7 +119,7 @@ export interface ReferenceCardStep {
 }
 
 export interface ReferenceCardOutput {
-  topic: string;
+  lesson: string;
   unit_id: string;
   lesson_index: number;
   steps: ReferenceCardStep[];
@@ -129,7 +127,7 @@ export interface ReferenceCardOutput {
 }
 
 /**
- * Fetch the conceptual study card for a topic.
+ * Fetch the conceptual study card for a lesson.
  * Generated once by the LLM and cached in the DB — subsequent calls are instant.
  * Returns null on error so callers can fall back gracefully.
  */
@@ -138,9 +136,13 @@ export async function apiGetReferenceCard(
   lessonIndex: number,
   lessonName: string,
 ): Promise<ReferenceCardOutput | null> {
-  return get<ReferenceCardOutput>(
-    `/problems/reference-card?unit_id=${encodeURIComponent(unitId)}&lesson_index=${lessonIndex}&topic_name=${encodeURIComponent(lessonName)}`,
-  ).catch(() => null);
+  const params = new URLSearchParams({
+    unit_id: unitId,
+    lesson_index: String(lessonIndex),
+    lesson_name: lessonName,
+    topic_name: lessonName,
+  });
+  return get<ReferenceCardOutput>(`/problems/reference-card?${params.toString()}`).catch(() => null);
 }
 
 /**
@@ -201,7 +203,7 @@ export async function apiClassifyErrors(body: {
 
 export async function apiGenerateExitTicket(body: {
   unit_id: string;
-  topic_name: string;
+  lesson_name: string;
   difficulty?: string;
   format?: string;
   question_count?: number;
@@ -236,7 +238,7 @@ export async function apiGenerateHint(body: {
 
 export async function apiGenerateProblem(body: {
   unit_id: string;
-  topic_name: string;
+  lesson_name: string;
   difficulty?: string;
   interests?: string[];
   grade_level?: string | null;
@@ -247,7 +249,7 @@ export async function apiGenerateProblem(body: {
     id: string;
     title: string;
     description: string;
-    topic: string;
+    lesson: string;
     difficulty: string;
     steps: unknown[];
   }>("/problems/generate", body);
@@ -255,7 +257,7 @@ export async function apiGenerateProblem(body: {
 
 export async function apiGenerateGuide(body: {
   unit_id: string;
-  topic_name: string;
+  lesson_name: string;
   guide_step_index: number;
   interests?: string[];
   grade_level?: string | null;

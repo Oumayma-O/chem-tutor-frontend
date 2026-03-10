@@ -14,11 +14,14 @@ import { BeakerMascot } from "@/components/tutor/BeakerMascot";
 import { UnitRow } from "@/components/landing/UnitRow";
 import { PhaseHeader } from "@/components/landing/PhaseHeader";
 
-function inferCourseLevel(gradeLevel: string | null): CourseLevel | "all" {
-  if (!gradeLevel) return "all";
-  const gl = gradeLevel.toLowerCase();
-  if (gl.includes("ap") || gl.includes("advanced")) return "ap";
-  return "standard";
+/** Infer course filter from profile (grade_level and/or course from signup). */
+function inferCourseLevel(profile: { grade_level?: string | null; course?: string | null } | null): CourseLevel | "all" {
+  if (!profile) return "all";
+  const gl = (profile.grade_level ?? "").toLowerCase();
+  const co = (profile.course ?? "").toLowerCase();
+  if (gl.includes("ap") || gl.includes("advanced") || co.includes("ap") || co.includes("advanced")) return "ap";
+  if (gl || co) return "standard";
+  return "all";
 }
 
 function matchesCourseLevel(unit: CurriculumUnit, level: CourseLevel): boolean {
@@ -56,7 +59,7 @@ export default function UnitSelectionPage() {
   const { phases, loading, error } = useCurriculum();
   const [searchQuery, setSearchQuery] = useState("");
 
-  const autoLevel = inferCourseLevel(profile?.grade_level ?? null);
+  const autoLevel = inferCourseLevel(profile);
   const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "all">(autoLevel);
 
   useEffect(() => {

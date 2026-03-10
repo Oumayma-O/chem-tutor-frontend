@@ -8,50 +8,56 @@ export interface LabeledValue {
 
 export interface SolutionStep {
   id: string;
-  stepNumber: number;
+  step_number: number;
   type: StepType;
   label: string;
   instruction: string;
   placeholder?: string;
   /** Show-your-work trace (≤20 words). Only rendered in Level 1 given steps. Null for trivial reads. */
   explanation?: string;
-  correctAnswer?: string;
+  correct_answer?: string;
   hint?: string;
-  equationParts?: string[];
-  correctEquation?: string;
-  labeledValues?: LabeledValue[];
-  comparisonParts?: string[];
+  equation_parts?: string[];
+  correct_equation?: string;
+  labeled_values?: LabeledValue[];
+  comparison_parts?: string[];
+  content?: string;
 }
+
+/** Cognitive blueprint from problem generation — determines badge and tooltip in UI. */
+export type CognitiveBlueprint = "solver" | "recipe" | "architect" | "detective" | "lawyer";
 
 export interface Problem {
   id: string;
   title: string;
   description: string;
   steps: SolutionStep[];
-  topic: string;
+  lesson: string;
   difficulty: "easy" | "medium" | "hard";
+  /** Cognitive blueprint for this problem (from backend generation). */
+  blueprint?: CognitiveBlueprint;
 }
 
 export interface ReferenceStep {
-  stepNumber: number;
+  step_number: number;
   title: string;
   content: string;
 }
 
 export interface StudentAnswer {
-  stepId: string;
+  step_id: string;
   answer: string;
-  isCorrect?: boolean;
+  is_correct?: boolean;
   attempts: number;
-  firstAttemptCorrect?: boolean;
+  first_attempt_correct?: boolean;
 }
 
 export interface StudentProfile {
-  masteryScore: number;
-  currentLevel: 1 | 2 | 3;
-  weakTopics: string[];
-  errorPatterns: ErrorPattern[];
-  completedProblems: string[];
+  mastery_score: number;
+  current_level: 1 | 2 | 3;
+  weak_lessons: string[];
+  error_patterns: ErrorPattern[];
+  completed_problems: string[];
 }
 
 export interface ErrorPattern {
@@ -67,35 +73,35 @@ export interface LevelConfig {
   level: Level;
   title: string;
   description: string;
-  givenStepsCount: number;
+  given_steps_count: number;
 }
 
-/** Level config. givenStepsCount: Level 1 = all steps (up to 6), Level 2 = 2 given, Level 3 = 0. */
+/** Level config. given_steps_count: Level 1 = all steps (up to 6), Level 2 = 2 given, Level 3 = 0. */
 export const LEVEL_CONFIGS: LevelConfig[] = [
   {
     level: 1,
     title: "Fully Worked Example",
-    description: "Observe the complete, step-by-step solution. Problems may have 3–6 steps depending on topic.",
-    givenStepsCount: 6,
+    description: "Observe the complete, step-by-step solution. Problems may have 3–6 steps depending on lesson.",
+    given_steps_count: 6,
   },
   {
     level: 2,
     title: "Faded Example",
     description: "Complete the missing steps. The first two steps are shown as scaffolding.",
-    givenStepsCount: 2,
+    given_steps_count: 2,
   },
   {
     level: 3,
     title: "Practice Problem",
     description: "Solve independently with minimal scaffolding. Difficulty adapts to your mastery.",
-    givenStepsCount: 0,
+    given_steps_count: 0,
   },
 ];
 
 
 export interface ProgressionResult {
-  shouldAdvance: boolean;
-  nextLevel: Level;
+  should_advance: boolean;
+  next_level: Level;
   reason: string;
-  suggestedDifficulty?: "easy" | "medium" | "hard";
+  suggested_difficulty?: "easy" | "medium" | "hard";
 }
