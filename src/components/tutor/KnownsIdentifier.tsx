@@ -53,6 +53,9 @@ export function KnownsIdentifier({
 
   const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
 
+  /** True when this variable has a unit to show and validate (hide unit input when false). */
+  const hasUnit = (v: LabeledValue) => Boolean(v.unit?.trim());
+
   const handleCheck = () => {
     setHasAttempted(true);
     const errors: Record<string, boolean> = {};
@@ -63,14 +66,15 @@ export function KnownsIdentifier({
       const studentUnit = normalize(values[v.variable]?.unit || "");
       const correctVal = normalize(v.value);
       const correctUnit = normalize(v.unit);
-      
+
       // Check numeric equivalence for values
       const numStudent = parseFloat(studentVal);
       const numCorrect = parseFloat(correctVal);
-      const valMatch = !isNaN(numStudent) && !isNaN(numCorrect) 
-        ? Math.abs(numStudent - numCorrect) < 0.001 
+      const valMatch = !isNaN(numStudent) && !isNaN(numCorrect)
+        ? Math.abs(numStudent - numCorrect) < 0.001
         : studentVal === correctVal;
-      const unitMatch = studentUnit === correctUnit;
+      // When variable has no unit, skip unit validation (empty unit box is hidden)
+      const unitMatch = !hasUnit(v) ? true : studentUnit === correctUnit;
 
       if (!valMatch || !unitMatch) {
         errors[v.variable] = true;
@@ -105,35 +109,46 @@ export function KnownsIdentifier({
       </div>
 
       <div className="ml-16 space-y-3">
-        {/* Variable fields */}
+        {/* Variable fields: unit input only when variable has a unit (dynamic per row) */}
         <div className="space-y-2">
-          {variables.map((v) => (
-            <div key={v.variable} className="grid grid-cols-[100px_1fr_100px] gap-2 items-center">
-              <span className="text-sm font-mono font-medium text-foreground">{v.variable} →</span>
-              <Input
-                value={values[v.variable]?.value || ""}
-                onChange={(e) => handleChange(v.variable, "value", e.target.value)}
-                disabled={isComplete}
-                placeholder="Enter your answer"
+          {variables.map((v) => {
+            const showUnit = hasUnit(v);
+            return (
+              <div
+                key={v.variable}
                 className={cn(
-                  "text-sm",
-                  isComplete && "border-success bg-success/10",
-                  fieldErrors[v.variable] && "border-destructive bg-destructive/10"
+                  "grid gap-2 items-center",
+                  showUnit ? "grid-cols-[100px_1fr_100px]" : "grid-cols-[100px_1fr]"
                 )}
-              />
-              <Input
-                value={values[v.variable]?.unit || ""}
-                onChange={(e) => handleChange(v.variable, "unit", e.target.value)}
-                disabled={isComplete}
-                placeholder="Unit"
-                className={cn(
-                  "text-sm",
-                  isComplete && "border-success bg-success/10",
-                  fieldErrors[v.variable] && "border-destructive bg-destructive/10"
+              >
+                <span className="text-sm font-mono font-medium text-foreground">{v.variable} →</span>
+                <Input
+                  value={values[v.variable]?.value || ""}
+                  onChange={(e) => handleChange(v.variable, "value", e.target.value)}
+                  disabled={isComplete}
+                  placeholder="Enter your answer"
+                  className={cn(
+                    "text-sm",
+                    isComplete && "border-success bg-success/10",
+                    fieldErrors[v.variable] && "border-destructive bg-destructive/10"
+                  )}
+                />
+                {showUnit && (
+                  <Input
+                    value={values[v.variable]?.unit || ""}
+                    onChange={(e) => handleChange(v.variable, "unit", e.target.value)}
+                    disabled={isComplete}
+                    placeholder="Unit"
+                    className={cn(
+                      "text-sm",
+                      isComplete && "border-success bg-success/10",
+                      fieldErrors[v.variable] && "border-destructive bg-destructive/10"
+                    )}
+                  />
                 )}
-              />
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
 
         {/* Check button */}

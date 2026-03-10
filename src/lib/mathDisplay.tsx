@@ -83,9 +83,36 @@ export function MathText({ children, className }: MathTextProps) {
 }
 
 /**
+ * Normalize LaTeX that may be double-escaped from the API (e.g. \\text -> \text)
+ * so KaTeX can render it instead of showing raw commands.
+ */
+function normalizeLatexEscapes(text: string): string {
+  return text.replace(/\\\\/g, "\\");
+}
+
+/**
+ * Convert plain-text scientific notation and caret exponents to inline math.
+ * - 6.022e23 → 6.022 × $10^{23}$
+ * - 10^22 → $10^{22}$
+ * - ^m, ^n, ^2 (bare caret + letter/digits) → $^{m}$, $^{n}$, $^{2}$ so they render as superscripts
+ */
+function scientificNotationToMath(text: string): string {
+  let out = text;
+  // e-notation: number e exponent → number × 10^{exponent}
+  out = out.replace(/(\d+\.?\d*)e(\d+)/gi, (_, base, exp) => `${base} × $10^{${exp}}$`);
+  // 10^nnn first so we don't match its ^ with the generic pattern below
+  out = out.replace(/10\^(\d+)/g, (_, exp) => `$10^{${exp}}$`);
+  // bare caret exponent (e.g. [A]^m, [B]^n, ]^2) → superscript
+  out = out.replace(/\^([a-zA-Z0-9]+)/g, (_, exp) => `$^{${exp}}$`);
+  return out;
+}
+
+/**
  * Backwards-compatible shim.
  * All existing call-sites using formatMathContent(text) continue to work.
  */
 export function formatMathContent(text: string): React.ReactNode {
-  return <MathText>{text}</MathText>;
+  const normalized = normalizeLatexEscapes(text);
+  const withMath = scientificNotationToMath(normalized);
+  return <MathText>{withMath}</MathText>;
 }

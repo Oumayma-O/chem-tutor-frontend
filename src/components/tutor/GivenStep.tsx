@@ -8,22 +8,21 @@ interface GivenStepProps {
   step: SolutionStep;
 }
 
-/** Format labeled values as "variable = value unit" lines for read-only display. */
+/** Format labeled values as "variable = value unit"; one string per line so only $...$ is rendered as math. */
 function formatLabeledValues(
   items: { variable: string; value: string; unit: string }[]
 ): React.ReactNode {
   return (
     <>
-      {items.map((item, i) => (
-        <React.Fragment key={item.variable}>
-          {i > 0 && <br />}
-          <span className="equation text-foreground">
-            {formatMathContent(item.variable)} ={" "}
-            {formatMathContent(item.value)}{" "}
-            {formatMathContent(item.unit)}
-          </span>
-        </React.Fragment>
-      ))}
+      {items.map((item, i) => {
+        const mathString = `${item.variable} = ${item.value} ${item.unit || ""}`.trim();
+        return (
+          <React.Fragment key={item.variable}>
+            {i > 0 && <br />}
+            <span className="equation text-foreground">{formatMathContent(mathString)}</span>
+          </React.Fragment>
+        );
+      })}
     </>
   );
 }
@@ -59,21 +58,22 @@ export function GivenStep({ step }: GivenStepProps) {
     step.correctAnswer !== "";
   const hasLabeledValues = step.labeledValues && step.labeledValues.length > 0;
 
+  const answerText = (step.correctAnswer ?? "").trim();
   const content = hasComparison ? (
     formatComparison(step.comparisonParts!, step.correctAnswer!)
   ) : hasLabeledValues ? (
     formatLabeledValues(step.labeledValues!)
-  ) : (
-    <p className="equation text-foreground">
-      {(step.correctAnswer || "")
-        .split(", ")
-        .map((line, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && <br />}
-            {formatMathContent(line)}
-          </React.Fragment>
-        ))}
+  ) : answerText ? (
+    <p className="equation text-foreground font-medium">
+      {answerText.split(", ").map((line, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <br />}
+          {formatMathContent(line)}
+        </React.Fragment>
+      ))}
     </p>
+  ) : (
+    <p className="text-muted-foreground text-sm">—</p>
   );
 
   return (

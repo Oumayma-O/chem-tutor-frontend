@@ -1,5 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StepBadge } from "./StepBadge";
 import { CheckCircle, XCircle, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -18,7 +25,8 @@ interface ComparisonStepProps {
   onRequestHint: () => void;
 }
 
-const OPERATORS = ["<", ">", "="] as const;
+const OPERATORS = ["<", "=", ">"] as const;
+type Operator = (typeof OPERATORS)[number];
 
 export function ComparisonStep({
   stepNumber,
@@ -33,20 +41,17 @@ export function ComparisonStep({
   hintLoading,
   onRequestHint,
 }: ComparisonStepProps) {
-  const [selected, setSelected] = useState<"<" | ">" | "=" | null>(null);
+  const [selected, setSelected] = useState<Operator | "">("");
   const [hasAttempted, setHasAttempted] = useState(false);
   const [isIncorrect, setIsIncorrect] = useState(false);
 
-  const handleSelect = (op: "<" | ">" | "=") => {
+  const handleValueChange = (value: string) => {
     if (isComplete) return;
+    const op = value as Operator;
     setSelected(op);
-    setIsIncorrect(false);
-  };
-
-  const handleCheck = () => {
-    if (!selected) return;
     setHasAttempted(true);
-    const correct = selected === correctAnswer;
+    setIsIncorrect(false);
+    const correct = op === correctAnswer;
     if (correct) {
       onComplete(true);
     } else {
@@ -73,43 +78,40 @@ export function ComparisonStep({
       </div>
 
       <div className="ml-16 space-y-3">
-        {/* Comparison row */}
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-sm bg-muted px-3 py-1.5 rounded border">
+        {/* [ Left box ] [ Dropdown ] [ Right box ] */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="font-mono text-sm bg-muted/80 px-3 py-2 rounded-lg border border-border shadow-sm min-w-0">
             {comparisonParts[0]}
           </span>
 
-          <div className="flex gap-1">
-            {OPERATORS.map((op) => (
-              <button
-                key={op}
-                onClick={() => handleSelect(op)}
-                disabled={isComplete}
-                className={cn(
-                  "w-9 h-9 rounded-md border text-sm font-bold transition-colors",
-                  selected === op && !isComplete
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground border-border hover:bg-muted",
-                  isComplete && selected === op && "bg-success/20 border-success text-success",
-                  isComplete && "cursor-default"
-                )}
-              >
-                {op}
-              </button>
-            ))}
-          </div>
+          <Select
+            value={selected || undefined}
+            onValueChange={handleValueChange}
+            disabled={isComplete}
+          >
+            <SelectTrigger
+              className={cn(
+                "w-14 h-10 rounded-lg border bg-muted/50 text-center font-mono text-lg font-semibold shadow-sm",
+                "focus:ring-2 focus:ring-ring focus:ring-offset-1",
+                isComplete && selected === correctAnswer && "border-success bg-success/10 text-success",
+                isIncorrect && "border-destructive bg-destructive/5"
+              )}
+            >
+              <SelectValue placeholder="?" />
+            </SelectTrigger>
+            <SelectContent align="center">
+              {OPERATORS.map((op) => (
+                <SelectItem key={op} value={op} className="font-mono text-center justify-center">
+                  {op}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <span className="font-mono text-sm bg-muted px-3 py-1.5 rounded border">
+          <span className="font-mono text-sm bg-muted/80 px-3 py-2 rounded-lg border border-border shadow-sm min-w-0">
             {comparisonParts[1]}
           </span>
         </div>
-
-        {/* Check button */}
-        {!isComplete && (
-          <Button size="sm" onClick={handleCheck} disabled={!selected}>
-            Check
-          </Button>
-        )}
 
         {/* Feedback */}
         {isComplete && (
