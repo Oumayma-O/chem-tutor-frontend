@@ -50,8 +50,8 @@ function formatComparison(
 
 export function GivenStep({ step }: GivenStepProps) {
   const [explanationOpen, setExplanationOpen] = useState(false);
+  // Show "first operator second" for any step (given or comparison) that has comparison data
   const hasComparison =
-    step.type === "comparison" &&
     step.comparisonParts &&
     step.comparisonParts.length >= 2 &&
     step.correctAnswer != null &&

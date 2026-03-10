@@ -90,14 +90,20 @@ function normalizeLatexEscapes(text: string): string {
   return text.replace(/\\\\/g, "\\");
 }
 
+/** LaTeX command names that are sometimes sent with ^ instead of \ (e.g. ^mathrm -> \mathrm). */
+const CARET_AS_BACKSLASH_COMMANDS = "mathrm|text|mathit|mathbf|times|cdot|ldots|rightarrow|left|right|frac|sqrt|sin|cos|log|ln";
+
 /**
  * Convert plain-text scientific notation and caret exponents to inline math.
+ * - ^mathrm{...}, ^text{...} etc. (mistaken ^ for \) → \mathrm, \text so formulas render
  * - 6.022e23 → 6.022 × $10^{23}$
  * - 10^22 → $10^{22}$
  * - ^m, ^n, ^2 (bare caret + letter/digits) → $^{m}$, $^{n}$, $^{2}$ so they render as superscripts
  */
 function scientificNotationToMath(text: string): string {
   let out = text;
+  // Fix ^ before LaTeX commands (e.g. ^mathrm{HCl} when backslash was lost) so they render
+  out = out.replace(new RegExp(`\\^(${CARET_AS_BACKSLASH_COMMANDS})(?=[{\\s]|$)`, "g"), "\\$1");
   // e-notation: number e exponent → number × 10^{exponent}
   out = out.replace(/(\d+\.?\d*)e(\d+)/gi, (_, base, exp) => `${base} × $10^{${exp}}$`);
   // 10^nnn first so we don't match its ^ with the generic pattern below
