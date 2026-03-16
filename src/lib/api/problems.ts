@@ -186,6 +186,7 @@ export async function apiGetHint(body: {
   rag_context?: Record<string, string[]>;
   error_category?: string;
   misconception_tag?: string;
+  validation_feedback?: string;
 }): Promise<HintOutput> {
   return post<HintOutput>("/problems/hint", body);
 }

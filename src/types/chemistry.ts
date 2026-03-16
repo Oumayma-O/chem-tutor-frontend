@@ -50,6 +50,7 @@ export interface StudentAnswer {
   is_correct?: boolean;
   attempts: number;
   first_attempt_correct?: boolean;
+  validation_feedback?: string;
 }
 
 export interface StudentProfile {

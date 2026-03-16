@@ -156,6 +156,12 @@ export function useStepHandlers({
           problem_context: currentProblem.description,
         });
         isCorrect = data.is_correct;
+        if (!isCorrect && data.feedback) {
+          setAnswers((prev) => ({
+            ...prev,
+            [stepId]: { ...prev[stepId], validation_feedback: data.feedback },
+          }));
+        }
       } catch {
         const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
         const numStudent = parseFloat(normalize(studentText));
@@ -241,6 +247,7 @@ export function useStepHandlers({
           interests: interests || [],
           grade_level: gradeLevel,
           problem_context: currentProblem.description,
+          validation_feedback: answers[stepId]?.validation_feedback,
         });
         if (data?.hint) {
           setHints((prev) => ({ ...prev, [stepId]: data.hint }));
