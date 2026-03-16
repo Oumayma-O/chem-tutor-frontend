@@ -108,8 +108,8 @@ function scientificNotationToMath(text: string): string {
   out = out.replace(/(\d+\.?\d*)e(\d+)/gi, (_, base, exp) => `${base} × $10^{${exp}}$`);
   // 10^nnn first so we don't match its ^ with the generic pattern below
   out = out.replace(/10\^(\d+)/g, (_, exp) => `$10^{${exp}}$`);
-  // bare caret exponent (e.g. [A]^m, [B]^n, ]^2) → superscript
-  out = out.replace(/\^([a-zA-Z0-9]+)/g, (_, exp) => `$^{${exp}}$`);
+  // bare caret exponent (e.g. [A]^m, [B]^n, mol^-1, s^-2) → superscript
+  out = out.replace(/\^(-?[a-zA-Z0-9]+)/g, (_, exp) => `$^{${exp}}$`);
   return out;
 }
 
