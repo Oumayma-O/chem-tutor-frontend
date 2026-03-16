@@ -47,7 +47,7 @@ function ElementCell({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center border border-border min-w-[28px] min-h-[42px] py-0.5 px-0.5 cursor-default hover:ring-1 hover:ring-primary hover:z-10 hover:relative",
+        "flex flex-col items-center justify-center min-w-[28px] min-h-[42px] py-0.5 px-0.5 cursor-default text-gray-900 hover:brightness-95 hover:shadow-sm",
         getCategoryColor(cell.category),
         className
       )}
@@ -55,9 +55,9 @@ function ElementCell({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      <span className="text-[9px] text-muted-foreground leading-none self-start">{cell.number}</span>
+      <span className="text-[9px] text-gray-500 leading-none self-start">{cell.number}</span>
       <span className="text-xs font-bold leading-tight -mt-0.5">{cell.symbol}</span>
-      <span className="text-[8px] text-muted-foreground leading-none mt-0.5">{massDisplay}</span>
+      <span className="text-[8px] text-gray-500 leading-none mt-0.5">{massDisplay}</span>
     </div>
   );
 }
@@ -240,10 +240,10 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
               >
                 {/* Symbol badge */}
                 <div className={cn(
-                  "flex flex-col items-center justify-center rounded border border-border min-w-[40px] h-10 shrink-0",
+                  "flex flex-col items-center justify-center rounded min-w-[40px] h-10 shrink-0 text-gray-900",
                   getCategoryColor(hoveredElement.category)
                 )}>
-                  <span className="text-[9px] text-muted-foreground leading-none">{hoveredElement.number}</span>
+                  <span className="text-[9px] leading-none text-gray-600">{hoveredElement.number}</span>
                   <span className="text-base font-bold leading-tight">{hoveredElement.symbol}</span>
                 </div>
                 {/* Details */}
@@ -263,7 +263,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
         </div>
       </div>
 
-      <div className="p-3 overflow-auto flex-1 min-h-0">
+      <div className="p-3 overflow-x-auto overflow-y-auto flex-1 min-h-0">
         {/* Legend — two columns, color key */}
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3 text-[10px]">
           {LEGEND_ITEMS.map(({ label, category }) => (
@@ -274,22 +274,27 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
           ))}
         </div>
 
-        {/* Main table: group labels 1–18 */}
-        <div className="inline-block">
-          <div className="flex gap-0.5 mb-0.5 pl-6">
-            <span className="text-[9px] text-muted-foreground w-6 shrink-0">group</span>
+        {/* Main table: strict 18-column CSS grid */}
+        <div className="min-w-[580px] inline-block">
+          {/* Group labels 1–18 */}
+          <div className="flex mb-0.5" style={{ marginLeft: "26px" }}>
             {Array.from({ length: 18 }, (_, i) => (
-              <span key={i} className="text-[9px] text-muted-foreground min-w-[28px] text-center">
+              <span key={i} className="text-[9px] text-muted-foreground shrink-0 text-center" style={{ width: "28px", marginRight: i < 17 ? "2px" : "0" }}>
                 {i + 1}
               </span>
             ))}
           </div>
+
+          {/* Period rows */}
           {mainGrid.map((row, ri) => (
-            <div key={ri} className="flex gap-0.5 mb-0.5 items-stretch">
-              <span className="text-[9px] text-muted-foreground w-6 shrink-0 flex items-center">
-                period {ri + 1}
+            <div key={ri} className="flex items-stretch mb-[2px]" style={{ gap: "2px" }}>
+              <span className="text-[9px] text-muted-foreground shrink-0 flex items-center justify-end pr-[2px]" style={{ width: "24px" }}>
+                {ri + 1}
               </span>
-              <div className="flex gap-0.5">
+              <div
+                className="grid"
+                style={{ gridTemplateColumns: "repeat(18, 28px)", gap: "2px" }}
+              >
                 {row.map((cell, ci) =>
                   cell ? (
                     <ElementCell
@@ -299,41 +304,57 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
                       onMouseLeave={() => setHoveredElement(null)}
                     />
                   ) : (
-                    <div key={`${ri}-${ci}`} className="min-w-[28px] min-h-[42px]" />
+                    <div key={`${ri}-${ci}`} className="min-h-[42px]" />
                   )
                 )}
               </div>
             </div>
           ))}
-        </div>
 
-        {/* Lanthanoid series */}
-        <div className="mt-2">
-          <div className="text-[10px] text-muted-foreground mb-1">Lanthanoid series (period 6)</div>
-          <div className="flex gap-0.5 flex-wrap">
-            {lanthanoidRow.map((cell) => (
-              <ElementCell
-                key={cell.number}
-                cell={cell}
-                onMouseEnter={() => setHoveredElement(cell)}
-                onMouseLeave={() => setHoveredElement(null)}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Actinoid series */}
-        <div className="mt-2">
-          <div className="text-[10px] text-muted-foreground mb-1">Actinoid series (period 7)</div>
-          <div className="flex gap-0.5 flex-wrap">
-            {actinoidRow.map((cell) => (
-              <ElementCell
-                key={cell.number}
-                cell={cell}
-                onMouseEnter={() => setHoveredElement(cell)}
-                onMouseLeave={() => setHoveredElement(null)}
-              />
-            ))}
+          {/* F-block: label left of cells, Ce/Th aligned under group 4 (116px from left) */}
+          <div className="mt-8">
+            {/* Lanthanoid row */}
+            <div className="flex items-stretch mb-[2px]" style={{ gap: "2px" }}>
+              {/* Empty slot matching period-label width */}
+              <span className="shrink-0" style={{ width: "24px" }} />
+              {/* Series label spanning 3-column width (3×28 + 2×2 = 88px) */}
+              <span
+                className="text-xs text-gray-500 text-right pr-2 shrink-0 flex items-center justify-end"
+                style={{ width: "118px" }}
+              >
+                Lanthanoids series 6
+              </span>
+              <div className="grid" style={{ gridTemplateColumns: "repeat(14, 28px)", gap: "2px" }}>
+                {lanthanoidRow.map((cell) => (
+                  <ElementCell
+                    key={cell.number}
+                    cell={cell}
+                    onMouseEnter={() => setHoveredElement(cell)}
+                    onMouseLeave={() => setHoveredElement(null)}
+                  />
+                ))}
+              </div>
+            </div>
+            {/* Actinoid row — flush against lanthanoid row */}
+            <div className="flex items-stretch mb-[2px]" style={{ gap: "2px" }}>
+              <span className="shrink-0" style={{ width: "24px" }} />
+              <span
+                className="text-xs text-gray-500 text-right pr-2 shrink-0 flex items-center justify-end"
+                style={{ width: "118px" }}
+              >
+                Actinoids series 7
+              </span>
+              <div className="grid" style={{ gridTemplateColumns: "repeat(14, 28px)", gap: "2px" }}>
+                {actinoidRow.map((cell) => (
+                  <ElementCell
+                    key={cell.number}
+                    cell={cell}
+                    onMouseEnter={() => setHoveredElement(cell)}
+                    onMouseLeave={() => setHoveredElement(null)}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 

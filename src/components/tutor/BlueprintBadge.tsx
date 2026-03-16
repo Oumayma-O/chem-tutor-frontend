@@ -15,7 +15,7 @@ const BLUEPRINT_CONFIG: Record<
     label: "The Solver",
     icon: "🧮",
     className:
-      "bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200",
+      "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 shadow-sm",
     definition:
       "Direct formula calculation. (Input variables → Formula → Result)",
   },
@@ -23,7 +23,7 @@ const BLUEPRINT_CONFIG: Record<
     label: "The Recipe",
     icon: "🧪",
     className:
-      "bg-green-100 text-green-700 border-green-200 hover:bg-green-200",
+      "bg-green-100 text-green-800 border-green-200 hover:bg-green-200 shadow-sm",
     definition:
       "Multi-step algorithm. (Chain conversions to reach the final answer)",
   },
@@ -31,7 +31,7 @@ const BLUEPRINT_CONFIG: Record<
     label: "The Architect",
     icon: "🏗️",
     className:
-      "bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200",
+      "bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200 shadow-sm",
     definition:
       "Symbolic construction. (Build a representation based on chemical rules)",
   },
@@ -39,7 +39,7 @@ const BLUEPRINT_CONFIG: Record<
     label: "The Detective",
     icon: "🔎",
     className:
-      "bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200",
+      "bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200 shadow-sm",
     definition:
       "Data interpretation. (Extract truth from data, graphs, or visual representations)",
   },
@@ -47,7 +47,7 @@ const BLUEPRINT_CONFIG: Record<
     label: "The Lawyer",
     icon: "⚖️",
     className:
-      "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200",
+      "bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200 hover:bg-fuchsia-200 shadow-sm",
     definition:
       "Conceptual justification. (Claim → Evidence → Reasoning)",
   },

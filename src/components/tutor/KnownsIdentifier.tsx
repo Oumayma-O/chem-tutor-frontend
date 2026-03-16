@@ -48,6 +48,13 @@ export function KnownsIdentifier({
       ...prev,
       [name]: { ...prev[name], [field]: val },
     }));
+    // Clear this field's error state so it returns to neutral while the student edits
+    setFieldErrors((prev) => {
+      if (!prev[name]) return prev;
+      const next = { ...prev };
+      delete next[name];
+      return next;
+    });
     setIsIncorrect(false);
   };
 
@@ -129,7 +136,7 @@ export function KnownsIdentifier({
                   placeholder="Enter your answer"
                   className={cn(
                     "text-sm",
-                    isComplete && "border-success bg-success/10",
+                    (isComplete || (hasAttempted && !fieldErrors[v.variable])) && "border-success bg-success/10",
                     fieldErrors[v.variable] && "border-destructive bg-destructive/10"
                   )}
                 />
@@ -141,7 +148,7 @@ export function KnownsIdentifier({
                     placeholder="Unit"
                     className={cn(
                       "text-sm",
-                      isComplete && "border-success bg-success/10",
+                      (isComplete || (hasAttempted && !fieldErrors[v.variable])) && "border-success bg-success/10",
                       fieldErrors[v.variable] && "border-destructive bg-destructive/10"
                     )}
                   />

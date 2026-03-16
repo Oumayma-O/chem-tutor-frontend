@@ -33,19 +33,34 @@ const SYMBOLS_1_118 = [
   "Rf", "Db", "Sg", "Bh", "Hs", "Mt", "Ds", "Rg", "Cn", "Nh", "Fl", "Mc", "Lv", "Ts", "Og",
 ];
 
+// Exactly 118 entries (IUPAC Britannica groupings).
+// Period 6: Z=72-80 transition (9), Z=81-83 post-transition (3), Z=84 metalloid, Z=85 halogen, Z=86 noble.
+// Period 7: Z=104-112 transition (9), Z=113-116 post-transition (4), Z=117 halogen, Z=118 noble.
 const CATEGORIES_1_118: ElementCategory[] = [
-  "nonmetal", "noble", "alkali", "alkaline", "metalloid", "nonmetal", "nonmetal", "nonmetal", "halogen", "noble",
+  // Period 1: Z=1-2
+  "nonmetal", "noble",
+  // Period 2: Z=3-10
+  "alkali", "alkaline", "metalloid", "nonmetal", "nonmetal", "nonmetal", "halogen", "noble",
+  // Period 3: Z=11-18
   "alkali", "alkaline", "post-transition", "metalloid", "nonmetal", "nonmetal", "halogen", "noble",
-  "alkali", "alkaline", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
+  // Period 4: Z=19-36
+  "alkali", "alkaline",
+  "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
   "post-transition", "metalloid", "metalloid", "nonmetal", "halogen", "noble",
-  "alkali", "alkaline", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
+  // Period 5: Z=37-54
+  "alkali", "alkaline",
+  "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
   "post-transition", "post-transition", "metalloid", "metalloid", "halogen", "noble",
-  "alkali", "alkaline", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide",
-  "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
+  // Period 6: Z=55-86  (La=57 is lanthanide, Hg=80 is last transition, Tl=81 is post-transition)
+  "alkali", "alkaline",
+  "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide", "lanthanide",
+  "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
   "post-transition", "post-transition", "post-transition", "metalloid", "halogen", "noble",
-  "alkali", "alkaline", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide",
-  "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
-  "post-transition", "post-transition", "post-transition", "metalloid", "halogen", "noble",
+  // Period 7: Z=87-118  (Ac=89 is actinide, Cn=112 is last transition, Nh=113 is post-transition)
+  "alkali", "alkaline",
+  "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide", "actinide",
+  "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition", "transition",
+  "post-transition", "post-transition", "post-transition", "post-transition", "halogen", "noble",
 ];
 
 const NAMES_1_118: string[] = [
@@ -75,18 +90,18 @@ const MASSES_1_118: number[] = [
   267,268,271,270,277,278,281,282,285,286,289,290,293,294,294,
 ];
 
-/** Reference-style colors: Alkali (orange-yellow), Alkaline-earth, Transition (purple-grey), Rare-earth (light blue), Actinoid (darker blue), Other metals, Metalloids, Halogens, Noble gases, Other nonmetals */
+/** Britannica-style pastel palette. All cells use black text (enforced in ElementCell). */
 export const CATEGORY_COLORS: Record<ElementCategory, string> = {
-  alkali: "bg-amber-300 dark:bg-amber-500/70",
-  alkaline: "bg-amber-200 dark:bg-amber-400/50",
-  transition: "bg-slate-300 dark:bg-slate-500/60",
-  "post-transition": "bg-rose-200 dark:bg-rose-400/50",
-  metalloid: "bg-lime-200 dark:bg-lime-500/50",
-  nonmetal: "bg-orange-200 dark:bg-orange-400/50",
-  halogen: "bg-emerald-400 dark:bg-emerald-500/70",
-  noble: "bg-slate-100 dark:bg-slate-400/40",
-  lanthanide: "bg-sky-200 dark:bg-sky-400/50",
-  actinide: "bg-sky-400 dark:bg-sky-600/60",
+  alkali:           "bg-orange-300",
+  alkaline:         "bg-amber-300",
+  transition:       "bg-fuchsia-200",
+  "post-transition":"bg-pink-200",
+  metalloid:        "bg-yellow-200",
+  nonmetal:         "bg-red-200",
+  halogen:          "bg-[#a6d6a8]",
+  noble:            "bg-gray-200",
+  lanthanide:       "bg-lime-200",
+  actinide:         "bg-cyan-200",
 };
 
 export const CATEGORY_LABELS: Record<ElementCategory, string> = {
@@ -138,15 +153,15 @@ export const MAIN_GRID_LAYOUT: (number | null)[][] = [
   [11, 12, null, null, null, null, null, null, null, null, null, null, 13, 14, 15, 16, 17, 18],
   [19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36],
   [37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54],
-  [55, 56, null, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86],
-  [87, 88, null, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118],
+  [55, 56, 57, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86],
+  [87, 88, 89, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118],
 ];
 
-/** Lanthanoid series: 57 (La) through 71 (Lu). */
-export const LANTHANOID_Z: number[] = [57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71];
+/** Lanthanoid f-block: 58 (Ce) through 71 (Lu). La (57) sits in the main grid at group 3. */
+export const LANTHANOID_Z: number[] = [58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71];
 
-/** Actinoid series: 89 (Ac) through 103 (Lr). */
-export const ACTINOID_Z: number[] = [89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103];
+/** Actinoid f-block: 90 (Th) through 103 (Lr). Ac (89) sits in the main grid at group 3. */
+export const ACTINOID_Z: number[] = [90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103];
 
 export function getMainGrid(): (Cell | null)[][] {
   const map = byNumber();
