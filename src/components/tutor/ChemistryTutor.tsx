@@ -848,7 +848,8 @@ export function ChemistryTutor({
                       }
 
                       // Comparison step: pick <, >, or =
-                      if (step.type === "comparison" && step.comparison_parts?.length === 2) {
+                      // Both parts must be non-empty strings; falls through to InteractiveStep otherwise.
+                      if (step.type === "comparison" && step.comparison_parts?.length === 2 && step.comparison_parts[0]?.trim() && step.comparison_parts[1]?.trim()) {
                         return (
                           <ComparisonStep
                             key={step.id}
