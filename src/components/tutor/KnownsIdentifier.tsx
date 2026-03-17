@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { formatMathContent } from "@/lib/mathDisplay";
 import { StepBadge } from "./StepBadge";
 import { CheckCircle, XCircle, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -199,7 +200,7 @@ export function KnownsIdentifier({
           <div className="bg-warning/20 border border-warning/40 rounded-md p-3 fade-in">
             <div className="flex items-start gap-2">
               <Lightbulb className="w-5 h-5 text-warning mt-0.5" />
-              <p className="text-sm text-foreground">{hintText}</p>
+              <p className="text-sm text-foreground">{formatMathContent(hintText)}</p>
             </div>
           </div>
         )}
