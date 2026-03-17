@@ -1,5 +1,5 @@
-import { useParams, Navigate, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useParams, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
 import { useUnit } from "@/hooks/useUnit";
 import { KineticsSimulation } from "@/components/tutor/KineticsSimulation";
 import { AtomicStructureSimulation } from "@/components/tutor/AtomicStructureSimulation";
@@ -7,10 +7,14 @@ import { SimulationGuide } from "@/components/tutor/SimulationGuide";
 import { CourseSidebar } from "@/components/tutor/CourseSidebar";
 import { NavDropdown } from "@/components/tutor/NavDropdown";
 import { BeakerMascot } from "@/components/tutor/BeakerMascot";
+import { LessonOverview } from "@/components/tutor/LessonOverview";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, ArrowLeft, Beaker, BookOpen, Zap, ChevronRight, Menu, Loader2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, Beaker, ChevronRight, Menu, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLessonCompletion } from "@/hooks/useLessonCompletion";
+import { apiGenerateProblemV2 } from "@/lib/api";
+import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
+import { getCachedPromise, setPrefetchPromise } from "@/lib/problemPrefetchCache";
 
 const KINETICS_LESSONS: { order: 0 | 1 | 2; label: string }[] = [
   { order: 0, label: "Zero-Order Kinetics" },
@@ -23,9 +27,11 @@ const RATE_LAWS_LESSON_INDEX = 3;
 export default function UnitLandingPage() {
   const { unitId, lessonIndex } = useParams<{ unitId?: string; lessonIndex?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { unit, lessonTitles, loading, error } = useUnit(unitId);
   const currentLessonIdx = lessonIndex ? parseInt(lessonIndex, 10) : 0;
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const simulationRef = useRef<HTMLDivElement>(null);
 
   const { profile, user } = useAuth();
   const { getStatus } = useLessonCompletion(unitId || "", user?.id);
@@ -35,6 +41,41 @@ export default function UnitLandingPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [unitId, lessonIndex]);
+
+  // ── Eager prefetch: start Level-1 generation after 1.5 s on the Overview page.
+  // Anti-spam: if the user navigates away before the timer fires, clearTimeout
+  // prevents an unnecessary API call. The promise is stored in the module-level
+  // cache so ChemistryTutor picks it up instantly when "Start Practice" is clicked.
+  useEffect(() => {
+    const uid = unit?.id;
+    const lname = lessonTitles[currentLessonIdx] ?? "";
+    if (!uid || !lname) return;
+
+    const lidx = currentLessonIdx;
+    const timer = setTimeout(() => {
+      if (getCachedPromise(uid, lidx, 1)) return;
+
+      const promise = apiGenerateProblemV2({
+        unit_id: uid,
+        lesson_index: lidx,
+        lesson_name: lname,
+        difficulty: "medium",
+        level: 1,
+        interests: profile?.interests ?? [],
+        grade_level: profile?.grade_level ?? null,
+        user_id: user?.id,
+      }).then((data) => {
+        if (!data?.problem?.id || !data?.problem?.steps?.length) {
+          throw new Error("Invalid problem structure from prefetch");
+        }
+        return parseProblemOutput(data);
+      });
+
+      setPrefetchPromise(uid, lidx, 1, promise);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [unit?.id, currentLessonIdx, lessonTitles]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -52,13 +93,18 @@ export default function UnitLandingPage() {
     return <Navigate to="/" replace />;
   }
 
+  const sortedLessons = unit.lessons.slice().sort((a, b) => a.lesson_index - b.lesson_index);
+  const currentLesson = sortedLessons[currentLessonIdx] ?? null;
+
   const isKinetics = unit.id === "chemical-kinetics";
   const isAtomicStructure = unit.id === "atomic-structure";
   const kineticsLessonConfig = isKinetics ? KINETICS_LESSONS[currentLessonIdx] : null;
+  // Prefer the DB flag; fall back to the legacy unit-ID heuristic for older lessons
   const hasSimulation =
-    !!kineticsLessonConfig ||
-    isAtomicStructure ||
-    (isKinetics && currentLessonIdx === RATE_LAWS_LESSON_INDEX);
+    currentLesson?.has_simulation ??
+    (!!kineticsLessonConfig ||
+      isAtomicStructure ||
+      (isKinetics && currentLessonIdx === RATE_LAWS_LESSON_INDEX));
 
   const totalLessons = lessonTitles.length;
   const hasPrev = currentLessonIdx > 0;
@@ -82,7 +128,7 @@ export default function UnitLandingPage() {
             {/* Breadcrumb — unit name truncates on small screens so user icon stays visible */}
             <nav className="flex items-center gap-1 min-w-0 text-sm overflow-hidden">
               <button
-                onClick={() => navigate("/")}
+                onClick={() => navigate("/", { state: location.state })}
                 className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
               >
                 Units
@@ -120,9 +166,24 @@ export default function UnitLandingPage() {
         />
 
         <div className="flex-1 min-w-0 flex flex-col">
-          <main className="flex-1 px-4 lg:px-6 py-5 pb-24">
-            {hasSimulation ? (
-              <section>
+          <main className="flex-1 pb-24">
+            {/* Lesson overview — always shown at top */}
+            {currentLesson && (
+              <LessonOverview
+                lesson={currentLesson}
+                unitTitle={unit.title}
+                onStartPractice={() => navigate(`/tutor/${unit.id}/${currentLessonIdx}`)}
+                onOpenSimulation={
+                  hasSimulation
+                    ? () => simulationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+                    : undefined
+                }
+              />
+            )}
+
+            {/* Simulation section — shown below overview when applicable */}
+            {hasSimulation && (
+              <section ref={simulationRef} className="px-4 lg:px-6 pt-2 pb-6 border-t border-border">
                 <SimulationGuide
                   unitId={unit.id}
                   lessonName={currentLessonTitle}
@@ -152,46 +213,16 @@ export default function UnitLandingPage() {
                 {isAtomicStructure && (
                   <AtomicStructureSimulation topicLabel={currentLessonTitle} />
                 )}
-
-                <div className="mt-8 text-center">
-                  <Button
-                    size="lg"
-                    onClick={() => navigate(`/tutor/${unit.id}/${currentLessonIdx}`)}
-                    className="gap-2 text-base px-8"
-                  >
-                    <Zap className="w-5 h-5" />
-                    Start Practice — {currentLessonTitle}
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                  <p className="text-sm text-muted-foreground mt-3">
-                    Explore the simulation above, then practice with adaptive step-by-step problems.
-                  </p>
-                </div>
-              </section>
-            ) : (
-              <section className="text-center py-16">
-                <BookOpen className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
-                <h2 className="text-xl font-semibold text-foreground mb-2">
-                  {currentLessonTitle || unit.title}
-                </h2>
-                <p className="text-muted-foreground max-w-md mx-auto mb-6">
-                  Step-by-step adaptive practice for this topic.
-                </p>
-                <Button
-                  size="lg"
-                  onClick={() => navigate(`/tutor/${unit.id}/${currentLessonIdx}`)}
-                  className="gap-2"
-                >
-                  <Zap className="w-5 h-5" />
-                  Start Practice
-                </Button>
               </section>
             )}
           </main>
 
-          {/* Sticky footer navigation */}
+          {/* Sticky footer navigation — offset by sidebar width so it never overlaps it */}
           {totalLessons > 0 && (
-            <div className="fixed bottom-0 left-0 right-0 z-10 border-t border-border bg-card/95 backdrop-blur-sm">
+            <div
+              className="fixed bottom-0 right-0 z-10 border-t border-border bg-card/95 backdrop-blur-sm transition-[left] duration-300"
+              style={{ left: sidebarOpen ? 260 : 0 }}
+            >
               <div className="flex items-center justify-between px-4 py-3 max-w-screen-xl mx-auto">
                 {/* Previous */}
                 <button

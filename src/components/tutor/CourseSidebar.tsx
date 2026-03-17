@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Home } from "lucide-react";
+import { Home } from "lucide-react";
 
 const LESSON_STATE_STORAGE_KEY = "chemtutor_lesson_state";
 
@@ -116,9 +116,7 @@ export function CourseSidebar({
 
   if (!open) return null;
 
-  const isOnPracticePage = location.pathname.startsWith("/tutor/");
-
-  const totalLessons = lessonTitles.length;
+const totalLessons = lessonTitles.length;
   const completedCount = totalLessons > 0
     ? lessonTitles.filter((_, i) => getStatus(i) === "completed").length
     : 0;
@@ -198,17 +196,8 @@ export function CourseSidebar({
       </div>
 
       <div className="px-3 py-3 border-t border-border mt-2 space-y-1">
-        {isOnPracticePage && (
-          <button
-            onClick={() => navigate(`/unit/${currentUnitId}/${currentLessonIndex}`)}
-            className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary/40 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5 text-amber-500" />
-            Back to Simulation
-          </button>
-        )}
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/", { state: location.state })}
           className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-secondary/40 transition-colors"
         >
           <Home className="w-3.5 h-3.5 text-amber-500" />

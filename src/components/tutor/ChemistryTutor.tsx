@@ -40,6 +40,7 @@ import {
   CheckCircle,
   RotateCcw,
   FlaskConical,
+  Beaker,
   ArrowRight,
   Zap,
   ClipboardCheck,
@@ -113,6 +114,8 @@ interface ChemistryTutorProps {
   gradeLevel?: string | null;
   /** Tool keys for this lesson, e.g. ['periodic_table']. From API lesson.required_tools. */
   requiredTools?: string[];
+  /** Whether the current lesson has an interactive simulation (shows "Simulation Lab" button). */
+  hasSimulation?: boolean;
 }
 
 /**
@@ -135,6 +138,7 @@ export function ChemistryTutor({
   interests = [],
   gradeLevel = null,
   requiredTools = [],
+  hasSimulation = false,
 }: ChemistryTutorProps) {
   const currentTopicName = lessonName || unitTitle;
 
@@ -710,7 +714,16 @@ export function ChemistryTutor({
       )}
 
       <main className="px-4 py-6 max-w-6xl mx-auto">
-        {/* ── Title left, level tabs + Exit Ticket right (space-between); tabs wrap under on small screens ── */}
+        {/* ── Back to Overview link ────────────────────────────────────────── */}
+        <button
+          onClick={() => navigate(`/unit/${unitId}/${lessonIndex}`)}
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to Lesson Overview
+        </button>
+
+        {/* ── Title left, level tabs + actions right ───────────────────────── */}
         <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
           <div className="flex items-center gap-2 shrink-0">
             <FlaskConical className="w-4 h-4 text-primary" />
@@ -723,6 +736,17 @@ export function ChemistryTutor({
               isLevel3Locked={isLevel3Locked}
               masteryScore={masteryScore}
             />
+            {hasSimulation && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/unit/${unitId}/${lessonIndex}`)}
+                className="gap-1.5"
+              >
+                <Beaker className="w-4 h-4" />
+                <span className="hidden sm:inline">Simulation Lab</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
