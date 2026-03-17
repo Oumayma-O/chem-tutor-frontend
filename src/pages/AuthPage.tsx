@@ -15,7 +15,7 @@ import {
 import { GraduationCap, User, AlertCircle, ArrowRight, ArrowLeft, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import happyMascot from "@/assets/mascot/happy.png";
+import { BeakerMascot } from "@/components/tutor/BeakerMascot";
 
 const GRADE_RANGE_OPTIONS = [
   { value: "middle-school", label: "Middle School" },
@@ -180,7 +180,7 @@ export default function AuthPage() {
         <div className="w-full max-w-lg mx-auto space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 my-auto py-4">
           {/* Header */}
           <div className="text-center space-y-3">
-            <img src={happyMascot} alt="Catalyst mascot" className="w-24 h-24 object-contain mx-auto" />
+            <BeakerMascot mood="happy" size={96} className="mx-auto" />
             <h1 className="text-2xl font-bold text-foreground">What interests you?</h1>
             <p className="text-muted-foreground text-sm max-w-sm mx-auto">
               We'll use these to personalize your chemistry problems with real-world examples you care about.
@@ -280,7 +280,7 @@ export default function AuthPage() {
         {/* Logo */}
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-2">
-            <img src={happyMascot} alt="Catalyst mascot" className="w-16 h-16 object-contain" />
+            <BeakerMascot mood="happy" size={64} />
             <h1 className="text-2xl font-bold text-foreground">Catalyst</h1>
           </div>
           <p className="text-sm text-muted-foreground">

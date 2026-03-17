@@ -1,10 +1,16 @@
-import defaultPng from "@/assets/mascot/default.png";
-import happyPng from "@/assets/mascot/happy.png";
-import thinkingPng from "@/assets/mascot/thinking.png";
-import sleepingPng from "@/assets/mascot/sleeping.png";
-import relaxedPng from "@/assets/mascot/relaxed.png";
-import sadPng from "@/assets/mascot/sad.png";
+import defaultPng from "@/assets/mascot/moods/default.png";
+import happyPng from "@/assets/mascot/moods/happy.png";
+import thinkingPng from "@/assets/mascot/moods/thinking.png";
+import sleepingPng from "@/assets/mascot/moods/sleeping.png";
+import relaxedPng from "@/assets/mascot/moods/relaxed.png";
+import sadPng from "@/assets/mascot/moods/sad.png";
+import solverPng    from "@/assets/mascot/blueprints/solver.png";
+import recipePng    from "@/assets/mascot/blueprints/recipe.png";
+import architectPng from "@/assets/mascot/blueprints/architect.png";
+import detectivePng from "@/assets/mascot/blueprints/detective.png";
+import lawyerPng    from "@/assets/mascot/blueprints/lawyer.png";
 import { cn } from "@/lib/utils";
+import type { CognitiveBlueprint } from "@/types/chemistry";
 
 export type MascotMood = "default" | "happy" | "thinking" | "sleeping" | "relaxed" | "sad";
 
@@ -26,6 +32,31 @@ const MOOD_ASSETS: Record<MascotMood, string> = {
   relaxed: relaxedPng,
   sad: sadPng,
 };
+
+const BLUEPRINT_ASSETS: Record<CognitiveBlueprint, string> = {
+  solver:    solverPng,
+  recipe:    recipePng,
+  architect: architectPng,
+  detective: detectivePng,
+  lawyer:    lawyerPng,
+};
+
+export function BlueprintMascot({
+  blueprint,
+  className,
+}: {
+  blueprint: CognitiveBlueprint;
+  className?: string;
+}) {
+  return (
+    <img
+      src={BLUEPRINT_ASSETS[blueprint] ?? relaxedPng}
+      alt={`${blueprint} mascot`}
+      draggable={false}
+      className={cn("select-none object-contain drop-shadow-xl", className)}
+    />
+  );
+}
 
 const POSE_TO_MOOD: Record<MascotPose, MascotMood> = {
   idle: "default",
