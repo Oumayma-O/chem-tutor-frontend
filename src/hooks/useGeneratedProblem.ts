@@ -1,6 +1,11 @@
 import { useState, useCallback } from "react";
 import { Problem, SolutionStep } from "@/types/chemistry";
 import { apiGenerateProblemV2, ProblemDeliveryResponse, ProblemPagination } from "@/lib/api";
+import {
+  getCachedPromise,
+  getResolvedResult,
+  setPrefetchPromise,
+} from "@/lib/problemPrefetchCache";
 
 interface UseGeneratedProblemOptions {
   unitId: string;
@@ -82,10 +87,36 @@ export function useGeneratedProblem({
       level: number = 2,
       isRetry = false,
     ): Promise<GenerateResult> => {
+      // Only use the module cache for fresh (non-retry, no exclusion) calls.
+      // Retries and "See Another" requests must always hit the API.
+      const isCacheable = !isRetry && excludeIds.length === 0;
+
+      if (isCacheable) {
+        // ── Fast path: resolved result already in module cache ────────────────
+        const cached = getResolvedResult(unitId, lessonIndex, level);
+        if (cached) return cached;
+
+        // ── In-flight path: a prefetch (from LessonOverview or triggerPrefetch)
+        //    is already running. Attach to the SAME promise — no duplicate request.
+        const inFlight = getCachedPromise(unitId, lessonIndex, level);
+        if (inFlight) {
+          setIsLoading(true);
+          try {
+            return await inFlight;
+          } finally {
+            setIsLoading(false);
+          }
+        }
+      }
+
       setIsLoading(true);
       setError(null);
 
-      try {
+      // Wrap the full resolution (API call + duplicate check) in a single promise
+      // so that cross-route attaches always get a clean, validated result.
+      // NOTE: No AbortSignal is passed — the network request stays alive even
+      // if the calling component unmounts (user navigates away mid-generation).
+      const freshPromise: Promise<GenerateResult> = (async () => {
         const data = await apiGenerateProblemV2({
           unit_id: unitId,
           lesson_index: lessonIndex,
@@ -102,23 +133,32 @@ export function useGeneratedProblem({
           throw new Error("Invalid problem structure returned from API");
         }
 
-        const result = parseProblemOutput(data);
-
         // When at the playlist cap the backend cycles through existing problems —
         // seeing a previously-excluded id is expected, so skip the duplicate check.
         if (!data.at_limit && excludeIds.includes(data.problem.id)) {
           if (!isRetry) {
+            // Retry is a fresh call with isRetry=true — it won't enter the cache path.
             return generate(difficulty, [...excludeIds, data.problem.id], level, true);
           }
-          // Retry also returned a duplicate — backend may still be warming up; surface the error.
           throw new Error("Duplicate problem returned. Try again in a moment.");
         }
 
-        return result;
+        return parseProblemOutput(data);
+      })();
+
+      // Register in module cache BEFORE awaiting so any concurrent caller
+      // (e.g. user clicks "Start Practice" while prefetch is in-flight) attaches
+      // to this promise rather than firing a second API request.
+      if (isCacheable) {
+        setPrefetchPromise(unitId, lessonIndex, level, freshPromise);
+      }
+
+      try {
+        return await freshPromise;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Unknown error generating problem";
         setError(msg);
-        throw err; // Re-throw so caller can handle (show toast, etc.)
+        throw err;
       } finally {
         setIsLoading(false);
       }
