@@ -85,9 +85,13 @@ export function MathText({ children, className }: MathTextProps) {
 /**
  * Normalize LaTeX that may be double-escaped from the API (e.g. \\text -> \text)
  * so KaTeX can render it instead of showing raw commands.
+ * Also collapses $$...$$ (display/block math) → $...$ (inline math) so the AI
+ * can't accidentally produce oversized centered formulas in step content.
  */
 function normalizeLatexEscapes(text: string): string {
-  return text.replace(/\\\\/g, "\\");
+  // Collapse display math $$...$$ → inline $...$ (non-greedy, single-line and multi-line)
+  const collapsed = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => `$${inner.trim()}$`);
+  return collapsed.replace(/\\\\/g, "\\");
 }
 
 /** LaTeX command names that are sometimes sent with ^ instead of \ (e.g. ^mathrm -> \mathrm). */
