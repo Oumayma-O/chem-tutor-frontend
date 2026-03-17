@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(git add src/components/tutor/Calculator.tsx src/components/tutor/GivenStep.tsx src/components/tutor/PeriodicTablePanel.tsx src/components/tutor/ToolsWidget.tsx src/lib/mathDisplay.tsx)",
-      "Bash(git push origin main)"
+      "Bash(git push origin main)",
+      "Bash(node -e \":*)",
+      "Bash(git add:*)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -E \"\\\\.ts$\")"
     ]
   }
 }

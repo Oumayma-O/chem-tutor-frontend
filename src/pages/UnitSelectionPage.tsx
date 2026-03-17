@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import Fuse from "fuse.js";
 import { useAuth } from "@/hooks/useAuth";
 import { useCurriculum } from "@/hooks/useCurriculum";
 import { COURSE_LEVELS, CourseLevel, getCourseLevel } from "@/data/units";
@@ -13,6 +14,8 @@ import { NavDropdown } from "@/components/tutor/NavDropdown";
 import { BeakerMascot } from "@/components/tutor/BeakerMascot";
 import { UnitRow } from "@/components/landing/UnitRow";
 import { PhaseHeader } from "@/components/landing/PhaseHeader";
+
+type NavState = { searchQuery?: string; selectedLevel?: CourseLevel | "all" } | null;
 
 /** Infer course filter from profile (grade_level and/or course from signup). */
 function inferCourseLevel(profile: { grade_level?: string | null; course?: string | null } | null): CourseLevel | "all" {
@@ -53,47 +56,109 @@ function UnitRowSkeleton() {
   );
 }
 
+type SuggestionItem = {
+  label: string;
+  sublabel: string;
+  unitId: string;
+  type: "unit" | "lesson";
+};
+
 export default function UnitSelectionPage() {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const navState = location.state as NavState;
+
   const { phases, loading, error } = useCurriculum();
-  const [searchQuery, setSearchQuery] = useState("");
 
   const autoLevel = inferCourseLevel(profile);
-  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "all">(autoLevel);
+  const [didRestoreNav] = useState(!!navState?.selectedLevel);
+  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "all">(
+    navState?.selectedLevel ?? autoLevel,
+  );
+  const [searchQuery, setSearchQuery] = useState(navState?.searchQuery ?? "");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
+  // Only apply profile-inferred level if we didn't restore from navigation
   useEffect(() => {
-    if (autoLevel !== "all") setSelectedLevel(autoLevel);
-  }, [autoLevel]);
+    if (!didRestoreNav && autoLevel !== "all") setSelectedLevel(autoLevel);
+  }, [autoLevel, didRestoreNav]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    function onPointerDown(e: PointerEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  const allUnits = useMemo(() => phases.flatMap((p) => p.units), [phases]);
+
+  // Fuse index for main unit filtering (title + description + lesson_titles)
+  const unitFuse = useMemo(
+    () =>
+      new Fuse(allUnits, {
+        keys: ["title", "description", "lesson_titles"],
+        threshold: 0.4,
+        includeScore: true,
+      }),
+    [allUnits],
+  );
+
+  // Flat list for autocomplete suggestions (units + individual lessons)
+  const suggestionItems = useMemo<SuggestionItem[]>(() => {
+    const items: SuggestionItem[] = [];
+    for (const unit of allUnits) {
+      items.push({ label: unit.title, sublabel: unit.description, unitId: unit.id, type: "unit" });
+      for (const lesson of unit.lesson_titles) {
+        items.push({ label: lesson, sublabel: unit.title, unitId: unit.id, type: "lesson" });
+      }
+    }
+    return items;
+  }, [allUnits]);
+
+  const suggestionFuse = useMemo(
+    () =>
+      new Fuse(suggestionItems, {
+        keys: ["label", "sublabel"],
+        threshold: 0.35,
+        includeScore: true,
+      }),
+    [suggestionItems],
+  );
+
+  const suggestions = useMemo<SuggestionItem[]>(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) return [];
+    return suggestionFuse.search(searchQuery).slice(0, 3).map((r) => r.item);
+  }, [suggestionFuse, searchQuery]);
 
   const filteredPhases = useMemo(() => {
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.trim();
+    const matchedIds: Set<string> | null = q
+      ? new Set(unitFuse.search(q).map((r) => r.item.id))
+      : null;
 
     return phases
       .map((phase): PhaseCurriculumGroup => {
         const filtered = phase.units.filter((u) => {
-          if (selectedLevel !== "all" && !matchesCourseLevel(u, selectedLevel)) {
-            return false;
-          }
-          if (q) {
-            return (
-              u.title.toLowerCase().includes(q) ||
-              u.description.toLowerCase().includes(q) ||
-              u.lesson_titles.some((t) => t.toLowerCase().includes(q))
-            );
-          }
+          if (selectedLevel !== "all" && !matchesCourseLevel(u, selectedLevel)) return false;
+          if (matchedIds !== null) return matchedIds.has(u.id);
           return true;
         });
         return { ...phase, units: filtered };
       })
       .filter((phase) => phase.units.length > 0);
-  }, [phases, searchQuery, selectedLevel]);
+  }, [phases, searchQuery, selectedLevel, unitFuse]);
 
   const totalUnits = filteredPhases.reduce((sum, p) => sum + p.units.length, 0);
 
   const handleSelectUnit = (unit: CurriculumUnit) => {
     if (unit.is_coming_soon || !unit.is_active) return;
-    navigate(`/unit/${unit.id}`);
+    navigate(`/unit/${unit.id}`, { state: { searchQuery, selectedLevel } });
   };
 
   return (
@@ -124,25 +189,54 @@ export default function UnitSelectionPage() {
             </p>
           </div>
 
-          {/* Search + Filter + View toggle */}
+          {/* Search + Filter */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <div ref={searchRef} className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <Input
                 placeholder="Search topics or chapters..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setShowSuggestions(true);
+                }}
+                onFocus={() => setShowSuggestions(true)}
                 className="pl-9 pr-8"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery("")}
+                  onClick={() => { setSearchQuery(""); setShowSuggestions(false); }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   <X className="w-4 h-4" />
                 </button>
               )}
+
+              {/* Autocomplete dropdown */}
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-30 overflow-hidden">
+                  {suggestions.map((item, i) => (
+                    <button
+                      key={i}
+                      onPointerDown={(e) => {
+                        e.preventDefault(); // prevent input blur before handler fires
+                        const unit = allUnits.find((u) => u.id === item.unitId);
+                        if (unit) {
+                          setSearchQuery(item.label);
+                          setShowSuggestions(false);
+                          handleSelectUnit(unit);
+                        }
+                      }}
+                      className="flex flex-col gap-0.5 w-full px-4 py-2.5 text-left hover:bg-secondary/40 transition-colors border-b border-border last:border-0"
+                    >
+                      <span className="text-sm font-medium text-foreground">{item.label}</span>
+                      <span className="text-xs text-muted-foreground">{item.sublabel}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
+
             <div className="flex gap-1 bg-secondary/60 rounded-lg p-1">
               <button
                 onClick={() => setSelectedLevel("all")}
@@ -170,7 +264,6 @@ export default function UnitSelectionPage() {
                 </button>
               ))}
             </div>
-
           </div>
 
           {error && (
@@ -196,7 +289,6 @@ export default function UnitSelectionPage() {
           ) : (
             <AnimatePresence mode="wait" initial={false}>
               {selectedLevel === "all" ? (
-                /* ── Card grid ── */
                 <motion.div
                   key="all-grid"
                   initial={{ opacity: 0, scale: 0.97 }}
@@ -231,7 +323,6 @@ export default function UnitSelectionPage() {
                   })()}
                 </motion.div>
               ) : (
-                /* ── Phased list ── */
                 <motion.div
                   key={selectedLevel}
                   initial={{ opacity: 0, x: -12 }}
