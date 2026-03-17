@@ -27,41 +27,22 @@ const inlineComponents: Components = {
  * Detects bare LaTeX commands (e.g. \mathrm, \times, ^{, _{) and wraps
  * contiguous math runs in $...$  so KaTeX can render them.
  */
+/**
+ * Auto-wrap bare LaTeX into $...$ so KaTeX can render it.
+ *
+ * If the string already has $/$( delimiters → leave as-is.
+ * If the string has no LaTeX commands at all → plain text, leave as-is.
+ * Otherwise wrap the ENTIRE string in $...$ so KaTeX handles it.
+ *
+ * Wrapping the whole string is simpler and more correct than the previous
+ * whitespace-tokeniser, which broke on multi-word brace arguments like
+ * \text{Avg Atomic Mass} (splitting "Avg" and "Mass}" into separate tokens
+ * that did not individually look like LaTeX, leaving raw commands visible).
+ */
 function autoWrapLatex(text: string): string {
-  // Already has $ or \( delimiters — leave as-is
   if (/\$|\\\(/.test(text)) return text;
-  // No LaTeX commands at all — plain text
   if (!/\\[a-zA-Z]/.test(text) && !/[_^]\{/.test(text)) return text;
-
-  // Split into tokens (non-whitespace + whitespace runs), wrap math regions in $...$
-  const tokens = text.split(/(\s+)/);
-  // matches: \command, ^{…}, _{…}, bare ^digit/letter (e.g. 10^22), bare _digit/letter, or starts with ^ or _
-  const isMathToken = (t: string) =>
-    /\\[a-zA-Z]/.test(t) || /[_^]\{/.test(t) || /[_^]\w/.test(t) || /^\^/.test(t) || /^_/.test(t);
-
-  const out: string[] = [];
-  let buf = "";
-
-  for (let i = 0; i < tokens.length; i++) {
-    const tok = tokens[i];
-    if (isMathToken(tok)) {
-      buf += tok;
-    } else if (/^\s+$/.test(tok) && buf) {
-      // whitespace inside a math run — include it only if the next token is also math
-      const next = tokens[i + 1];
-      if (next && isMathToken(next)) {
-        buf += tok;
-      } else {
-        out.push(`$${buf.trim()}$`, tok);
-        buf = "";
-      }
-    } else {
-      if (buf) { out.push(`$${buf.trim()}$`); buf = ""; }
-      out.push(tok);
-    }
-  }
-  if (buf) out.push(`$${buf.trim()}$`);
-  return out.join("");
+  return `$${text}$`;
 }
 
 interface MathTextProps {
