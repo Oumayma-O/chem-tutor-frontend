@@ -177,10 +177,10 @@ export default function AuthPage() {
   if (signupStep === 2) {
     return (
       <div className="min-h-screen bg-background flex flex-col overflow-y-auto p-4">
-        <div className="w-full max-w-lg mx-auto space-y-4 animate-in fade-in slide-in-from-right-4 duration-300 my-auto py-4">
+        <div className="w-full max-w-lg mx-auto space-y-3 animate-in fade-in slide-in-from-right-4 duration-300 my-auto py-2">
           {/* Header */}
-          <div className="text-center space-y-3">
-            <BeakerMascot mood="happy" size={96} className="mx-auto" />
+          <div className="text-center space-y-1.5">
+            <BeakerMascot mood="happy" size={72} className="mx-auto" />
             <h1 className="text-2xl font-bold text-foreground">What interests you?</h1>
             <p className="text-muted-foreground text-sm max-w-sm mx-auto">
               We'll use these to personalize your chemistry problems with real-world examples you care about.
@@ -188,25 +188,25 @@ export default function AuthPage() {
           </div>
 
           {/* Interest Cards Grid */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {INTEREST_OPTIONS.filter((i) => i.value !== "other").map((interest) => (
               <button
                 key={interest.value}
                 type="button"
                 onClick={() => toggleInterest(interest.value)}
                 className={cn(
-                  "relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all duration-200 hover:scale-[1.03]",
+                  "relative flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all duration-200 hover:scale-[1.03]",
                   signupInterests.includes(interest.value)
                     ? "border-primary bg-primary/5 shadow-md"
                     : "border-border hover:border-primary/30 hover:bg-secondary/30"
                 )}
               >
                 {signupInterests.includes(interest.value) && (
-                  <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                    <Check className="w-3 h-3 text-primary-foreground" />
+                  <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                    <Check className="w-2.5 h-2.5 text-primary-foreground" />
                   </div>
                 )}
-                <span className="text-2xl">{interest.icon}</span>
+                <span className="text-xl">{interest.icon}</span>
                 <span className={cn(
                   "text-xs font-medium",
                   signupInterests.includes(interest.value) ? "text-primary" : "text-muted-foreground"
@@ -218,7 +218,7 @@ export default function AuthPage() {
           </div>
 
           {/* Other - text input */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             <Label className="text-sm text-muted-foreground">Something else?</Label>
             <Input
               placeholder="Type your interest..."
