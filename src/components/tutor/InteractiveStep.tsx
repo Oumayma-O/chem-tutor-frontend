@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { StepBadge } from "./StepBadge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, X, XCircle, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,8 +33,18 @@ export function InteractiveStep({
   const isIncorrect = answer?.is_correct === false;
   const displayHint = hintText || step.hint;
   const [dismissed, setDismissed] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   // Reset dismiss when the student changes their answer (new attempt)
   useEffect(() => setDismissed(false), [answer?.answer]);
+
+  // Auto-resize textarea as content grows
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [answer?.answer]);
 
   return (
     <div
@@ -56,21 +65,25 @@ export function InteractiveStep({
 
       <div className="ml-16 space-y-3">
         <div className="flex gap-3">
-          <Input
+          <textarea
+            ref={textareaRef}
             value={answer?.answer || ""}
             onChange={(e) => onAnswerChange(step.id, e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && answer?.answer && !checkingAnswer && !isCorrect) {
+              if (e.key === "Enter" && !e.shiftKey && answer?.answer && !checkingAnswer && !isCorrect) {
                 e.preventDefault();
                 onCheckAnswer(step.id);
               }
             }}
             placeholder="Enter your answer"
             disabled={isCorrect}
+            rows={1}
             className={cn(
-              "flex-1 bg-card border-2 transition-all",
+              "flex-1 bg-card border-2 rounded-md px-3 py-2 text-sm w-full resize-none overflow-y-auto transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50",
+              "min-h-[40px] max-h-[120px]",
               isCorrect && "border-success bg-success/10",
-              isIncorrect && "border-destructive bg-destructive/10"
+              isIncorrect && "border-destructive bg-destructive/10",
+              !isCorrect && !isIncorrect && "border-input"
             )}
           />
           {!isCorrect && (
