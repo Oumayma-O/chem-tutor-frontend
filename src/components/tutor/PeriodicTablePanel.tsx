@@ -95,6 +95,8 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
 
   const startDrag = useCallback((clientX: number, clientY: number, target: EventTarget | null) => {
     if ((target as HTMLElement)?.closest("button")) return;
+    // Clear any stuck hover state before moving the panel
+    setHoveredElement(null);
     const el = panelRef.current;
     if (el && !hasUserMoved) {
       const r = el.getBoundingClientRect();
@@ -190,8 +192,8 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
     <div
       ref={panelRef}
       className={cn(
-        "fixed z-50 flex flex-col bg-card border border-border rounded-xl shadow-xl overflow-hidden w-fit max-w-[calc(100vw-32px)] max-h-[calc(100vh-120px)]",
-        !hasUserMoved && "max-md:left-1/2 max-md:top-1/2 max-md:-translate-x-1/2 max-md:-translate-y-1/2 md:right-20 md:bottom-20"
+        "fixed z-50 flex flex-col bg-card border border-border rounded-xl shadow-xl overflow-hidden w-fit max-w-[calc(100vw-32px)]",
+        !hasUserMoved && "max-md:left-1/2 max-md:top-1/2 max-md:-translate-x-1/2 max-md:-translate-y-1/2 md:bottom-[90px] md:right-6 origin-bottom-right"
       )}
       style={
         hasUserMoved
@@ -263,15 +265,17 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
         </div>
       </div>
 
-      <div className="p-3 overflow-x-auto overflow-y-auto flex-1 min-h-0">
-        {/* Legend — two columns, color key */}
-        <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3 text-[10px]">
-          {LEGEND_ITEMS.map(({ label, category }) => (
-            <div key={category} className="flex items-center gap-2">
-              <div className={cn("w-3 h-3 shrink-0 rounded border border-border", getCategoryColor(category))} />
-              <span className="text-muted-foreground">{label}</span>
-            </div>
-          ))}
+      <div className="p-3 overflow-x-auto" onMouseLeave={() => setHoveredElement(null)}>
+        {/* Legend — two columns, centered */}
+        <div className="flex justify-center mb-3">
+          <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[10px]">
+            {LEGEND_ITEMS.map(({ label, category }) => (
+              <div key={category} className="flex items-center gap-2">
+                <div className={cn("w-3 h-3 shrink-0 rounded border border-border", getCategoryColor(category))} />
+                <span className="text-muted-foreground">{label}</span>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Main table: strict 18-column CSS grid */}
@@ -312,7 +316,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
           ))}
 
           {/* F-block: label left of cells, Ce/Th aligned under group 4 (116px from left) */}
-          <div className="mt-8">
+          <div className="mt-3">
             {/* Lanthanoid row */}
             <div className="flex items-stretch mb-[2px]" style={{ gap: "2px" }}>
               {/* Empty slot matching period-label width */}
@@ -358,9 +362,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
           </div>
         </div>
 
-        <p className="text-[9px] text-muted-foreground mt-3">
-          Numbering adopted by the International Union of Pure and Applied Chemistry (IUPAC).
-        </p>
+
       </div>
 
       {/* Resize handle — bottom-right, visible on hover */}

@@ -92,12 +92,12 @@ const MASSES_1_118: number[] = [
 
 /** Britannica-style pastel palette. All cells use black text (enforced in ElementCell). */
 export const CATEGORY_COLORS: Record<ElementCategory, string> = {
-  alkali:           "bg-orange-300",
+  alkali:           "bg-[#ffe0b2]",
   alkaline:         "bg-amber-300",
-  transition:       "bg-fuchsia-200",
+  transition:       "bg-[#d1c5e9]",
   "post-transition":"bg-pink-200",
   metalloid:        "bg-yellow-200",
-  nonmetal:         "bg-red-200",
+  nonmetal:         "bg-[#ffab91]",
   halogen:          "bg-[#a6d6a8]",
   noble:            "bg-gray-200",
   lanthanide:       "bg-lime-200",
