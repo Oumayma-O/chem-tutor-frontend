@@ -6,7 +6,14 @@ export interface LessonOut {
   title: string;
   description: string;
   lesson_index: number;
+  objectives: string[];
   key_equations: string[];
+  key_rules: string[];
+  misconceptions: string[];
+  /** Cognitive blueprint for this lesson: solver | recipe | architect | detective | lawyer */
+  blueprint: string;
+  /** Whether this lesson has an interactive simulation component */
+  has_simulation: boolean;
   standards: { code: string; framework: string; description: string }[];
   is_active: boolean;
   /** Tool keys for this lesson, e.g. ['periodic_table', 'calculator']. From backend required_tools. */
