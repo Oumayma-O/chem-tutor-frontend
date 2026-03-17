@@ -87,11 +87,40 @@ export function MathText({ children, className }: MathTextProps) {
  * so KaTeX can render it instead of showing raw commands.
  * Also collapses $$...$$ (display/block math) → $...$ (inline math) so the AI
  * can't accidentally produce oversized centered formulas in step content.
+ *
+ * JSON-eaten LaTeX recovery: when the LLM outputs a single-backslash command
+ * (e.g. \text) instead of the required double-escaped \\text, the JSON parser
+ * silently converts the backslash+letter pair to a control character:
+ *   \t → U+0009 (tab)   → eats \text, \times, \theta …
+ *   \f → U+000C (ff)    → eats \frac, \forall
+ *   \r → U+000D (CR)    → eats \rightarrow, \rho
+ *   \b → U+0008 (bs)    → eats \beta, \begin
+ * We restore the most common chemistry LaTeX commands from these artifacts.
  */
 function normalizeLatexEscapes(text: string): string {
-  // Collapse display math $$...$$ → inline $...$ (non-greedy, single-line and multi-line)
-  const collapsed = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => `$${inner.trim()}$`);
-  return collapsed.replace(/\\\\/g, "\\");
+  // ── 1. Collapse display math $$...$$ → $...$
+  let out = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => `$${inner.trim()}$`);
+
+  // ── 2. Fix double-escaped backslashes sent by well-behaved backends (\\text → \text)
+  out = out.replace(/\\\\/g, "\\");
+
+  // ── 3. Restore JSON-eaten LaTeX commands
+  // \t (tab U+0009) victims
+  out = out.replace(/\u0009ext(?=[\s{(]|$)/g, "\\text");
+  out = out.replace(/\u0009imes(?=[\s{,.)\]$]|$)/g, "\\times");
+  out = out.replace(/\u0009heta(?=[\s{_^,.)\]$]|$)/g, "\\theta");
+  out = out.replace(/\u0009au(?=[\s{_^,.)\]$]|$)/g, "\\tau");
+  out = out.replace(/\u0009o(?=[\s{]|$)/g, "\\to");
+  // \f (form feed U+000C) victims
+  out = out.replace(/\u000crac(?=\{)/g, "\\frac");
+  out = out.replace(/\u000corall(?=[\s{]|$)/g, "\\forall");
+  // \r (carriage return U+000D) victims
+  out = out.replace(/\u000dightarrow/g, "\\rightarrow");
+  out = out.replace(/\u000dho(?=[\s{_^,.)\]$]|$)/g, "\\rho");
+  // \b (backspace U+0008) victims
+  out = out.replace(/\u0008eta(?=[\s{_^,.)\]$]|$)/g, "\\beta");
+
+  return out;
 }
 
 /** LaTeX command names that are sometimes sent with ^ instead of \ (e.g. ^mathrm -> \mathrm). */

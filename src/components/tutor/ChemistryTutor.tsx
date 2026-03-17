@@ -55,13 +55,6 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 /**
- * Module-level reference card client cache.
- * Avoids the loading flicker when a student switches back to a lesson they already viewed.
- * The backend already persists the card globally; this just prevents the redundant
- * round-trip and skeleton flash within the same browser session.
- */
-const _refCardCache = new Map<string, ReferenceCardOutput>();
-
 /** Derive overall mastery % from backend state. Use category_scores average when mastery_score is 0 or missing. */
 function overallMasteryPercent(
   mastery_score: number | undefined | null,
@@ -323,28 +316,19 @@ export function ChemistryTutor({
     if (lessonCompleted) setHasCompletedLevel2((prev) => prev || true);
   }, [lessonCompleted]);
 
-  // Fetch reference card once per lesson for Level 1 and 2 only. Client cache avoids
-  // the loading flicker when revisiting a lesson — the backend already persists globally on first generation.
+  // Fetch reference card once per lesson (Levels 1 & 2 only).
+  // apiGetReferenceCard has a module-level FIFO cache shared with UnitLandingPage's
+  // prefetch — so if the card was prefetched while the user read the overview it
+  // resolves instantly here with no loading flash.
   useEffect(() => {
-    const level = nav.currentLevel;
-    if (level === 3) {
-      setReferenceCardLoading(false);
-      return;
-    }
-    const cacheKey = `${unitId}:${lessonIndex}`;
-    const clientCached = _refCardCache.get(cacheKey);
-    if (clientCached) {
-      setReferenceCard(clientCached);
+    if (nav.currentLevel === 3) {
       setReferenceCardLoading(false);
       return;
     }
     setReferenceCard(null);
     setReferenceCardLoading(true);
     apiGetReferenceCard(unitId, lessonIndex, currentTopicName).then((card) => {
-      if (card) {
-        setReferenceCard(card);
-        _refCardCache.set(cacheKey, card);
-      }
+      if (card) setReferenceCard(card);
       setReferenceCardLoading(false);
     });
   }, [unitId, lessonIndex, currentTopicName, nav.currentLevel]);

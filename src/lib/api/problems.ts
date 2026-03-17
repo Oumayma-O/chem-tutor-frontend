@@ -126,23 +126,59 @@ export interface ReferenceCardOutput {
   hint: string;
 }
 
+// Module-level reference-card cache — shared by all callers (UnitLandingPage
+// prefetch + ChemistryTutor render). FIFO, capped at 20 entries.
+const _refCardCache = new Map<string, ReferenceCardOutput>();
+const _refCardInFlight = new Map<string, Promise<ReferenceCardOutput | null>>();
+const REF_CARD_MAX = 20;
+
+function _refCardKey(unitId: string, lessonIndex: number): string {
+  return `${unitId}__${lessonIndex}`;
+}
+
+function _setRefCard(key: string, card: ReferenceCardOutput): void {
+  if (_refCardCache.has(key)) { _refCardCache.delete(key); }
+  else if (_refCardCache.size >= REF_CARD_MAX) {
+    const oldest = _refCardCache.keys().next().value;
+    if (oldest !== undefined) _refCardCache.delete(oldest);
+  }
+  _refCardCache.set(key, card);
+}
+
 /**
  * Fetch the conceptual study card for a lesson.
- * Generated once by the LLM and cached in the DB — subsequent calls are instant.
- * Returns null on error so callers can fall back gracefully.
+ * Module-level FIFO cache (20 entries) — instant on return visits.
+ * Concurrent callers share one in-flight request. Returns null on error.
  */
 export async function apiGetReferenceCard(
   unitId: string,
   lessonIndex: number,
   lessonName: string,
 ): Promise<ReferenceCardOutput | null> {
+  const key = _refCardKey(unitId, lessonIndex);
+
+  // Fast path — already cached
+  const cached = _refCardCache.get(key);
+  if (cached) return cached;
+
+  // In-flight path — attach to existing request
+  const existing = _refCardInFlight.get(key);
+  if (existing) return existing;
+
+  // Slow path — fire the request
   const params = new URLSearchParams({
     unit_id: unitId,
     lesson_index: String(lessonIndex),
     lesson_name: lessonName,
     topic_name: lessonName,
   });
-  return get<ReferenceCardOutput>(`/problems/reference-card?${params.toString()}`).catch(() => null);
+  const promise = get<ReferenceCardOutput>(`/problems/reference-card?${params.toString()}`)
+    .then((card) => { _setRefCard(key, card); return card; })
+    .catch(() => null)
+    .finally(() => { _refCardInFlight.delete(key); });
+
+  _refCardInFlight.set(key, promise);
+  return promise;
 }
 
 /**

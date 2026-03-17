@@ -13,6 +13,7 @@ import { ArrowRight, ArrowLeft, Beaker, ChevronRight, Menu, Loader2 } from "luci
 import { useAuth } from "@/hooks/useAuth";
 import { useLessonCompletion } from "@/hooks/useLessonCompletion";
 import { apiGenerateProblemV2 } from "@/lib/api";
+import { apiGetReferenceCard } from "@/lib/api/problems";
 import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
 import { getCachedPromise, setPrefetchPromise } from "@/lib/problemPrefetchCache";
 
@@ -42,10 +43,11 @@ export default function UnitLandingPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [unitId, lessonIndex]);
 
-  // ── Eager prefetch: start Level-1 generation after 1.5 s on the Overview page.
-  // Anti-spam: if the user navigates away before the timer fires, clearTimeout
-  // prevents an unnecessary API call. The promise is stored in the module-level
-  // cache so ChemistryTutor picks it up instantly when "Start Practice" is clicked.
+  // ── Eager prefetch: after 1.5 s on the Overview page, fire both:
+  //    1. Level-1 problem generation
+  //    2. Reference card generation
+  // Both use module-level caches so ChemistryTutor gets instant results on mount.
+  // clearTimeout on unmount prevents calls when the user navigates away quickly.
   useEffect(() => {
     const uid = unit?.id;
     const lname = lessonTitles[currentLessonIdx] ?? "";
@@ -53,25 +55,28 @@ export default function UnitLandingPage() {
 
     const lidx = currentLessonIdx;
     const timer = setTimeout(() => {
-      if (getCachedPromise(uid, lidx, 1)) return;
+      // Level-1 problem
+      if (!getCachedPromise(uid, lidx, 1)) {
+        const promise = apiGenerateProblemV2({
+          unit_id: uid,
+          lesson_index: lidx,
+          lesson_name: lname,
+          difficulty: "medium",
+          level: 1,
+          interests: profile?.interests ?? [],
+          grade_level: profile?.grade_level ?? null,
+          user_id: user?.id,
+        }).then((data) => {
+          if (!data?.problem?.id || !data?.problem?.steps?.length) {
+            throw new Error("Invalid problem structure from prefetch");
+          }
+          return parseProblemOutput(data);
+        });
+        setPrefetchPromise(uid, lidx, 1, promise);
+      }
 
-      const promise = apiGenerateProblemV2({
-        unit_id: uid,
-        lesson_index: lidx,
-        lesson_name: lname,
-        difficulty: "medium",
-        level: 1,
-        interests: profile?.interests ?? [],
-        grade_level: profile?.grade_level ?? null,
-        user_id: user?.id,
-      }).then((data) => {
-        if (!data?.problem?.id || !data?.problem?.steps?.length) {
-          throw new Error("Invalid problem structure from prefetch");
-        }
-        return parseProblemOutput(data);
-      });
-
-      setPrefetchPromise(uid, lidx, 1, promise);
+      // Reference card — apiGetReferenceCard self-caches; calling it here is enough.
+      apiGetReferenceCard(uid, lidx, lname);
     }, 1500);
 
     return () => clearTimeout(timer);
