@@ -14,6 +14,7 @@ import {
   SetStateAction,
 } from "react";
 import { Level, Problem, StudentAnswer } from "@/types/chemistry";
+import { ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { ProblemPagination } from "@/lib/api";
 import {
   apiStartAttempt,
@@ -32,6 +33,8 @@ export interface LevelCacheEntry {
   structuredStepComplete: Record<string, boolean>;
   pagination: ProblemPagination | null;
   difficulty: "easy" | "medium" | "hard";
+  thinkingSteps?: ThinkingStep[];
+  classifiedErrors?: ClassifiedError[];
 }
 
 export interface PerProblemState {
@@ -40,13 +43,15 @@ export interface PerProblemState {
   structuredStepComplete: Record<string, boolean>;
 }
 
-/** Setters from useStepHandlers passed via ref to avoid circular hook deps. */
+/** Setters from useStepHandlers + useCognitiveTracking passed via ref to avoid circular hook deps. */
 export interface StepSetters {
   setAnswers: Dispatch<SetStateAction<Record<string, StudentAnswer>>>;
   setHints: Dispatch<SetStateAction<Record<string, string>>>;
   setHintLoading: Dispatch<SetStateAction<Set<string>>>;
   setStructuredStepComplete: Dispatch<SetStateAction<Record<string, boolean>>>;
   resetTracking: () => void;
+  setThinkingSteps: (steps: ThinkingStep[]) => void;
+  setClassifiedErrors: (errors: ClassifiedError[]) => void;
 }
 
 export const LESSON_STATE_STORAGE_KEY = "chemtutor_lesson_state";
@@ -81,6 +86,11 @@ interface UseProblemNavigationOptions {
     hints: Record<string, string>;
     structuredStepComplete: Record<string, boolean>;
   }>;
+  /** Latest cognitive tracking state — synced from useCognitiveTracking via useLayoutEffect. */
+  cognitiveStateRef: MutableRefObject<{
+    thinkingSteps: ThinkingStep[];
+    classifiedErrors: ClassifiedError[];
+  }>;
   /** Step state setters — populated after useStepHandlers is called, before any useEffect runs. */
   stepSettersRef: MutableRefObject<StepSetters>;
   onMarkInProgress?: () => void;
@@ -105,6 +115,7 @@ export function useProblemNavigation({
   masteryScoreRef,
   hasCompletedLevel2Ref,
   stepStateRef,
+  cognitiveStateRef,
   stepSettersRef,
   onMarkInProgress,
   onAttemptStart,
@@ -413,6 +424,8 @@ export function useProblemNavigation({
             stepSettersRef.current.setStructuredStepComplete(
               perProblem?.structuredStepComplete ?? entry.structuredStepComplete ?? {},
             );
+            if (entry.thinkingSteps) stepSettersRef.current.setThinkingSteps(entry.thinkingSteps);
+            if (entry.classifiedErrors) stepSettersRef.current.setClassifiedErrors(entry.classifiedErrors);
             setCurrentDifficulty(entry.difficulty);
             setPagination(entry.pagination ?? defaultPaginationForLevel(lvl as Level));
             if (typeof parsed.masteryScore === "number") onRestoreMasteryScore?.(parsed.masteryScore);
@@ -458,6 +471,7 @@ export function useProblemNavigation({
           return;
         }
         const { answers: a, hints: h, structuredStepComplete: s } = stepStateRef.current;
+        const { thinkingSteps: ts, classifiedErrors: ce } = cognitiveStateRef.current;
         perProblemCacheRef.current[p.id] = { answers: a, hints: h, structuredStepComplete: s };
         levelCacheRef.current[lvl] = {
           problem: p,
@@ -466,6 +480,8 @@ export function useProblemNavigation({
           structuredStepComplete: s,
           pagination: pag,
           difficulty: diff,
+          thinkingSteps: ts,
+          classifiedErrors: ce,
         };
         localStorage.setItem(
           key,
@@ -487,6 +503,20 @@ export function useProblemNavigation({
   useLayoutEffect(() => {
     persistOnUnmountRef.current = saveCurrentStateToCache;
   });
+
+  // Save on tab hide and browser close so progress isn't lost on tab switches or refreshes
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") saveCurrentStateToCache();
+    };
+    const onBeforeUnload = () => saveCurrentStateToCache();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, [saveCurrentStateToCache]);
 
   const restoreFromCache = useCallback(
     (entry: LevelCacheEntry, level: Level) => {

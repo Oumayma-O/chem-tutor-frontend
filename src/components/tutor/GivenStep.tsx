@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React from "react";
 import { SolutionStep } from "@/types/chemistry";
 import { StepBadge } from "./StepBadge";
 import { formatMathContent } from "@/lib/mathDisplay";
-import { BookOpen } from "lucide-react";
+import { ExplanationToggle } from "./ExplanationToggle";
 
 interface GivenStepProps {
   step: SolutionStep;
@@ -49,7 +49,6 @@ function formatComparison(
 }
 
 export function GivenStep({ step }: GivenStepProps) {
-  const [explanationOpen, setExplanationOpen] = useState(false);
 
   const hasComparison =
     step.comparison_parts != null &&
@@ -93,25 +92,7 @@ export function GivenStep({ step }: GivenStepProps) {
         <div className="bg-card rounded-md p-4 border border-border">
           {content}
         </div>
-        {step.explanation && (
-          <div>
-            <button
-              onClick={() => setExplanationOpen((o) => !o)}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-primary transition-colors py-1"
-              aria-expanded={explanationOpen}
-            >
-              <BookOpen className="w-3.5 h-3.5 shrink-0" />
-              <span>{explanationOpen ? "Hide explanation" : "Show explanation"}</span>
-            </button>
-            {explanationOpen && (
-              <div className="flex items-start gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 mt-1">
-                <p className="text-sm text-slate-600 leading-snug">
-                  {formatMathContent(step.explanation)}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+        {step.explanation && <ExplanationToggle explanation={step.explanation} />}
       </div>
     </div>
   );

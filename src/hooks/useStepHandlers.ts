@@ -294,12 +294,19 @@ export function useStepHandlers({
         };
       });
 
+      // Record into thinking tracker so ThinkingTracker populates for Level 3 structured steps
+      const step = currentProblem?.steps.find((s) => s.id === stepId);
+      if (step) {
+        const stepType = STEP_TYPE_MAP[step.step_number] || "variable_identification";
+        recordThinkingStep(stepId, stepType, step.correct_answer || "", step.correct_answer, isCorrect);
+      }
+
       if (isCorrect) {
         setStructuredStepComplete((prev) => ({ ...prev, [stepId]: true }));
         toast.success("Correct!");
       }
     },
-    [],
+    [currentProblem, recordThinkingStep],
   );
 
   const handleValidateEquation = useCallback(

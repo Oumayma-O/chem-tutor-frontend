@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Level, LEVEL_CONFIGS, StudentAnswer, ProgressionResult } from "@/types/chemistry";
-import { ExitTicketResult } from "@/types/cognitive";
+import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { getRandomProblem, getDifficultyForMastery } from "@/data/sampleProblems";
 import {
   apiGetMastery,
@@ -185,6 +185,12 @@ export function ChemistryTutor({
     setHintLoading: (_v) => {},
     setStructuredStepComplete: (_v) => {},
     resetTracking: () => {},
+    setThinkingSteps: (_v) => {},
+    setClassifiedErrors: (_v) => {},
+  });
+  const cognitiveStateRef = useRef<{ thinkingSteps: ThinkingStep[]; classifiedErrors: ClassifiedError[] }>({
+    thinkingSteps: [],
+    classifiedErrors: [],
   });
   const lastSavedStepLogKeyRef = useRef<string>("");
   /** Stores the in-flight apiCompleteAttempt promise so handleContinueAfterProgression can await it. */
@@ -204,6 +210,8 @@ export function ChemistryTutor({
     updateSkillFromAttempt,
     completeProblemAttempt,
     resetTracking,
+    setThinkingSteps: restoreThinkingSteps,
+    setClassifiedErrors: restoreClassifiedErrors,
   } = useCognitiveTracking();
 
   // ── Problem navigation hook ───────────────────────────────────────────────
@@ -218,6 +226,7 @@ export function ChemistryTutor({
     masteryScoreRef,
     hasCompletedLevel2Ref,
     stepStateRef,
+    cognitiveStateRef,
     stepSettersRef,
     onMarkInProgress,
     onAttemptStart: setCurrentAttemptId,
@@ -251,12 +260,15 @@ export function ChemistryTutor({
       hints: steps.hints,
       structuredStepComplete: steps.structuredStepComplete,
     };
+    cognitiveStateRef.current = { thinkingSteps, classifiedErrors };
     stepSettersRef.current = {
       setAnswers: steps.setAnswers,
       setHints: steps.setHints,
       setHintLoading: steps.setHintLoading,
       setStructuredStepComplete: steps.setStructuredStepComplete,
       resetTracking,
+      setThinkingSteps: restoreThinkingSteps,
+      setClassifiedErrors: restoreClassifiedErrors,
     };
   }); // no deps — runs every render
 
@@ -897,7 +909,7 @@ export function ChemistryTutor({
                 </div>
 
                 {/* Thinking tracker */}
-                {nav.currentLevel !== 1 && thinkingSteps.length > 0 && (
+                {nav.currentLevel !== 1 && (
                   <ThinkingTracker
                     steps={thinkingSteps}
                     errors={classifiedErrors}

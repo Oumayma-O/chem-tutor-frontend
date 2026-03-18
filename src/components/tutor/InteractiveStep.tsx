@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { SolutionStep, StudentAnswer } from "@/types/chemistry";
-import { StepBadge } from "./StepBadge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, X, XCircle, Lightbulb, Loader2 } from "lucide-react";
+import { XCircle, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatMathContent } from "@/lib/mathDisplay";
+import { StepCard } from "./StepCard";
+import { StepHeader } from "./StepHeader";
+import { CorrectFeedback } from "./CorrectFeedback";
+import { HintToggle } from "./HintToggle";
 
 interface InteractiveStepProps {
   step: SolutionStep;
@@ -35,10 +37,8 @@ export function InteractiveStep({
   const [dismissed, setDismissed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Reset dismiss when the student changes their answer (new attempt)
   useEffect(() => setDismissed(false), [answer?.answer]);
 
-  // Auto-resize textarea as content grows
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -47,21 +47,13 @@ export function InteractiveStep({
   }, [answer?.answer]);
 
   return (
-    <div
-      className={cn(
-        "step-card rounded-lg p-5 shadow-step border-l-4 transition-all",
-        isCorrect && "bg-step-complete border-step-complete-border",
-        isIncorrect && "bg-step-interactive border-destructive",
-        !isCorrect && !isIncorrect && "bg-step-interactive border-step-interactive-border"
-      )}
-    >
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge step_number={step.step_number} type="interactive" isComplete={isCorrect} />
-        <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
-          {step.label}
-        </span>
-        <span className="text-foreground font-medium">{formatMathContent(step.instruction)}</span>
-      </div>
+    <StepCard isComplete={isCorrect} isIncorrect={isIncorrect}>
+      <StepHeader
+        step_number={step.step_number}
+        label={step.label}
+        instruction={step.instruction}
+        isComplete={isCorrect}
+      />
 
       <div className="ml-16 space-y-3">
         <div className="flex gap-3">
@@ -97,63 +89,35 @@ export function InteractiveStep({
           )}
         </div>
 
-        {/* Feedback */}
-        {isCorrect && (
-          <div className="flex items-center gap-2 text-success fade-in">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Correct!</span>
-          </div>
-        )}
+        {isCorrect && <CorrectFeedback />}
 
         {isIncorrect && !dismissed && (
-          <div className="space-y-2 fade-in">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-destructive">
-                <XCircle className="w-5 h-5" />
-                <span className="font-medium">Not quite right. Try again!</span>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-muted-foreground hover:text-foreground shrink-0"
-                onClick={() => setDismissed(true)}
-                aria-label="Dismiss feedback"
-              >
-                <X className="w-3 h-3" />
-              </Button>
+          <div className="flex items-center justify-between fade-in">
+            <div className="flex items-center gap-2 text-destructive">
+              <XCircle className="w-5 h-5" />
+              <span className="font-medium">Not quite right. Try again!</span>
             </div>
-            {!showHint && !hintLoading && (step.hint || true) && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onRequestHint(step.id)}
-                className="text-muted-foreground"
-              >
-                <Lightbulb className="w-4 h-4 mr-2" />
-                Get a hint
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 text-muted-foreground hover:text-foreground shrink-0"
+              onClick={() => setDismissed(true)}
+              aria-label="Dismiss feedback"
+            >
+              <X className="w-3 h-3" />
+            </Button>
           </div>
         )}
 
-        {/* Hint loading */}
-        {hintLoading && (
-          <div className="flex items-center gap-2 text-muted-foreground fade-in">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Generating hint…</span>
-          </div>
-        )}
-
-        {/* Hint */}
-        {showHint && displayHint && (
-          <div className="bg-warning/20 border border-warning/40 rounded-md p-3 fade-in">
-            <div className="flex items-start gap-2">
-              <Lightbulb className="w-5 h-5 text-warning mt-0.5" />
-              <p className="text-sm text-foreground">{formatMathContent(displayHint)}</p>
-            </div>
-          </div>
+        {isIncorrect && (
+          <HintToggle
+            showHint={showHint}
+            hintText={displayHint}
+            hintLoading={hintLoading}
+            onRequestHint={() => onRequestHint(step.id)}
+          />
         )}
       </div>
-    </div>
+    </StepCard>
   );
 }

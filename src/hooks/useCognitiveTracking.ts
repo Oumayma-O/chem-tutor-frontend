@@ -326,5 +326,8 @@ export function useCognitiveTracking() {
     completeProblemAttempt,
     resetTracking,
     getCognitiveProfile,
+    // Exposed for external restore (e.g. localStorage rehydration)
+    setThinkingSteps,
+    setClassifiedErrors,
   };
 }

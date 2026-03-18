@@ -1,9 +1,9 @@
 import { BlueprintMascot } from "@/components/tutor/BeakerMascot";
 import { Button } from "@/components/ui/button";
 import { BlueprintBadge } from "@/components/tutor/BlueprintBadge";
-import { MathText } from "@/lib/mathDisplay";
 import { LessonOut } from "@/lib/api/units";
 import { CognitiveBlueprint } from "@/types/chemistry";
+import { LessonSectionCard } from "./LessonSectionCard";
 import {
   AlertTriangle,
   Beaker,
@@ -30,11 +30,6 @@ export function LessonOverview({
 }: LessonOverviewProps) {
   const blueprint = lesson.blueprint as CognitiveBlueprint | undefined;
 
-  const hasObjectives     = lesson.objectives?.length > 0;
-  const hasEquations      = lesson.key_equations?.length > 0;
-  const hasRules          = lesson.key_rules?.length > 0;
-  const hasMisconceptions = lesson.misconceptions?.length > 0;
-
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 lg:py-12">
       <div className="flex flex-col md:flex-row gap-10 lg:gap-14 items-start">
@@ -42,7 +37,7 @@ export function LessonOverview({
         {/* ── Left column ─────────────────────────────────── */}
         <div className="flex-1 min-w-0 space-y-5">
 
-          {/* Eyebrow row: breadcrumb + blueprint badge side by side */}
+          {/* Eyebrow row */}
           <div className="flex items-center gap-3 flex-wrap">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">
               {unitTitle} · Lesson {lesson.lesson_index + 1}
@@ -67,75 +62,46 @@ export function LessonOverview({
             )}
           </div>
 
-          {/* Learning Objectives card */}
-          {hasObjectives && (
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-              <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-                <Target className="w-5 h-5 text-emerald-500 shrink-0" />
-                <h2 className="text-base font-bold text-slate-900 dark:text-foreground">Learning Objectives</h2>
-              </div>
-              <div className="px-4 pb-5 space-y-2.5">
-                {lesson.objectives.map((obj, i) => (
-                  <div key={i} className="flex items-start gap-3 border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/40 rounded-xl p-3">
-                    <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-emerald-500" />
-                    <span className="text-sm text-slate-700 dark:text-foreground leading-snug">{obj}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {lesson.objectives?.length > 0 && (
+            <LessonSectionCard
+              title="Learning Objectives"
+              headerIcon={Target}
+              headerIconColor="text-emerald-500"
+              items={lesson.objectives}
+              itemIcon={CheckCircle2}
+              itemIconColor="text-emerald-500"
+            />
           )}
 
-          {/* Key Rules card */}
-          {hasRules && (
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-              <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-                <h2 className="text-base font-bold text-slate-900 dark:text-foreground">Key Rules</h2>
-              </div>
-              <div className="px-4 pb-5 space-y-2.5">
-                {lesson.key_rules.map((rule, i) => (
-                  <div key={i} className="flex items-start gap-3 border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/40 rounded-xl p-3">
-                    <Lightbulb className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
-                    <span className="text-sm text-slate-700 dark:text-foreground leading-snug">{rule}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {lesson.key_rules?.length > 0 && (
+            <LessonSectionCard
+              title="Key Rules"
+              headerIcon={AlertTriangle}
+              headerIconColor="text-amber-500"
+              items={lesson.key_rules}
+              itemIcon={Lightbulb}
+              itemIconColor="text-amber-500"
+            />
           )}
 
-          {/* Key Equations card */}
-          {hasEquations && (
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-              <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-                <FlaskConical className="w-5 h-5 text-blue-500 shrink-0" />
-                <h2 className="text-base font-bold text-slate-900 dark:text-foreground">Key Equations</h2>
-              </div>
-              <div className="px-4 pb-5 space-y-2.5">
-                {lesson.key_equations.map((eq, i) => (
-                  <div key={i} className="border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/40 rounded-xl p-3 font-mono text-sm text-slate-800 dark:text-foreground">
-                    <MathText>{eq}</MathText>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {lesson.key_equations?.length > 0 && (
+            <LessonSectionCard
+              title="Key Equations"
+              headerIcon={FlaskConical}
+              headerIconColor="text-blue-500"
+              items={lesson.key_equations}
+            />
           )}
 
-          {/* Common Misconceptions card */}
-          {hasMisconceptions && (
-            <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-              <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
-                <XCircle className="w-5 h-5 text-rose-500 shrink-0" />
-                <h2 className="text-base font-bold text-slate-900 dark:text-foreground">Common Misconceptions</h2>
-              </div>
-              <div className="px-4 pb-5 space-y-2.5">
-                {lesson.misconceptions.map((m, i) => (
-                  <div key={i} className="flex items-start gap-3 border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/40 rounded-xl p-3">
-                    <XCircle className="w-4 h-4 mt-0.5 shrink-0 text-rose-500" />
-                    <span className="text-sm text-slate-700 dark:text-foreground leading-snug">{m}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+          {lesson.misconceptions?.length > 0 && (
+            <LessonSectionCard
+              title="Common Misconceptions"
+              headerIcon={XCircle}
+              headerIconColor="text-rose-500"
+              items={lesson.misconceptions}
+              itemIcon={XCircle}
+              itemIconColor="text-rose-500"
+            />
           )}
 
           {/* Action buttons */}

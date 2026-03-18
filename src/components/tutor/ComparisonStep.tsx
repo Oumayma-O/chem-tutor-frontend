@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { XCircle } from "lucide-react";
 import { formatMathContent } from "@/lib/mathDisplay";
 import {
   Select,
@@ -8,9 +8,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { StepBadge } from "./StepBadge";
-import { CheckCircle, XCircle, Lightbulb, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StepCard } from "./StepCard";
+import { StepHeader } from "./StepHeader";
+import { CorrectFeedback } from "./CorrectFeedback";
+import { HintToggle } from "./HintToggle";
 
 interface ComparisonStepProps {
   step_number: number;
@@ -43,53 +45,28 @@ export function ComparisonStep({
   onRequestHint,
 }: ComparisonStepProps) {
   const [selected, setSelected] = useState<Operator | "">("");
-  const [hasAttempted, setHasAttempted] = useState(false);
   const [isIncorrect, setIsIncorrect] = useState(false);
 
   const handleValueChange = (value: string) => {
     if (isComplete) return;
     const op = value as Operator;
     setSelected(op);
-    setHasAttempted(true);
     setIsIncorrect(false);
-    const correct = op === correctAnswer;
-    if (correct) {
-      onComplete(true);
-    } else {
-      setIsIncorrect(true);
-      onComplete(false);
-    }
+    if (op === correctAnswer) { onComplete(true); }
+    else { setIsIncorrect(true); onComplete(false); }
   };
 
   return (
-    <div
-      className={cn(
-        "step-card rounded-lg p-5 shadow-step border-l-4 transition-all",
-        isComplete && "bg-step-complete border-step-complete-border",
-        isIncorrect && "bg-step-interactive border-destructive",
-        !isComplete && !isIncorrect && "bg-step-interactive border-step-interactive-border"
-      )}
-    >
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge step_number={step_number} type="interactive" isComplete={isComplete} />
-        <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
-          {label}
-        </span>
-        <span className="text-foreground font-medium">{instruction}</span>
-      </div>
+    <StepCard isComplete={isComplete} isIncorrect={isIncorrect}>
+      <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="ml-16 space-y-3">
-        {/* [ Left box ] [ Dropdown ] [ Right box ] */}
         <div className="flex items-center gap-3 flex-wrap">
           <span className="font-mono text-sm bg-muted/80 px-3 py-2 rounded-lg border border-border shadow-sm min-w-0">
-            {comparisonParts[0]}
+            {formatMathContent(comparisonParts[0])}
           </span>
 
-          <Select
-            value={selected || undefined}
-            onValueChange={handleValueChange}
-            disabled={isComplete}
-          >
+          <Select value={selected || undefined} onValueChange={handleValueChange} disabled={isComplete}>
             <SelectTrigger
               className={cn(
                 "w-14 h-10 rounded-lg border bg-muted/50 text-center font-mono text-lg font-semibold shadow-sm",
@@ -110,17 +87,11 @@ export function ComparisonStep({
           </Select>
 
           <span className="font-mono text-sm bg-muted/80 px-3 py-2 rounded-lg border border-border shadow-sm min-w-0">
-            {comparisonParts[1]}
+            {formatMathContent(comparisonParts[1])}
           </span>
         </div>
 
-        {/* Feedback */}
-        {isComplete && (
-          <div className="flex items-center gap-2 text-success fade-in">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Correct!</span>
-          </div>
-        )}
+        {isComplete && <CorrectFeedback />}
 
         {isIncorrect && (
           <div className="space-y-2 fade-in">
@@ -128,31 +99,10 @@ export function ComparisonStep({
               <XCircle className="w-5 h-5" />
               <span className="font-medium">Not quite. Try a different operator.</span>
             </div>
-            {!showHint && !hintLoading && (
-              <Button variant="outline" size="sm" onClick={onRequestHint} className="text-muted-foreground">
-                <Lightbulb className="w-4 h-4 mr-2" />
-                Need a hint?
-              </Button>
-            )}
-          </div>
-        )}
-
-        {hintLoading && (
-          <div className="flex items-center gap-2 text-muted-foreground fade-in">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Generating hint…</span>
-          </div>
-        )}
-
-        {showHint && hintText && (
-          <div className="bg-warning/20 border border-warning/40 rounded-md p-3 fade-in">
-            <div className="flex items-start gap-2">
-              <Lightbulb className="w-5 h-5 text-warning mt-0.5" />
-              <p className="text-sm text-foreground">{formatMathContent(hintText)}</p>
-            </div>
+            <HintToggle showHint={showHint} hintText={hintText} hintLoading={hintLoading} onRequestHint={onRequestHint} />
           </div>
         )}
       </div>
-    </div>
+    </StepCard>
   );
 }

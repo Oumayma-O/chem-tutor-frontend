@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatMathContent } from "@/lib/mathDisplay";
-import { StepBadge } from "./StepBadge";
-import { CheckCircle, XCircle, Lightbulb, Loader2 } from "lucide-react";
+import { XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StepCard } from "./StepCard";
+import { StepHeader } from "./StepHeader";
+import { CorrectFeedback } from "./CorrectFeedback";
+import { HintToggle } from "./HintToggle";
 
 interface LabeledValue {
   variable: string;
@@ -45,11 +47,7 @@ export function KnownsIdentifier({
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
 
   const handleChange = (name: string, field: "value" | "unit", val: string) => {
-    setValues((prev) => ({
-      ...prev,
-      [name]: { ...prev[name], [field]: val },
-    }));
-    // Clear this field's error state so it returns to neutral while the student edits
+    setValues((prev) => ({ ...prev, [name]: { ...prev[name], [field]: val } }));
     setFieldErrors((prev) => {
       if (!prev[name]) return prev;
       const next = { ...prev };
@@ -60,8 +58,6 @@ export function KnownsIdentifier({
   };
 
   const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
-
-  /** True when this variable has a unit to show and validate (hide unit input when false). */
   const hasUnit = (v: LabeledValue) => Boolean(v.unit?.trim());
 
   const handleCheck = () => {
@@ -74,50 +70,24 @@ export function KnownsIdentifier({
       const studentUnit = normalize(values[v.variable]?.unit || "");
       const correctVal = normalize(v.value);
       const correctUnit = normalize(v.unit);
-
-      // Check numeric equivalence for values
       const numStudent = parseFloat(studentVal);
       const numCorrect = parseFloat(correctVal);
       const valMatch = !isNaN(numStudent) && !isNaN(numCorrect)
         ? Math.abs(numStudent - numCorrect) < 0.001
         : studentVal === correctVal;
-      // When variable has no unit, skip unit validation (empty unit box is hidden)
       const unitMatch = !hasUnit(v) ? true : studentUnit === correctUnit;
-
-      if (!valMatch || !unitMatch) {
-        errors[v.variable] = true;
-        allCorrect = false;
-      }
+      if (!valMatch || !unitMatch) { errors[v.variable] = true; allCorrect = false; }
     });
 
     setFieldErrors(errors);
-    if (allCorrect) {
-      onComplete(true);
-    } else {
-      setIsIncorrect(true);
-      onComplete(false);
-    }
+    if (allCorrect) { onComplete(true); } else { setIsIncorrect(true); onComplete(false); }
   };
 
   return (
-    <div
-      className={cn(
-        "step-card rounded-lg p-5 shadow-step border-l-4 transition-all",
-        isComplete && "bg-step-complete border-step-complete-border",
-        isIncorrect && "bg-step-interactive border-destructive",
-        !isComplete && !isIncorrect && "bg-step-interactive border-step-interactive-border"
-      )}
-    >
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge step_number={step_number} type="interactive" isComplete={isComplete} />
-        <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
-          {label}
-        </span>
-        <span className="text-foreground font-medium">{instruction}</span>
-      </div>
+    <StepCard isComplete={isComplete} isIncorrect={isIncorrect}>
+      <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="ml-16 space-y-3">
-        {/* Variable fields: unit input only when variable has a unit (dynamic per row) */}
         <div className="space-y-2">
           {variables.map((v) => {
             const showUnit = hasUnit(v);
@@ -159,20 +129,8 @@ export function KnownsIdentifier({
           })}
         </div>
 
-        {/* Check button */}
-        {!isComplete && (
-          <Button size="sm" onClick={handleCheck}>
-            Check
-          </Button>
-        )}
-
-        {/* Feedback */}
-        {isComplete && (
-          <div className="flex items-center gap-2 text-success fade-in">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Correct!</span>
-          </div>
-        )}
+        {!isComplete && <Button size="sm" onClick={handleCheck}>Check</Button>}
+        {isComplete && <CorrectFeedback />}
 
         {isIncorrect && (
           <div className="space-y-2 fade-in">
@@ -180,31 +138,10 @@ export function KnownsIdentifier({
               <XCircle className="w-5 h-5" />
               <span className="font-medium">Some values are incorrect. Check the highlighted fields.</span>
             </div>
-            {!showHint && !hintLoading && (
-              <Button variant="outline" size="sm" onClick={onRequestHint} className="text-muted-foreground">
-                <Lightbulb className="w-4 h-4 mr-2" />
-                Need a hint?
-              </Button>
-            )}
-          </div>
-        )}
-
-        {hintLoading && (
-          <div className="flex items-center gap-2 text-muted-foreground fade-in">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            <span className="text-sm">Generating hint…</span>
-          </div>
-        )}
-
-        {showHint && hintText && (
-          <div className="bg-warning/20 border border-warning/40 rounded-md p-3 fade-in">
-            <div className="flex items-start gap-2">
-              <Lightbulb className="w-5 h-5 text-warning mt-0.5" />
-              <p className="text-sm text-foreground">{formatMathContent(hintText)}</p>
-            </div>
+            <HintToggle showHint={showHint} hintText={hintText} hintLoading={hintLoading} onRequestHint={onRequestHint} />
           </div>
         )}
       </div>
-    </div>
+    </StepCard>
   );
 }

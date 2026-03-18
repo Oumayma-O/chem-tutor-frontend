@@ -10,6 +10,37 @@ import {
   type MeResponse,
 } from "@/lib/api";
 
+// ── Profile cache (sync localStorage) ──────────────────────────────────────
+// Persists grade_level + course so UnitSelectionPage can read them synchronously
+// on mount, avoiding the FOUC that occurs when apiMe() hasn't resolved yet.
+const PROFILE_CACHE_KEY = "chemtutor_profile_cache";
+
+interface CachedProfile {
+  grade_level: string | null;
+  course: string | null;
+}
+
+function saveProfileCache(me: MeResponse) {
+  try {
+    localStorage.setItem(
+      PROFILE_CACHE_KEY,
+      JSON.stringify({ grade_level: me.grade_level ?? null, course: me.course ?? null }),
+    );
+  } catch { /* storage unavailable */ }
+}
+
+function clearProfileCache() {
+  try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
+}
+
+/** Read cached profile fields synchronously (available before apiMe resolves). */
+export function getStoredProfile(): CachedProfile | null {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as CachedProfile) : null;
+  } catch { return null; }
+}
+
 export type AppRole = "student" | "teacher";
 
 interface ProfileState {
@@ -77,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const applyMe = useCallback((me: MeResponse) => {
+    saveProfileCache(me);
     setState({
       user: { id: me.user_id, email: me.email },
       role: me.role as AppRole,
@@ -165,6 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(() => {
     clearStoredToken();
+    clearProfileCache();
     setState({ user: null, role: null, profile: null, loading: false });
   }, []);
 
