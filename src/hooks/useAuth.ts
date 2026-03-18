@@ -117,24 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const applyToken = useCallback((res: { user_id: string; email: string; role: string; name: string }) => {
-    setState({
-      user: { id: res.user_id, email: res.email },
-      role: res.role as AppRole,
-      profile: {
-        display_name: res.name,
-        grade_level: null,
-        grade: null,
-        course: null,
-        interests: null,
-        avatar_url: null,
-        classroom_name: null,
-        classroom_code: null,
-      },
-      loading: false,
-    });
-  }, []);
-
   useEffect(() => {
     const token = getStoredToken();
     if (!token) {
@@ -153,14 +135,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await apiLogin({ email, password });
       setStoredToken(res.access_token);
-      applyToken(res);
-      // Fetch full profile in background (grade, course, interests, classroom)
-      apiMe().then(applyMe).catch(() => {});
+      // Hold loading:true while we fetch the full profile (grade_level, course).
+      // This keeps the AppRoutes auth gate closed so UnitSelectionPage never
+      // mounts with an incomplete profile — the root cause of the course-filter FOUC.
+      setState(prev => ({ ...prev, loading: true }));
+      const me = await apiMe();
+      applyMe(me);
       return { data: res, error: null };
     } catch (err: unknown) {
+      setState(prev => ({ ...prev, loading: false }));
       return { data: null, error: { message: err instanceof Error ? err.message : "Login failed" } };
     }
-  }, [applyMe, applyToken]);
+  }, [applyMe]);
 
   const signUp = useCallback(async (
     email: string,
@@ -186,14 +172,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         interests: interests || [],
       });
       setStoredToken(res.access_token);
-      applyToken(res);
-      // Fetch full profile (grade_level, course) so units page can filter by AP vs standard
-      apiMe().then(applyMe).catch(() => {});
+      // Same gate as signIn — block until full profile is fetched.
+      setState(prev => ({ ...prev, loading: true }));
+      const me = await apiMe();
+      applyMe(me);
       return { data: res, error: null };
     } catch (err: unknown) {
+      setState(prev => ({ ...prev, loading: false }));
       return { data: null, error: { message: err instanceof Error ? err.message : "Registration failed" } };
     }
-  }, [applyToken, applyMe]);
+  }, [applyMe]);
 
   const signOut = useCallback(() => {
     clearStoredToken();

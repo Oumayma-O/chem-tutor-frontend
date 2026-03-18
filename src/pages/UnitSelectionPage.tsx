@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Fuse from "fuse.js";
-import { useAuth, getStoredProfile } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { useCurriculum } from "@/hooks/useCurriculum";
 import { COURSE_LEVELS, CourseLevel, getCourseLevel } from "@/data/units";
 import { type CurriculumUnit, type PhaseCurriculumGroup } from "@/lib/api/units";
@@ -71,28 +71,16 @@ export default function UnitSelectionPage() {
 
   const { phases, loading, error } = useCurriculum();
 
+  // profile is guaranteed to be fully populated here — the AppRoutes auth gate
+  // (loading: true in useAuth) blocks UnitSelectionPage from mounting until
+  // apiMe() resolves, so autoLevel is always correct on the first render.
   const autoLevel = inferCourseLevel(profile);
-  const [didRestoreNav] = useState(!!navState?.selectedLevel);
-  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "all">(() => {
-    // Nav state takes priority (back-nav preserves filter)
-    if (navState?.selectedLevel) return navState.selectedLevel;
-    // Read cached profile synchronously so the initial render shows the correct
-    // filter without waiting for apiMe() — avoids the FOUC where "All" flashes
-    // briefly before switching to "AP Chemistry" (or similar).
-    const cached = getStoredProfile();
-    return inferCourseLevel(cached);
-  });
+  const [selectedLevel, setSelectedLevel] = useState<CourseLevel | "all">(
+    navState?.selectedLevel ?? autoLevel,
+  );
   const [searchQuery, setSearchQuery] = useState(navState?.searchQuery ?? "");
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
-
-  // Sync from live profile if cache was empty on mount (first-ever visit before
-  // apiMe resolves). Skip when nav state or cache already gave us a real level.
-  useEffect(() => {
-    if (didRestoreNav) return;
-    if (getStoredProfile()) return; // cache was populated → init was already correct
-    if (autoLevel !== "all") setSelectedLevel(autoLevel);
-  }, [autoLevel, didRestoreNav]);
 
   // Close suggestions on outside click
   useEffect(() => {
