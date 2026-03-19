@@ -150,7 +150,10 @@ function scientificNotationToMath(text: string): string {
   );
 
   // bare caret exponent without braces (e.g. [A]^m, [B]^n, mol^-1, s^-2) → superscript
-  out = out.replace(/\^(-?[a-zA-Z0-9]+)/g, (_, exp) => `$^{${exp}}$`);
+  // Must run outside $...$ only — applying inside would corrupt e.g. "$4s^2$" → "$4s$^{2}$$"
+  out = applyOutsideMath(out, (seg) =>
+    seg.replace(/\^(-?[a-zA-Z0-9]+)/g, (_, exp) => `$^{${exp}}$`)
+  );
   return out;
 }
 
