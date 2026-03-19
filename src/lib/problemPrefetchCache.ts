@@ -1,19 +1,26 @@
 /**
- * Module-level singleton cache for generated problems.
+ * Module-level singleton cache + prefetch queue for generated problems.
  *
- * Survives React component unmounts (route changes), so:
- *  - An in-flight LLM call started from LessonOverview continues running even
- *    if the user navigates away before the 1.5 s prefetch fires or completes.
- *  - When the user returns to the Practice page, useProblemNavigation finds
- *    the resolved result instantly instead of re-firing the API.
+ * Cache guarantees:
+ *  - Survives React component unmounts (route changes) — an in-flight LLM call
+ *    started from LessonOverview keeps running even if the user navigates away.
+ *  - When the user returns to Practice, useProblemNavigation finds the resolved
+ *    result instantly instead of re-firing the API.
+ *  - Backend asyncio.shield() persists the problem to the DB playlist even on
+ *    client disconnect, so the result is never lost across hard refreshes.
  *
- * Keyed by "unitId__lessonIndex__level" (all three parts are required for
- * correctness — same lesson at different levels is a different problem set).
+ * Queue guarantees (enqueuePrefetch):
+ *  - At most MAX_CONCURRENT background requests run simultaneously.
+ *  - Additional requests wait in a FIFO queue and fire as slots open.
+ *  - Duplicate keys (same lesson already cached or queued) are silently dropped.
+ *
+ * Keyed by "unitId__lessonIndex__level".
  */
 
 import type { GenerateResult } from "@/hooks/useGeneratedProblem";
 
 const GC_TIME_MS = 1000 * 60 * 60; // 1 hour
+const MAX_CONCURRENT = 2;
 
 interface CacheEntry {
   /** The live promise (never aborted — component unmounts are ignored). */
@@ -24,10 +31,24 @@ interface CacheEntry {
   resolvedAt?: number;
 }
 
-const store = new Map<string, CacheEntry>();
+interface QueueItem {
+  unitId: string;
+  lessonIndex: number;
+  level: number;
+  makeRequest: () => Promise<GenerateResult>;
+}
 
-function key(unitId: string, lessonIndex: number, level: number): string {
+const store = new Map<string, CacheEntry>();
+let activePrefetches = 0;
+const prefetchQueue: QueueItem[] = [];
+
+function cacheKey(unitId: string, lessonIndex: number, level: number): string {
   return `${unitId}__${lessonIndex}__${level}`;
+}
+
+// Keep the old name as an alias so internal callers don't need changing.
+function key(unitId: string, lessonIndex: number, level: number): string {
+  return cacheKey(unitId, lessonIndex, level);
 }
 
 function isStale(entry: CacheEntry): boolean {
@@ -35,6 +56,72 @@ function isStale(entry: CacheEntry): boolean {
     entry.resolvedAt !== undefined &&
     Date.now() - entry.resolvedAt > GC_TIME_MS
   );
+}
+
+/** Start a queued item immediately (caller must have incremented activePrefetches). */
+function startItem({ unitId, lessonIndex, level, makeRequest }: QueueItem): void {
+  const k = cacheKey(unitId, lessonIndex, level);
+  const promise = makeRequest();
+  const entry: CacheEntry = { promise };
+  store.set(k, entry);
+
+  promise
+    .then((result) => {
+      entry.result = result;
+      entry.resolvedAt = Date.now();
+    })
+    .catch(() => {
+      // Remove failed entries so a retry can re-populate the cache.
+      store.delete(k);
+    })
+    .finally(() => {
+      activePrefetches--;
+      drainQueue();
+    });
+}
+
+/** Fire queued items until MAX_CONCURRENT is reached or the queue is empty. */
+function drainQueue(): void {
+  while (activePrefetches < MAX_CONCURRENT && prefetchQueue.length > 0) {
+    const item = prefetchQueue.shift()!;
+    if (store.has(cacheKey(item.unitId, item.lessonIndex, item.level))) {
+      // Already cached (e.g. direct setPrefetchPromise was called while it waited)
+      continue;
+    }
+    activePrefetches++;
+    startItem(item);
+  }
+}
+
+/**
+ * Enqueue a background prefetch request.
+ *
+ * - If fewer than MAX_CONCURRENT prefetches are active → starts immediately.
+ * - Otherwise → added to the FIFO queue and fires when a slot opens.
+ * - No-op if the key is already in-flight, cached, or already queued.
+ *
+ * The `makeRequest` factory is only called when the item actually dequeues,
+ * so no HTTP request is made for items waiting in the queue.
+ */
+export function enqueuePrefetch(
+  unitId: string,
+  lessonIndex: number,
+  level: number,
+  makeRequest: () => Promise<GenerateResult>,
+): void {
+  const k = cacheKey(unitId, lessonIndex, level);
+  if (store.has(k)) return; // already in-flight or resolved
+
+  // Deduplicate the queue
+  if (prefetchQueue.some((qi) => cacheKey(qi.unitId, qi.lessonIndex, qi.level) === k)) return;
+
+  const item: QueueItem = { unitId, lessonIndex, level, makeRequest };
+  if (activePrefetches < MAX_CONCURRENT) {
+    activePrefetches++;
+    startItem(item);
+  } else {
+    prefetchQueue.push(item);
+  }
 }
 
 /**

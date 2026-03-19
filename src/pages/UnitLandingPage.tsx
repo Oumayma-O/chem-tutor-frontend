@@ -13,7 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { apiGenerateProblemV2 } from "@/lib/api";
 import { apiGetReferenceCard, refCardQueryKey, REF_CARD_STALE_MS, REF_CARD_GC_MS } from "@/lib/api/problems";
 import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
-import { getCachedPromise, setPrefetchPromise } from "@/lib/problemPrefetchCache";
+import { enqueuePrefetch } from "@/lib/problemPrefetchCache";
 
 export default function UnitLandingPage() {
   const { unitId, lessonIndex } = useParams<{ unitId?: string; lessonIndex?: string }>();
@@ -33,11 +33,18 @@ export default function UnitLandingPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [unitId, lessonIndex]);
 
-  // ── Eager prefetch: two independent timers so both requests hit the backend
-  //    simultaneously rather than the reference card waiting behind the problem.
+  // ── Eager prefetch: single 300 ms timer fires both the reference card and the
+  //    Level-1 problem together so the LLM work begins as early as possible.
   //
-  //   300 ms  → reference card  (simple LLM task, start ASAP)
-  //   1500 ms → Level-1 problem (heavier; delay guards against instant navigation)
+  //  Persistence guarantees (even if the user navigates away mid-fetch):
+  //   • The problem promise is stored in the module-level cache (survives unmount).
+  //   • The backend asyncio.shield() persists the result to the DB playlist even
+  //     on client disconnect — so the problem is never lost across hard refreshes.
+  //   • The reference card is persisted on the Lesson row by the backend.
+  //
+  //  Concurrency: enqueuePrefetch() limits simultaneous background requests to
+  //  MAX_CONCURRENT=2, queueing any excess FIFO so rapid lesson browsing never
+  //  fires an unbounded number of parallel LLM calls.
   useEffect(() => {
     const uid = unit?.id;
     const lname = lessonTitles[currentLessonIdx] ?? "";
@@ -45,21 +52,18 @@ export default function UnitLandingPage() {
 
     const lidx = currentLessonIdx;
 
-    // ── Reference card: fires early so LLM generation starts before the user
-    //    clicks "Start Practice".  React Query deduplicates if already in-flight.
-    const refCardTimer = setTimeout(() => {
+    const prefetchTimer = setTimeout(() => {
+      // Reference card — React Query deduplicates if already in-flight or cached.
       queryClient.prefetchQuery({
         queryKey: refCardQueryKey(uid, lidx),
         queryFn: () => apiGetReferenceCard(uid, lidx, lname),
         staleTime: REF_CARD_STALE_MS,
         gcTime: REF_CARD_GC_MS,
       });
-    }, 300);
 
-    // ── Level-1 problem: longer delay to avoid wasted generation on fast nav.
-    const problemTimer = setTimeout(() => {
-      if (!getCachedPromise(uid, lidx, 1)) {
-        const promise = apiGenerateProblemV2({
+      // Level-1 problem — queued so at most MAX_CONCURRENT LLM calls run at once.
+      enqueuePrefetch(uid, lidx, 1, () =>
+        apiGenerateProblemV2({
           unit_id: uid,
           lesson_index: lidx,
           lesson_name: lname,
@@ -73,15 +77,11 @@ export default function UnitLandingPage() {
             throw new Error("Invalid problem structure from prefetch");
           }
           return parseProblemOutput(data);
-        });
-        setPrefetchPromise(uid, lidx, 1, promise);
-      }
-    }, 1500);
+        })
+      );
+    }, 300);
 
-    return () => {
-      clearTimeout(refCardTimer);
-      clearTimeout(problemTimer);
-    };
+    return () => clearTimeout(prefetchTimer);
   }, [unit?.id, currentLessonIdx, lessonTitles, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
