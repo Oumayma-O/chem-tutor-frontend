@@ -6,6 +6,7 @@ import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { HintToggle } from "./HintToggle";
+import { MathText } from "@/lib/mathDisplay";
 
 function buildMathExpression(tokens: string[]): string {
   return tokens
@@ -118,7 +119,7 @@ export function EquationBuilder({
                   isComplete && "opacity-50 cursor-not-allowed"
                 )}
               >
-                {part}
+                <MathText>{part}</MathText>
               </button>
             ))}
           </div>
@@ -149,7 +150,7 @@ export function EquationBuilder({
                 isComplete && "cursor-default hover:bg-primary/10 hover:border-primary/30"
               )}
             >
-              {part}
+              <MathText>{part}</MathText>
             </button>
           ))}
         </div>

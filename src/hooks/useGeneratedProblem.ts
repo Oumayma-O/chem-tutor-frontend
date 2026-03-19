@@ -86,10 +86,11 @@ export function useGeneratedProblem({
       excludeIds: string[],
       level: number = 2,
       isRetry = false,
+      forceRegenerate = false,
     ): Promise<GenerateResult> => {
-      // Only use the module cache for fresh (non-retry, no exclusion) calls.
-      // Retries and "See Another" requests must always hit the API.
-      const isCacheable = !isRetry && excludeIds.length === 0;
+      // Only use the module cache for fresh (non-retry, no exclusion, non-force) calls.
+      // Retries, "See Another", and forced regenerations must always hit the API.
+      const isCacheable = !isRetry && excludeIds.length === 0 && !forceRegenerate;
 
       if (isCacheable) {
         // ── Fast path: resolved result already in module cache ────────────────
@@ -127,6 +128,7 @@ export function useGeneratedProblem({
           grade_level: gradeLevel,
           user_id: userId,
           exclude_ids: excludeIds.length > 0 ? excludeIds : undefined,
+          force_regenerate: forceRegenerate || undefined,
         });
 
         if (!data?.problem?.id || !data?.problem?.steps?.length) {

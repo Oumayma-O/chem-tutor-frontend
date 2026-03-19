@@ -276,8 +276,11 @@ export function useProblemNavigation({
       difficulty: "easy" | "medium" | "hard",
       excludeIds: string[],
       level: number,
+      forceRegenerate = false,
     ): Promise<Problem | null> => {
+      // force_regenerate bypasses the module prefetch cache and the backend playlist resume.
       if (
+        !forceRegenerate &&
         prefetchedProblem.current &&
         prefetchedLevel.current === level &&
         !excludeIds.includes(prefetchedProblem.current.id)
@@ -288,8 +291,9 @@ export function useProblemNavigation({
       }
       // ── In-flight path: a background prefetch is already running for this level ──
       // Only one caller should wait on it; subsequent callers bail out immediately.
+      // Skip when force_regenerate=true since we need a brand-new problem.
       const inFlight = prefetchPromiseRef.current;
-      if (inFlight?.level === level) {
+      if (!forceRegenerate && inFlight?.level === level) {
         if (isFetchingLevelRef.current[level as Level]) return null;
         isFetchingLevelRef.current[level as Level] = true;
         setProblemLoading(true);
@@ -324,7 +328,7 @@ export function useProblemNavigation({
       }
       setProblemLoading(true);
       try {
-        const { problem, pagination: pag } = await generateProblem(difficulty, excludeIds, level);
+        const { problem, pagination: pag } = await generateProblem(difficulty, excludeIds, level, false, forceRegenerate);
         setCurrentProblem(problem);
         setPagination(pag ?? defaultPaginationForLevel(level as Level));
         // Use the difficulty the backend actually assigned, not the request value,
@@ -731,6 +735,25 @@ export function useProblemNavigation({
     toast.success("Let's try a faded example!");
   }, [handleLevelChange]);
 
+  /**
+   * Force-generate a brand-new problem, bypassing both the backend playlist
+   * resume check and the module-level prefetch cache.
+   * Use for explicit "Try Another Problem" actions where the student wants a
+   * completely fresh problem regardless of their current playlist state.
+   */
+  const handleForceRegenerate = useCallback(async () => {
+    const { currentDifficulty: diff, currentLevel: lvl } = stateSnapshot.current;
+    saveCurrentStateToCache();
+    stepSettersRef.current.setAnswers({});
+    stepSettersRef.current.setHints({});
+    stepSettersRef.current.setHintLoading(new Set());
+    stepSettersRef.current.setStructuredStepComplete({});
+    stepSettersRef.current.resetTracking();
+    // Clear the level cache entry so the new problem isn't overwritten by stale data on unmount
+    delete levelCacheRef.current[lvl];
+    await loadNewProblem(diff, [], lvl, true);
+  }, [saveCurrentStateToCache, loadNewProblem]);
+
   // ── Side effects ──────────────────────────────────────────────────────────
 
   // Mark topic in-progress once per topic
@@ -765,5 +788,6 @@ export function useProblemNavigation({
     handleSeeAnother,
     handleLevelChange,
     handleStartFadedExample,
+    handleForceRegenerate,
   };
 }

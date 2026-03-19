@@ -85,7 +85,12 @@ function normalizeLatexEscapes(text: string): string {
   // ── 2. Fix double-escaped backslashes sent by well-behaved backends (\\text → \text)
   out = out.replace(/\\\\/g, "\\");
 
-  // ── 3. Restore JSON-eaten LaTeX commands
+  // ── 3. Fix $X$^{n} / $X$_{n}: sub/superscript leaked outside closing $
+  // e.g. "$2s$^{2}" → "$2s^{2}$"  (LLM wrapped only the base, not the exponent)
+  out = out.replace(/\$([^$]+)\$\^\{([^}]+)\}/g, (_, inner, exp) => `$${inner}^{${exp}}$`);
+  out = out.replace(/\$([^$]+)\$_\{([^}]+)\}/g, (_, inner, sub) => `$${inner}_{${sub}}$`);
+
+  // ── 4. Restore JSON-eaten LaTeX commands
   // \t (tab U+0009) victims
   out = out.replace(/\u0009ext(?=[\s{(]|$)/g, "\\text");
   out = out.replace(/\u0009imes(?=[\s{,.)\]$]|$)/g, "\\times");
@@ -114,6 +119,16 @@ const CARET_AS_BACKSLASH_COMMANDS = "mathrm|text|mathit|mathbf|times|cdot|ldots|
  * - 10^22 → $10^{22}$
  * - ^m, ^n, ^2 (bare caret + letter/digits) → $^{m}$, $^{n}$, $^{2}$ so they render as superscripts
  */
+/**
+ * Apply a transform only to the non-math segments of a string (text outside $...$).
+ * Math blocks ($...$) are passed through unchanged to avoid double-processing.
+ */
+function applyOutsideMath(text: string, fn: (segment: string) => string): string {
+  // Split on $...$ blocks (keep delimiters so we can rejoin correctly)
+  const parts = text.split(/(\$[^$]+\$)/);
+  return parts.map((part, i) => (i % 2 === 1 ? part : fn(part))).join("");
+}
+
 function scientificNotationToMath(text: string): string {
   let out = text;
   // Fix ^ before LaTeX commands (e.g. ^mathrm{HCl} when backslash was lost) so they render
@@ -122,7 +137,19 @@ function scientificNotationToMath(text: string): string {
   out = out.replace(/(\d+\.?\d*)e(\d+)/gi, (_, base, exp) => `${base} × $10^{${exp}}$`);
   // 10^nnn first so we don't match its ^ with the generic pattern below
   out = out.replace(/10\^(\d+)/g, (_, exp) => `$10^{${exp}}$`);
-  // bare caret exponent (e.g. [A]^m, [B]^n, mol^-1, s^-2) → superscript
+
+  // Bare variable^{expr} or variable_{expr} outside $...$: R^{2} → $R^{2}$, [A]_{t} → $[A]_{t}$
+  // LLM sometimes omits $ delimiters on expressions like R^{2}= 0.998 or k_{obs}.
+  // Process only non-math segments so we never double-wrap.
+  out = applyOutsideMath(out, (seg) =>
+    seg
+      // R^{2} → $R^{2}$,  [A]^{n} → $[A]^{n}$
+      .replace(/([A-Za-z\]\)])\^\{([^}$]+)\}/g, (_, base, exp) => `$${base}^{${exp}}$`)
+      // k_{obs} → $k_{obs}$,  [A]_{t} → $[A]_{t}$
+      .replace(/([A-Za-z\]\)])_\{([^}$]+)\}/g, (_, base, sub) => `$${base}_{${sub}}$`)
+  );
+
+  // bare caret exponent without braces (e.g. [A]^m, [B]^n, mol^-1, s^-2) → superscript
   out = out.replace(/\^(-?[a-zA-Z0-9]+)/g, (_, exp) => `$^{${exp}}$`);
   return out;
 }
