@@ -39,7 +39,6 @@ export default function TutorPage() {
   const sortedLessons = unit.lessons.slice().sort((a, b) => a.lesson_index - b.lesson_index);
   const currentLesson = sortedLessons[currentLessonIdx] ?? null;
   const requiredTools = currentLesson?.required_tools ?? [];
-  const hasSimulation = currentLesson?.has_simulation ?? false;
 
   return (
     <div className="min-h-screen bg-background">
@@ -103,7 +102,6 @@ export default function TutorPage() {
             interests={profile?.interests || []}
             gradeLevel={profile?.grade_level}
             requiredTools={requiredTools}
-            hasSimulation={hasSimulation}
           />
         </main>
       </div>

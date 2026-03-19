@@ -10,7 +10,14 @@ import {
   apiSaveStep,
   apiCompleteAttempt,
 } from "@/lib/api";
-import { apiGetReferenceCard, type ReferenceCardOutput } from "@/lib/api/problems";
+import { useQuery } from "@tanstack/react-query";
+import {
+  apiGetReferenceCard,
+  refCardQueryKey,
+  REF_CARD_STALE_MS,
+  REF_CARD_GC_MS,
+  type ReferenceCardOutput,
+} from "@/lib/api/problems";
 import {
   useProblemNavigation,
   StepSetters,
@@ -40,7 +47,6 @@ import {
   CheckCircle,
   RotateCcw,
   FlaskConical,
-  Beaker,
   ArrowRight,
   Zap,
   ClipboardCheck,
@@ -107,8 +113,6 @@ interface ChemistryTutorProps {
   gradeLevel?: string | null;
   /** Tool keys for this lesson, e.g. ['periodic_table']. From API lesson.required_tools. */
   requiredTools?: string[];
-  /** Whether the current lesson has an interactive simulation (shows "Simulation Lab" button). */
-  hasSimulation?: boolean;
 }
 
 /**
@@ -131,7 +135,6 @@ export function ChemistryTutor({
   interests = [],
   gradeLevel = null,
   requiredTools = [],
-  hasSimulation = false,
 }: ChemistryTutorProps) {
   const currentTopicName = lessonName || unitTitle;
 
@@ -155,10 +158,6 @@ export function ChemistryTutor({
   const [showExitTicket, setShowExitTicket] = useState(false);
   const [exitTicketResults, setExitTicketResults] = useState<ExitTicketResult[]>([]);
   const [calculatorEnabled] = useState(true);
-
-  // ── Reference card (fiche de cours) — fetched once per topic ─────────────
-  const [referenceCard, setReferenceCard] = useState<ReferenceCardOutput | null>(null);
-  const [referenceCardLoading, setReferenceCardLoading] = useState(false);
 
   // ── Timed mode state ──────────────────────────────────────────────────────
   const [timedModeActive, setTimedModeActive] = useState(false);
@@ -232,6 +231,18 @@ export function ChemistryTutor({
     onAttemptStart: setCurrentAttemptId,
     onRestoreMasteryScore: (s) => setMasteryScore(s),
     onRestoreHasCompletedLevel2: () => setHasCompletedLevel2(true),
+  });
+
+  // ── Reference card (fiche de cours) — React Query handles caching/dedup ──
+  // The prefetch fired from UnitLandingPage may already be in-flight; useQuery
+  // attaches to that same promise instead of starting a new request.
+  // nav must be declared before this hook so we can read nav.currentLevel.
+  const { data: referenceCard = null, isLoading: referenceCardLoading } = useQuery({
+    queryKey: refCardQueryKey(unitId, lessonIndex),
+    queryFn: () => apiGetReferenceCard(unitId, lessonIndex, currentTopicName),
+    staleTime: REF_CARD_STALE_MS,
+    gcTime: REF_CARD_GC_MS,
+    enabled: nav.currentLevel !== 3,
   });
 
   // ── Step handlers hook ────────────────────────────────────────────────────
@@ -328,22 +339,6 @@ export function ChemistryTutor({
     if (lessonCompleted) setHasCompletedLevel2((prev) => prev || true);
   }, [lessonCompleted]);
 
-  // Fetch reference card once per lesson (Levels 1 & 2 only).
-  // apiGetReferenceCard has a module-level FIFO cache shared with UnitLandingPage's
-  // prefetch — so if the card was prefetched while the user read the overview it
-  // resolves instantly here with no loading flash.
-  useEffect(() => {
-    if (nav.currentLevel === 3) {
-      setReferenceCardLoading(false);
-      return;
-    }
-    setReferenceCard(null);
-    setReferenceCardLoading(true);
-    apiGetReferenceCard(unitId, lessonIndex, currentTopicName).then((card) => {
-      if (card) setReferenceCard(card);
-      setReferenceCardLoading(false);
-    });
-  }, [unitId, lessonIndex, currentTopicName, nav.currentLevel]);
 
   // Start step timer when interactive steps become available
   useEffect(() => {
@@ -710,7 +705,7 @@ export function ChemistryTutor({
       )}
 
       <main className="px-4 py-6 max-w-6xl mx-auto">
-        {/* ── Back to Overview link ────────────────────────────────────────── */}
+        {/* ── Back link — Lesson Overview */}
         <button
           onClick={() => navigate(`/unit/${unitId}/${lessonIndex}`)}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
@@ -732,17 +727,6 @@ export function ChemistryTutor({
               isLevel3Locked={isLevel3Locked}
               masteryScore={masteryScore}
             />
-            {hasSimulation && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => navigate(`/unit/${unitId}/${lessonIndex}`)}
-                className="gap-1.5"
-              >
-                <Beaker className="w-4 h-4" />
-                <span className="hidden sm:inline">Simulation Lab</span>
-              </Button>
-            )}
             <Button
               variant="outline"
               size="sm"

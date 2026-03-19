@@ -14,6 +14,10 @@ export interface ProblemStep {
   instruction: string;
   /** Show-your-work trace (≤20 words). Displayed in Level 1 and on wrong answers in L2/L3. */
   explanation?: string | null;
+  /** Pre-filled content shown in given/worked steps. */
+  content?: string | null;
+  /** Input placeholder text for interactive steps. */
+  placeholder?: string | null;
   correct_answer?: string | null;
   equation_parts?: string[] | null;
   labeled_values?: LabeledValue[] | null;
@@ -94,6 +98,8 @@ export async function apiGenerateProblemV2(body: {
   problem_style?: string;
   lesson_context?: LessonContext;
   exclude_ids?: string[];
+  /** Skip playlist resume and force a fresh LLM generation. Use for explicit "Try Another Problem" only. */
+  force_regenerate?: boolean;
 }): Promise<ProblemDeliveryResponse> {
   const { lesson_name, ...rest } = body;
   return post<ProblemDeliveryResponse>("/problems/generate", {
@@ -104,6 +110,18 @@ export async function apiGenerateProblemV2(body: {
 }
 
 // ── Reference card (fiche de cours) ───────────────────────────────────────
+
+/** React Query cache settings — 30 min stale / 30 min GC. Long enough to
+ *  survive the full LLM generation latency and keep the result warm for the
+ *  entire study session without ever triggering a background re-fetch. */
+export const REF_CARD_STALE_MS = 30 * 60 * 1_000;
+export const REF_CARD_GC_MS    = 30 * 60 * 1_000;
+
+/** Stable React Query key for the reference card.
+ *  Must match exactly between prefetchQuery (UnitLandingPage) and useQuery (ChemistryTutor). */
+export function refCardQueryKey(unitId: string, lessonIndex: number) {
+  return ["reference-card", unitId, lessonIndex] as const;
+}
 
 export type ReferenceCardStepLabel =
   // quantitative (4 steps)
@@ -126,59 +144,27 @@ export interface ReferenceCardOutput {
   hint: string;
 }
 
-// Module-level reference-card cache — shared by all callers (UnitLandingPage
-// prefetch + ChemistryTutor render). FIFO, capped at 20 entries.
-const _refCardCache = new Map<string, ReferenceCardOutput>();
-const _refCardInFlight = new Map<string, Promise<ReferenceCardOutput | null>>();
-const REF_CARD_MAX = 20;
-
-function _refCardKey(unitId: string, lessonIndex: number): string {
-  return `${unitId}__${lessonIndex}`;
-}
-
-function _setRefCard(key: string, card: ReferenceCardOutput): void {
-  if (_refCardCache.has(key)) { _refCardCache.delete(key); }
-  else if (_refCardCache.size >= REF_CARD_MAX) {
-    const oldest = _refCardCache.keys().next().value;
-    if (oldest !== undefined) _refCardCache.delete(oldest);
-  }
-  _refCardCache.set(key, card);
-}
-
 /**
  * Fetch the conceptual study card for a lesson.
- * Module-level FIFO cache (20 entries) — instant on return visits.
- * Concurrent callers share one in-flight request. Returns null on error.
+ * Caching and deduplication are handled by React Query — this is a pure fetcher.
+ * Returns null on any error so callers never need to handle rejections.
  */
 export async function apiGetReferenceCard(
   unitId: string,
   lessonIndex: number,
   lessonName: string,
 ): Promise<ReferenceCardOutput | null> {
-  const key = _refCardKey(unitId, lessonIndex);
-
-  // Fast path — already cached
-  const cached = _refCardCache.get(key);
-  if (cached) return cached;
-
-  // In-flight path — attach to existing request
-  const existing = _refCardInFlight.get(key);
-  if (existing) return existing;
-
-  // Slow path — fire the request
   const params = new URLSearchParams({
     unit_id: unitId,
     lesson_index: String(lessonIndex),
     lesson_name: lessonName,
     topic_name: lessonName,
   });
-  const promise = get<ReferenceCardOutput>(`/problems/reference-card?${params.toString()}`)
-    .then((card) => { _setRefCard(key, card); return card; })
-    .catch(() => null)
-    .finally(() => { _refCardInFlight.delete(key); });
-
-  _refCardInFlight.set(key, promise);
-  return promise;
+  try {
+    return await get<ReferenceCardOutput>(`/problems/reference-card?${params.toString()}`);
+  } catch {
+    return null;
+  }
 }
 
 /**

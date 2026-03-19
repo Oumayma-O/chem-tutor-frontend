@@ -6,7 +6,6 @@ import { CognitiveBlueprint } from "@/types/chemistry";
 import { LessonSectionCard } from "./LessonSectionCard";
 import {
   AlertTriangle,
-  Beaker,
   CheckCircle2,
   FlaskConical,
   Lightbulb,
@@ -19,14 +18,12 @@ interface LessonOverviewProps {
   lesson: LessonOut;
   unitTitle: string;
   onStartPractice: () => void;
-  onOpenSimulation?: () => void;
 }
 
 export function LessonOverview({
   lesson,
   unitTitle,
   onStartPractice,
-  onOpenSimulation,
 }: LessonOverviewProps) {
   const blueprint = lesson.blueprint as CognitiveBlueprint | undefined;
 
@@ -104,19 +101,8 @@ export function LessonOverview({
             />
           )}
 
-          {/* Action buttons */}
+          {/* Action button */}
           <div className="flex flex-wrap gap-3 pt-2">
-            {lesson.has_simulation && onOpenSimulation && (
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={onOpenSimulation}
-                className="gap-2 border-primary/30 text-primary hover:bg-primary/5"
-              >
-                <Beaker className="w-5 h-5" />
-                Open Simulation Lab
-              </Button>
-            )}
             <Button size="lg" onClick={onStartPractice} className="gap-2">
               <Zap className="w-5 h-5" />
               Start Practice
