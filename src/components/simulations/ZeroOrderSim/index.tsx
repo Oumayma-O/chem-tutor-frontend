@@ -1,14 +1,11 @@
 /**
  * Zero-Order Kinetics — interactive simulation.
  *
- * Layout strategy: flex-wrap
+ * Desktop layout (2 rows):
+ *   Row 1: [Beaker ~27%] [Line chart flex-1] [Bar chart ~150px]
+ *   Row 2: [Equations flex-1]  [Mascot guide ~42%]
  *
- *   ┌─ sticky control bar ──────────────────────────────────────────────┐
- *   ├─ flex-wrap row ───────────────────────────────────────────────────┤
- *   │  [Beaker]  [Line Chart + Bar Chart]  [Equations + Guide]          │
- *   │  Desktop: side-by-side (min-w rules fit all on one row)           │
- *   │  Mobile:  w-full → natural vertical stacking                      │
- *   └──────────────────────────────────────────────────────────────────┘
+ * Mobile: every panel is w-full and stacks vertically.
  */
 import React, { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -131,7 +128,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
   return (
     <div className="w-full">
 
-      {/* ── Control bar — sticky inside scrollable main ──────────────── */}
+      {/* ── Sticky control bar ───────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-3 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10">
 
         <button
@@ -231,30 +228,30 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </button>
       </div>
 
-      {/* ── Content: flex-col on mobile, strict grid-cols-12 on xl ─────── */}
-      <div className="w-full max-w-[1400px] mx-auto px-4 py-6 flex flex-col xl:grid xl:grid-cols-12 gap-6">
+      {/* ── Content area ─────────────────────────────────────────────── */}
+      <div className="w-full max-w-[1400px] mx-auto px-4 py-4 flex flex-col gap-4">
 
-        {/* ── Beaker ───────────────────────────────────────────────────── */}
-        <div className="w-full xl:col-span-3 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[360px]">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-            Particulate View
-          </p>
-          <div className="flex-1 min-h-0 w-full h-full">
-            <ParticulateBeaker
-              fractionA={fractionA}
-              reactantColor={reaction.color}
-              productColor={reaction.productColor}
-              reactantLabel={reaction.reactant}
-              productLabel={reaction.product}
-            />
+        {/* ── Row 1: Beaker | Line chart | Bar chart ──────────────────── */}
+        <div className="flex flex-col md:flex-row gap-4">
+
+          {/* Beaker */}
+          <div className="w-full md:w-[27%] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[320px]">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
+              Particulate View
+            </p>
+            <div className="flex-1 min-h-0">
+              <ParticulateBeaker
+                fractionA={fractionA}
+                reactantColor={reaction.color}
+                productColor={reaction.productColor}
+                reactantLabel={reaction.reactant}
+                productLabel={reaction.product}
+              />
+            </div>
           </div>
-        </div>
-
-        {/* ── Charts: Line + Bar ──────────────────────────────────────── */}
-        <div className="w-full xl:col-span-6 flex flex-col sm:flex-row gap-4">
 
           {/* Line chart */}
-          <div className={`flex-1 flex flex-col rounded-xl border bg-card p-3 min-h-[360px] transition-all duration-300 ${
+          <div className={`w-full md:flex-1 rounded-xl border bg-card p-3 flex flex-col min-h-[320px] transition-all duration-300 ${
             tutorialStep === 6
               ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
               : "border-border"
@@ -262,7 +259,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               [Concentration] vs Time
             </p>
-            <div className="flex-1 min-h-0 w-full h-full">
+            <div className="flex-1 min-h-0">
               <Visualizer
                 series={series}
                 tCurrent={tCurrent}
@@ -281,11 +278,11 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Bar chart */}
-          <div className="w-full sm:w-[150px] shrink-0 flex flex-col rounded-xl border border-border bg-card p-3 min-h-[280px] sm:min-h-0">
+          <div className="w-full md:w-[150px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
-            <div className="flex-1 min-h-0 w-full h-full">
+            <div className="flex-1 min-h-0">
               <ConcentrationBarChart
                 concA={concAtT}
                 concB={productAtT}
@@ -299,11 +296,11 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
         </div>
 
-        {/* ── Equations + Guide ──────────────────────────────────────── */}
-        <div className="w-full xl:col-span-3 flex flex-col gap-4">
+        {/* ── Row 2: Equations | Mascot guide ─────────────────────────── */}
+        <div className="flex flex-col md:flex-row gap-4">
 
           {/* Equations */}
-          <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 shrink-0">
+          <div className="w-full md:flex-1 rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Zero-Order Kinetics Equations
             </p>
@@ -319,11 +316,11 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Mascot + guide bubble */}
-          <div className="rounded-xl border border-border bg-card flex flex-col p-4 gap-3 flex-1 min-h-[280px]">
+          <div className="w-full md:w-[42%] rounded-xl border border-border bg-card flex flex-col p-4 gap-3 min-h-[280px]">
             <div className="flex items-start gap-3 flex-1 min-h-0">
               <BeakerMascot
                 mood={tutorial.mascotMood as MascotMood}
-                size={52}
+                size={64}
                 className="shrink-0 self-end"
               />
               <div className="flex-1 min-h-0 rounded-2xl bg-muted/60 border border-border p-3 relative overflow-y-auto">
