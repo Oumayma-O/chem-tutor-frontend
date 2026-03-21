@@ -279,7 +279,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Bar chart */}
-          <div className="w-full md:w-[190px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0 xl:min-h-0">
+          <div className="w-full md:w-[380px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0 xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
