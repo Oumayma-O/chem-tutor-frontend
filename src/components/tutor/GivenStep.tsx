@@ -73,12 +73,7 @@ export function GivenStep({ step }: GivenStepProps) {
     </p>
   ) : step.equation_parts && step.equation_parts.length > 0 ? (
     <p className="equation text-foreground font-medium">
-      {step.equation_parts.map((part, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && " "}
-          {formatMathContent(part)}
-        </React.Fragment>
-      ))}
+      {formatMathContent(`$${step.equation_parts.join(" ").replace(/\$/g, "")}$`)}
     </p>
   ) : (
     <p className="text-muted-foreground text-sm">—</p>

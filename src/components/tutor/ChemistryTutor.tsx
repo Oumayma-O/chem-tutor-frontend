@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Level, LEVEL_CONFIGS, StudentAnswer, ProgressionResult } from "@/types/chemistry";
 import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { getRandomProblem, getDifficultyForMastery } from "@/data/sampleProblems";
@@ -169,6 +169,10 @@ export function ChemistryTutor({
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromSimulationLab = Boolean(
+    (location.state as { fromSimulationLab?: boolean } | null)?.fromSimulationLab,
+  );
 
   // ── Bridge refs: give useProblemNavigation access to step state / mastery ─
   const masteryScoreRef = useRef(masteryScore);
@@ -707,11 +711,16 @@ export function ChemistryTutor({
       <main className="px-4 py-6 max-w-6xl mx-auto">
         {/* ── Back link — Lesson Overview */}
         <button
-          onClick={() => navigate(`/unit/${unitId}/${lessonIndex}`)}
+          onClick={() => {
+            const destination = fromSimulationLab
+              ? `/unit/${unitId}/${lessonIndex}/simulation`
+              : `/unit/${unitId}/${lessonIndex}`;
+            navigate(destination);
+          }}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Lesson Overview
+          {fromSimulationLab ? "Back to Simulation Lab" : "Back to Lesson Overview"}
         </button>
 
         {/* ── Title left, level tabs + actions right ───────────────────────── */}

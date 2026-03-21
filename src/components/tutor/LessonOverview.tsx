@@ -12,18 +12,21 @@ import {
   Target,
   XCircle,
   Zap,
+  Beaker,
 } from "lucide-react";
 
 interface LessonOverviewProps {
   lesson: LessonOut;
   unitTitle: string;
   onStartPractice: () => void;
+  onStartSimulation?: () => void;
 }
 
 export function LessonOverview({
   lesson,
   unitTitle,
   onStartPractice,
+  onStartSimulation,
 }: LessonOverviewProps) {
   const blueprint = lesson.blueprint as CognitiveBlueprint | undefined;
 
@@ -101,12 +104,25 @@ export function LessonOverview({
             />
           )}
 
-          {/* Action button */}
+          {/* Action buttons */}
           <div className="flex flex-wrap gap-3 pt-2">
-            <Button size="lg" onClick={onStartPractice} className="gap-2">
-              <Zap className="w-5 h-5" />
-              Start Practice
-            </Button>
+            {lesson.has_simulation && onStartSimulation ? (
+              <>
+                <Button size="lg" onClick={onStartSimulation} className="gap-2">
+                  <Beaker className="w-5 h-5" />
+                  Open Simulation Lab
+                </Button>
+                <Button size="lg" variant="outline" onClick={onStartPractice} className="gap-2">
+                  <Zap className="w-5 h-5" />
+                  Skip to Practice
+                </Button>
+              </>
+            ) : (
+              <Button size="lg" onClick={onStartPractice} className="gap-2">
+                <Zap className="w-5 h-5" />
+                Start Practice
+              </Button>
+            )}
           </div>
         </div>
 

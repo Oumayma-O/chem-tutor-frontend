@@ -168,6 +168,11 @@ export default function UnitLandingPage() {
                 lesson={currentLesson}
                 unitTitle={unit.title}
                 onStartPractice={() => navigate(`/tutor/${unit.id}/${currentLessonIdx}`)}
+                onStartSimulation={
+                  currentLesson.has_simulation
+                    ? () => navigate(`/unit/${unit.id}/${currentLessonIdx}/simulation`)
+                    : undefined
+                }
               />
             )}
           </main>

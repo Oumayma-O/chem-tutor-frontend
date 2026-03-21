@@ -12,6 +12,7 @@ import UnitLandingPage from "./pages/UnitLandingPage";
 import TutorPage from "./pages/TutorPage";
 import TeacherPage from "./pages/TeacherPage";
 import StudentProfilePage from "./pages/StudentProfilePage";
+import SimulationPage from "./pages/SimulationPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -62,6 +63,8 @@ function AppRoutes() {
       {/* Tutor */}
       <Route path="/tutor/:unitId/:lessonIndex" element={<TutorPage />} />
       <Route path="/tutor/:unitId" element={<TutorPage />} />
+      {/* Simulation */}
+      <Route path="/unit/:unitId/:lessonIndex/simulation" element={<SimulationPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
