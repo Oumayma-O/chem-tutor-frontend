@@ -1,11 +1,10 @@
 /**
- * Zero-Order Kinetics — interactive simulation.
+ * First-Order Kinetics — interactive simulation.
  *
- * Desktop layout (2 rows):
- *   Row 1: [Beaker ~27%] [Line chart flex-1] [Bar chart ~150px]
- *   Row 2: [Equations flex-1]  [Mascot guide ~42%]
+ * Two-row, three-column layout:
  *
- * Mobile: every panel is w-full and stacks vertically.
+ *   ROW 1  [Beaker ~25%]  |  [[A] vs t + scrubber, flex-1]  |  [Bar Chart ~15%]
+ *   ROW 2  [ln[A] vs t ~30%]  |  [Equations flex-1.5]  |  [Guide flex-1]
  */
 import React, { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,8 +12,9 @@ import { ArrowLeft, ChevronLeft, ChevronRight, RotateCcw, Settings2, Zap } from 
 import { BeakerMascot } from "@/components/tutor/BeakerMascot";
 import type { MascotMood } from "@/components/tutor/BeakerMascot";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useKinetics } from "./useKinetics";
-import { Visualizer } from "./Visualizer";
+import { useFirstOrder } from "./useFirstOrder";
+import { FirstOrderVisualizer } from "./FirstOrderVisualizer";
+import { LnAChart } from "./LnAChart";
 import { DynamicMath } from "./DynamicMath";
 import { ParticulateBeaker } from "../shared/ParticulateBeaker";
 import { ConcentrationBarChart } from "../shared/ConcentrationBarChart";
@@ -26,7 +26,7 @@ interface Props {
 }
 
 // ── Chemistry variable highlighter ───────────────────────────────────
-const CHEM_VAR_RE = /(\[[\w]+\][₀]?(?:\s*=\s*[\d.]+\s*\w+)?|k\s*=\s*[\d.]+(?:\s*[\w·⁻¹]+)*|t½\s*=\s*[\d.∞]+\s*\w*|−[\d.]+)/g;
+const CHEM_VAR_RE = /(\[[\w]+\][₀t]?(?:\s*=\s*[\d.]+\s*\w+)?|k\s*=\s*[\d.]+(?:\s*[\w·⁻¹]+)*|t½\s*=\s*[\d.∞]+\s*\w*)/g;
 
 function highlightChemVars(text: string): React.ReactNode[] {
   const result: React.ReactNode[] = [];
@@ -42,16 +42,17 @@ function highlightChemVars(text: string): React.ReactNode[] {
   return result;
 }
 
-// ─────────────────────────────────────────────────────────────────────
-const SS_STEP     = "zeroOrder_step";
-const SS_REACTION = "zeroOrder_reaction";
-
+// ── Session storage ───────────────────────────────────────────────────
+const SS_STEP     = "firstOrder_step";
+const SS_REACTION = "firstOrder_reaction";
 function clearSession() {
   sessionStorage.removeItem(SS_STEP);
   sessionStorage.removeItem(SS_REACTION);
 }
 
-export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
+// ─────────────────────────────────────────────────────────────────────
+
+export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
   const [reactionId, setReactionId]     = useState(REACTIONS[0].id);
   const [initialConc, setInitialConc]   = useState(INITIAL_CONC);
   const [tCurrent, setTCurrent]         = useState(0);
@@ -67,10 +68,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     const savedReaction = sessionStorage.getItem(SS_REACTION);
     if (savedReaction) {
       const r = REACTIONS.find((rx) => rx.id === savedReaction);
-      if (r) {
-        setReactionId(r.id);
-        setInitialConc(r.defaultConc);
-      }
+      if (r) { setReactionId(r.id); setInitialConc(r.defaultConc); }
     }
     if (savedStep) {
       const s = parseInt(savedStep, 10);
@@ -78,15 +76,15 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     }
   }, []);
 
-  // Persist on change
   useEffect(() => {
     sessionStorage.setItem(SS_STEP, tutorialStep.toString());
     sessionStorage.setItem(SS_REACTION, reactionId);
   }, [tutorialStep, reactionId]);
 
-  const reaction   = REACTIONS.find((r) => r.id === reactionId) ?? REACTIONS[0];
-  const k          = reaction.k;
-  const { series, concAtT, productAtT, halfLife, fractionA } = useKinetics(k, initialConc, tCurrent);
+  const reaction = REACTIONS.find((r) => r.id === reactionId) ?? REACTIONS[0];
+  const k        = reaction.k;
+  const { series, concAtT, productAtT, lnAatT, halfLife, fractionA } =
+    useFirstOrder(k, initialConc, tCurrent);
   const tutorial   = TUTORIAL_STEPS[tutorialStep];
   const isLastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
 
@@ -109,54 +107,48 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     setTutorialStep(0);
   }
 
-  // Auto-open parameters at tutorial steps that need it
+  // Auto-open parameters at relevant steps
   useEffect(() => {
-    if (tutorialStep === 1 || tutorialStep === 9 || tutorialStep === 12) setSettingsOpen(true);
+    if (tutorialStep === 1 || tutorialStep === 3) setSettingsOpen(true);
   }, [tutorialStep]);
 
-  // Auto-open reaction dropdown at steps 7 and 12
+  // Auto-open reaction dropdown at hand-off steps
   useEffect(() => {
-    setReactionDropdownOpen(tutorialStep === 7 || tutorialStep === 12);
+    setReactionDropdownOpen(tutorialStep === 11 || tutorialStep === 16);
   }, [tutorialStep]);
 
   // Close settings on outside click
   useEffect(() => {
     if (!settingsOpen) return;
-    const handler = (e: MouseEvent) => {
+    const h = (e: MouseEvent) => {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node))
         setSettingsOpen(false);
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
   }, [settingsOpen]);
 
-  // Auto-play: arriving at step → replay; leaving → abort
-  const isAutoPlayStep = (s: number) => s === 5 || s === 10 || s === 14;
-  const prevTutorialStep = useRef(tutorialStep);
+  // Auto-play steps
+  const isAutoPlayStep = (s: number) => s === 10 || s === 14 || s === 18;
+  const prevStepRef = useRef(tutorialStep);
   useEffect(() => {
-    const prev = prevTutorialStep.current;
-    prevTutorialStep.current = tutorialStep;
+    const prev = prevStepRef.current;
+    prevStepRef.current = tutorialStep;
     if (isAutoPlayStep(tutorialStep)) {
-      // Arrived at an auto-play step → always restart from t=0
       setTCurrent(0);
       setPlaying(true);
     } else if (isAutoPlayStep(prev)) {
       setPlaying(false);
-      if (tutorialStep < prev) {
-        // Going backward past an auto-play step → reset chart to start
-        setTCurrent(0);
-      }
-      // Going forward: leave tCurrent at MAX_TIME (already set by Next button / auto-advance)
+      if (tutorialStep < prev) setTCurrent(0);
     }
   }, [tutorialStep]);
 
-  // Auto-advance when animation reaches end
   useEffect(() => {
     if (isAutoPlayStep(tutorialStep) && tCurrent >= MAX_TIME)
       setTutorialStep((s) => s + 1);
   }, [tutorialStep, tCurrent]);
 
-  // Pagination dots for current reaction only
+  // Pagination dots
   const reactionIdx = REACTIONS.findIndex((r) => r.id === reactionId);
   const dotStart    = reaction.firstTutorialStep;
   const dotEnd      = REACTIONS[reactionIdx + 1]
@@ -164,52 +156,36 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     : TUTORIAL_STEPS.length - 1;
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto">
+    <div className="flex flex-col w-full max-w-[1600px] mx-auto xl:h-full xl:overflow-hidden">
 
-      {/* ── Sticky control bar ───────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-3 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10">
+      {/* ── Sticky control bar ─────────────────────────────────── */}
+      <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-2 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10 shrink-0">
 
-        <button
-          onClick={() => { clearSession(); onBackToOverview(); }}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <button onClick={() => { clearSession(); onBackToOverview(); }}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-3 h-3" />
           Overview
         </button>
-
         <div className="h-4 w-px bg-border" />
 
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           Reaction:
-          <Select
-            value={reactionId}
-            onValueChange={handleReactionChange}
-            open={reactionDropdownOpen}
-            onOpenChange={setReactionDropdownOpen}
-          >
+          <Select value={reactionId} onValueChange={handleReactionChange}
+            open={reactionDropdownOpen} onOpenChange={setReactionDropdownOpen}>
             <SelectTrigger className={`h-6 text-xs w-28 rounded-md transition-all duration-300 ${
-              tutorialStep === 7 || tutorialStep === 12
-                ? "border-blue-400 ring-2 ring-blue-300 dark:ring-blue-500 ring-offset-1"
-                : ""
-            }`}>
+              tutorialStep === 11 || tutorialStep === 16
+                ? "border-blue-400 ring-2 ring-blue-300 dark:ring-blue-500 ring-offset-1" : ""}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {REACTIONS.map((r) => {
-                const isSuggested =
-                  (tutorialStep === 7 && r.id === "cd") ||
-                  (tutorialStep === 12 && r.id === "ef");
+                const isSuggested = (tutorialStep === 11 && r.id === "cd") || (tutorialStep === 16 && r.id === "ef");
                 return (
-                  <SelectItem
-                    key={r.id}
-                    value={r.id}
+                  <SelectItem key={r.id} value={r.id}
                     style={isSuggested ? { backgroundColor: "#f59e0b", color: "white" } : undefined}
-                    className={`text-xs cursor-pointer ${
-                      isSuggested
-                        ? "font-medium data-[highlighted]:brightness-110"
-                        : "data-[highlighted]:bg-slate-100 dark:data-[highlighted]:bg-slate-800 data-[highlighted]:text-foreground"
-                    }`}
-                  >
+                    className={`text-xs cursor-pointer ${isSuggested
+                      ? "font-medium data-[highlighted]:brightness-110"
+                      : "data-[highlighted]:bg-slate-100 dark:data-[highlighted]:bg-slate-800 data-[highlighted]:text-foreground"}`}>
                     {r.label}
                   </SelectItem>
                 );
@@ -217,18 +193,14 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             </SelectContent>
           </Select>
         </div>
-
         <div className="h-4 w-px bg-border" />
 
         <div className="relative" ref={settingsRef}>
-          <button
-            onClick={() => setSettingsOpen((o) => !o)}
+          <button onClick={() => setSettingsOpen((o) => !o)}
             className={`flex items-center gap-1 text-xs border rounded px-2 py-0.5 transition-colors ${
-              settingsOpen
-                ? "bg-primary text-primary-foreground border-primary"
+              settingsOpen ? "bg-primary text-primary-foreground border-primary"
                 : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-            } ${tutorialStep === 1 ? "ring-2 ring-primary ring-offset-1" : ""}`}
-          >
+            } ${tutorialStep === 1 || tutorialStep === 3 ? "ring-2 ring-primary ring-offset-1" : ""}`}>
             <Settings2 className="w-3 h-3" />
             Parameters
           </button>
@@ -237,7 +209,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
               <span className="flex items-center gap-1 text-xs">
                 <span className="text-muted-foreground">k:</span>
                 <span className="font-mono tabular-nums text-foreground">{k.toFixed(3)}</span>
-                <span className="text-muted-foreground">mol·L⁻¹s⁻¹</span>
+                <span className="text-muted-foreground">s⁻¹</span>
               </span>
               <div className="h-4 w-px bg-border" />
               <span className="flex items-center gap-1 text-xs">
@@ -249,41 +221,29 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           )}
         </div>
 
-        <button
-          onClick={handleReset}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
+        <button onClick={handleReset}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
           <RotateCcw className="w-3 h-3" />
           Reset
         </button>
 
-        <button
-          onClick={() => { clearSession(); onStartPractice(); }}
-          className="ml-auto flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
-        >
+        <button onClick={() => { clearSession(); onStartPractice(); }}
+          className="ml-auto flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors">
           Skip to Practice
           <ChevronRight className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* ── Content wrapper ──────────────────────────────────────────────
-           Mobile  (<md):  everything stacks
-           Tablet  (md–xl): top row = Beaker|Bar flex-wrap; Line below; Eq|Guide row
-           Desktop (≥xl):  Beaker|Line(flex-1)|Bar in one row; Eq|Guide below
-           Ultra-wide: max-w-[1600px] on outer wrapper keeps proportions    */}
-      <div className="w-full px-4 xl:px-10 py-4 flex flex-col gap-3
-        xl:h-[calc(100vh-110px)] xl:overflow-hidden">
+      {/* ── Content ────────────────────────────────────────────────────── */}
+      <div className="flex flex-col gap-2 px-4 xl:px-6 py-2 xl:flex-1 xl:min-h-0 xl:overflow-hidden">
 
-        {/* ── TOP ROW: Beaker | Line Chart | Bar Chart ─────────────────
-             Tablet:  Beaker + Bar side-by-side (50/50), Line below (order-3)
-             Desktop: Beaker (26%) | Line (flex-1) | Bar (14%) in one row   */}
-        <div className="flex flex-wrap xl:flex-nowrap items-stretch gap-3 xl:flex-[3] xl:min-h-0">
+        {/* ── ROW 1: Beaker | [A] vs t | Bar Chart ─────────────── */}
+        <div className="flex flex-col xl:flex-row items-stretch gap-2 xl:flex-1 xl:min-h-0">
 
-          {/* BEAKER — tablet left col, desktop far-left */}
-          <div className="order-1 xl:order-1
-            w-full md:w-[calc(50%-6px)] xl:flex-shrink-0 xl:w-1/4 xl:h-full
+          {/* BEAKER */}
+          <div className="w-full xl:w-[22%] xl:max-w-[380px] xl:flex-shrink-0
             rounded-xl border border-border bg-card p-3 flex flex-col
-            max-h-[360px] xl:max-h-none">
+            min-h-[260px] xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Particulate View
             </p>
@@ -295,16 +255,40 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
                 productColor={reaction.productColor}
                 reactantLabel={reaction.reactant}
                 productLabel={reaction.product}
-                showCatalyst={true}
+                showCatalyst={false}
               />
             </div>
           </div>
 
-          {/* BAR CHART — tablet right col, desktop far-right */}
-          <div className="order-2 xl:order-3
-            w-full md:w-[calc(50%-6px)] xl:flex-shrink-0 xl:w-1/4 xl:h-full
+          {/* [A] vs t CHART + SCRUBBER */}
+          <div className="w-full xl:flex-1
             rounded-xl border border-border bg-card p-3 flex flex-col
-            max-h-[360px] xl:max-h-none">
+            min-h-[300px] xl:min-h-0">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
+              [Concentration] vs Time
+            </p>
+            <div className="flex-1 min-h-0">
+              <FirstOrderVisualizer
+                series={series}
+                tCurrent={tCurrent}
+                playing={playing}
+                onTimeChange={setTCurrent}
+                onTogglePlay={() => setPlaying((p) => !p)}
+                halfLife={halfLife}
+                initialConc={initialConc}
+                reactantColor={reaction.color}
+                productColor={reaction.productColor}
+                reactantLabel={reaction.reactant}
+                productLabel={reaction.product}
+                highlightTimeControls={tutorialStep === 1 || tutorialStep === 10}
+              />
+            </div>
+          </div>
+
+          {/* BAR CHART */}
+          <div className="w-full xl:w-[300px] xl:flex-shrink-0
+            rounded-xl border border-border bg-card p-3 flex flex-col
+            min-h-[260px] xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
@@ -320,55 +304,40 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
               />
             </div>
           </div>
+        </div>
 
-          {/* LINE CHART — tablet full-width second row, desktop center */}
-          <div className={`order-3 xl:order-2
-            w-full xl:flex-1 xl:min-w-[400px] xl:h-full
-            rounded-xl border bg-card p-3 flex flex-col
-            md:min-h-[220px] md:max-h-[420px] xl:max-h-none
-            transition-all duration-300 ${
-              tutorialStep === 6
-                ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
-                : "border-border"
-            }`}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-              [Concentration] vs Time
-            </p>
-            <div className="h-[260px] md:h-auto md:flex-1 md:min-h-0">
-              <Visualizer
+        {/* ── ROW 2: ln[A] | Equations | Guide ─────────────────── */}
+        <div className="flex flex-col lg:flex-row items-stretch gap-2 xl:flex-1 xl:min-h-0">
+
+          {/* ln[A] vs t CHART */}
+          <div className="w-full lg:w-[28%] lg:flex-shrink-0
+            rounded-xl border border-border bg-card p-3 flex flex-col
+            min-h-[240px] lg:min-h-0">
+            <div className="flex-1 min-h-0">
+              <LnAChart
                 series={series}
                 tCurrent={tCurrent}
-                playing={playing}
-                onTimeChange={setTCurrent}
-                onTogglePlay={() => setPlaying((p) => !p)}
                 halfLife={halfLife}
                 initialConc={initialConc}
                 reactantColor={reaction.color}
-                productColor={reaction.productColor}
                 reactantLabel={reaction.reactant}
-                productLabel={reaction.product}
-                highlightTimeControls={tutorialStep === 2 || tutorialStep === 9}
               />
             </div>
           </div>
 
-        </div>{/* end top row */}
-
-        {/* ── BOTTOM ROW: Equations | Guide ────────────────────────────
-             Mobile: stacked. Tablet+: side-by-side, Equations wider.       */}
-        <div className="flex flex-col md:flex-row gap-3 xl:flex-[2] xl:min-h-0">
-
           {/* EQUATIONS */}
-          <div className="md:flex-[1.5] xl:min-h-0
-            rounded-xl border border-border bg-card px-3 py-2.5 flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-              Zero-Order Kinetics Equations
+          <div className="w-full lg:flex-[1.5]
+            rounded-xl border border-border bg-card px-3 py-2 flex flex-col gap-1.5
+            min-h-[240px] lg:min-h-0">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
+              First-Order Kinetics Equations
             </p>
             <DynamicMath
               k={k}
               initialConc={initialConc}
               tCurrent={tCurrent}
               concAtT={concAtT}
+              lnAatT={lnAatT}
               halfLife={halfLife}
               reactantLabel={reaction.reactant}
               tutorialStep={tutorialStep}
@@ -376,8 +345,9 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* GUIDE / MASCOT */}
-          <div className="md:flex-1 min-h-0 overflow-hidden
-            rounded-xl border border-border bg-card flex flex-col p-4 gap-3">
+          <div className="w-full lg:flex-1 overflow-hidden
+            rounded-xl border border-border bg-card flex flex-col p-3 gap-2
+            min-h-[240px] lg:min-h-0">
             <div className="flex items-start gap-3 flex-1 min-h-0 overflow-hidden">
               <BeakerMascot
                 mood={tutorial.mascotMood as MascotMood}
@@ -403,7 +373,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             </div>
 
             {/* Nav row */}
-            <div className="flex items-center justify-between border-t border-border pt-3 shrink-0">
+            <div className="flex items-center justify-between border-t border-border pt-2 shrink-0">
               <button
                 onClick={() => {
                   if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(0); }
@@ -418,35 +388,25 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
 
               <div className="flex gap-1.5">
                 {Array.from({ length: dotEnd - dotStart + 1 }, (_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setTutorialStep(dotStart + i)}
+                  <button key={i} onClick={() => setTutorialStep(dotStart + i)}
                     className="w-1.5 h-1.5 rounded-full transition-colors"
                     style={{
-                      backgroundColor:
-                        dotStart + i === tutorialStep
-                          ? "hsl(var(--primary))"
-                          : "hsl(var(--muted-foreground) / 0.3)",
-                    }}
-                  />
+                      backgroundColor: dotStart + i === tutorialStep
+                        ? "hsl(var(--primary))" : "hsl(var(--muted-foreground) / 0.3)",
+                    }} />
                 ))}
               </div>
 
               {isLastStep ? (
-                <button
-                  onClick={() => { clearSession(); onStartPractice(); }}
-                  className="flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 transition-colors"
-                >
+                <button onClick={() => { clearSession(); onStartPractice(); }}
+                  className="flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 transition-colors">
                   Start Practice
                   <Zap className="w-3.5 h-3.5" />
                 </button>
               ) : (
                 <button
                   onClick={() => {
-                    if (isAutoPlayStep(tutorialStep)) {
-                      setPlaying(false);
-                      setTCurrent(MAX_TIME);
-                    }
+                    if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(MAX_TIME); }
                     setTutorialStep((s) => s + 1);
                   }}
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -458,7 +418,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             </div>
           </div>
 
-        </div>{/* end bottom row */}
+        </div>{/* end row 2 */}
 
       </div>
     </div>

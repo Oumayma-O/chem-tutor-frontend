@@ -21,6 +21,14 @@ export const SIM_REGISTRY: SimEntry[] = [
       import("./ZeroOrderSim/index").then((m) => ({ default: m.ZeroOrderSim }))
     ),
   },
+  {
+    unitId: "ap-unit-5",
+    lessonIndex: 2,
+    title: "First-Order Reactions",
+    component: lazy(() =>
+      import("./FirstOrderSim/index").then((m) => ({ default: m.FirstOrderSim }))
+    ),
+  },
 ];
 
 export function getSimEntry(unitId: string, lessonIndex: number): SimEntry | undefined {
