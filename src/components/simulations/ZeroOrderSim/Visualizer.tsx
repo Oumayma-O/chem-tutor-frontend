@@ -55,6 +55,7 @@ interface VisualizerProps {
   productColor: string;
   reactantLabel: string;
   productLabel: string;
+  highlightTimeControls?: boolean;
 }
 
 export function Visualizer({
@@ -69,6 +70,7 @@ export function Visualizer({
   productColor,
   reactantLabel,
   productLabel,
+  highlightTimeControls = false,
 }: VisualizerProps) {
   const hl = isFinite(halfLife) && halfLife <= MAX_TIME ? halfLife : null;
 
@@ -142,7 +144,7 @@ export function Visualizer({
       </div>
 
       {/* Time control */}
-      <div className="flex items-center justify-center gap-3 shrink-0 pb-1">
+      <div className={`flex items-center justify-center gap-3 shrink-0 pb-1 rounded-lg transition-all duration-300 ${highlightTimeControls ? "ring-2 ring-primary ring-offset-1 bg-primary/5" : ""}`}>
         <button
           onClick={() => onTimeChange(parseFloat(Math.max(0, tCurrent - 0.5).toFixed(1)))}
           className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"

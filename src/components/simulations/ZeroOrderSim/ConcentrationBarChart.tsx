@@ -58,7 +58,7 @@ export function ConcentrationBarChart({
           <BarChart
             data={data}
             barSize={36}
-            margin={{ top: 6, right: 4, bottom: 4, left: -18 }}
+            margin={{ top: 16, right: 4, bottom: 4, left: -18 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
             <YAxis

@@ -44,9 +44,13 @@ function Sup({ children }: { children: ReactNode }) {
   );
 }
 
-function EqRow({ children }: { children: ReactNode }) {
+function EqRow({ children, highlight = false }: { children: ReactNode; highlight?: boolean }) {
   return (
-    <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2">
+    <div className={`bg-slate-50 dark:bg-slate-900/60 border rounded-xl px-3 py-1.5 transition-all duration-300 ${
+      highlight
+        ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
+        : "border-slate-200 dark:border-slate-700"
+    }`}>
       <div className="flex items-center gap-1 flex-wrap leading-7 text-sm">
         {children}
       </div>
@@ -63,6 +67,7 @@ interface Props {
   concAtT: number;
   halfLife: number;
   reactantLabel: string;
+  tutorialStep: number;
 }
 
 const DELTA_T = 5; // seconds window used for the live rate row
@@ -74,7 +79,11 @@ export function DynamicMath({
   concAtT,
   halfLife,
   reactantLabel,
+  tutorialStep,
 }: Props) {
+  // Progressive reveal: live numbers hidden until the relevant tutorial step
+  const showRate     = tutorialStep >= 3;
+  const showHalfLife = tutorialStep >= 4;
   const t2 = Math.min(tCurrent + DELTA_T, 20);
   const conc2 = Math.max(0, initialConc - k * t2);
   const deltaConc = conc2 - concAtT;                 // negative (reactant decreasing)
@@ -90,11 +99,7 @@ export function DynamicMath({
   const hlF       = isFinite(halfLife) ? halfLife.toFixed(2) : "∞";
 
   return (
-    <div className="space-y-2 font-mono text-foreground max-w-lg mx-auto w-full">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground mb-1">
-        Zero-Order Kinetics Equations
-      </div>
-
+    <div className="space-y-2 font-mono text-foreground w-full max-w-2xl mx-auto px-2">
       <EqRow>
         <span>Rate = k = −</span>
         <Frac top="Δc" bot="Δt" />
@@ -104,27 +109,27 @@ export function DynamicMath({
 
       <EqRow>
         <span>Rate = </span>
-        <Live>{kF}</Live>
+        <Live>{showRate ? kF : "?"}</Live>
         <span> = −</span>
         <Frac
-          top={<span>(<Live>{negDeltaConc}</Live>)</span>}
-          bot={<Live>{dtF}</Live>}
+          top={<span>(<Live>{showRate ? negDeltaConc : "?"}</Live>)</span>}
+          bot={<Live>{showRate ? dtF : "?"}</Live>}
         />
         <span> = −</span>
         <Frac
-          top={<span><Live>{conc2F}</Live> − <Live>{atF}</Live></span>}
-          bot={<span><Live>{t2F}</Live> − <Live>{tF}</Live></span>}
+          top={<span><Live>{showRate ? conc2F : "?"}</Live> − <Live>{showRate ? atF : "?"}</Live></span>}
+          bot={<span><Live>{showRate ? t2F : "?"}</Live> − <Live>{showRate ? tF : "?"}</Live></span>}
         />
       </EqRow>
 
-      <EqRow>
+      <EqRow highlight={tutorialStep === 4}>
         <span>t<sub>1/2</sub> = [A<sub>0</sub>]/(2k)</span>
         <span className="mx-3 text-muted-foreground">→</span>
-        <Live>{hlF}</Live>
+        <Live>{showHalfLife ? hlF : "?"}</Live>
         <span> = </span>
-        <Live>{a0F}</Live>
+        <Live>{showHalfLife ? a0F : "?"}</Live>
         <span>/(2×</span>
-        <Live>{kF}</Live>
+        <Live>{showHalfLife ? kF : "?"}</Live>
         <span>)</span>
       </EqRow>
 

@@ -18,11 +18,17 @@ const R = 5.5; // particle radius (SVG units)
 // Beaker SVG geometry
 const VW = 200; // viewBox width
 const VH = 220; // viewBox height
-const BODY = { x: 18, y: 32, w: 164, h: 168 }; // liquid area
-const PZ = {    // particle zone (inner, respecting radius)
+const BODY = { x: 18, y: 32, w: 164, h: 168 }; // full beaker body
+
+// Liquid layer — bottom 65% of the beaker body
+const LIQUID_FRAC = 0.65;
+const LIQUID_TOP = BODY.y + BODY.h * (1 - LIQUID_FRAC); // ≈ 91
+const LIQUID = { x: BODY.x, y: LIQUID_TOP, w: BODY.w, h: BODY.h - (LIQUID_TOP - BODY.y) };
+
+const PZ = {    // particle zone constrained to liquid layer
   minX: BODY.x + R + 4,
   maxX: BODY.x + BODY.w - R - 4,
-  minY: BODY.y + R + 4,
+  minY: LIQUID_TOP + R + 4,
   maxY: BODY.y + BODY.h - R - 4,
 };
 
@@ -152,10 +158,27 @@ export function ParticulateBeaker({
         className="flex-1 min-h-0 w-full h-full"
         style={{ overflow: "visible" }}
       >
-        {/* Liquid background */}
+        {/* Empty upper beaker (air gap) */}
         <rect
           x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} rx="5"
-          fill="hsl(var(--muted) / 0.18)"
+          fill="hsl(var(--card) / 0.4)"
+        />
+
+        {/* Aqueous solvent layer — bottom 65% */}
+        <rect
+          x={LIQUID.x} y={LIQUID.y} width={LIQUID.w} height={LIQUID.h}
+          fill="#e0f2fe"
+          opacity="0.55"
+        />
+
+        {/* Meniscus — concave curve at liquid surface */}
+        <ellipse
+          cx={BODY.x + BODY.w / 2}
+          cy={LIQUID_TOP}
+          rx={BODY.w / 2 - 1}
+          ry={5}
+          fill="#bae6fd"
+          opacity="0.7"
         />
 
         {/* Particles — initial fill set here; RAF + color useEffect overrides imperatively */}
