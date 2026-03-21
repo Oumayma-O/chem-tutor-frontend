@@ -51,7 +51,7 @@ function EqRow({ children, highlight = false }: { children: ReactNode; highlight
         ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
         : "border-slate-200 dark:border-slate-700"
     }`}>
-      <div className="flex items-center gap-1 flex-wrap leading-7 text-sm">
+      <div className="flex items-center gap-1 flex-wrap leading-7 text-sm overflow-x-auto">
         {children}
       </div>
     </div>
