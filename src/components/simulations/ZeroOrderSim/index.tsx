@@ -231,11 +231,11 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </button>
       </div>
 
-      {/* ── Flex-wrap content row ─────────────────────────────────────── */}
-      <div className="w-full max-w-7xl mx-auto px-4 py-6 flex flex-wrap gap-6 items-stretch">
+      {/* ── Content: flex-col on mobile, strict grid-cols-12 on xl ─────── */}
+      <div className="w-full max-w-[1400px] mx-auto px-4 py-6 flex flex-col xl:grid xl:grid-cols-12 gap-6">
 
         {/* ── Beaker ───────────────────────────────────────────────────── */}
-        <div className="w-full lg:flex-1 lg:min-w-[280px] lg:max-w-[350px] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[360px]">
+        <div className="w-full xl:col-span-3 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[360px]">
           <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
             Particulate View
           </p>
@@ -251,7 +251,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </div>
 
         {/* ── Charts: Line + Bar ──────────────────────────────────────── */}
-        <div className="w-full lg:flex-[2] lg:min-w-[500px] flex flex-col sm:flex-row gap-4">
+        <div className="w-full xl:col-span-6 flex flex-col sm:flex-row gap-4">
 
           {/* Line chart */}
           <div className={`flex-1 flex flex-col rounded-xl border bg-card p-3 min-h-[360px] transition-all duration-300 ${
@@ -300,7 +300,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </div>
 
         {/* ── Equations + Guide ──────────────────────────────────────── */}
-        <div className="w-full lg:flex-1 lg:min-w-[300px] flex flex-col gap-4">
+        <div className="w-full xl:col-span-3 flex flex-col gap-4">
 
           {/* Equations */}
           <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 shrink-0">
