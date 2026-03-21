@@ -1,11 +1,14 @@
 /**
  * Zero-Order Kinetics — interactive simulation.
  *
- * Desktop layout (2 rows):
- *   Row 1: [Beaker ~27%] [Line chart flex-1] [Bar chart ~150px]
- *   Row 2: [Equations flex-1]  [Mascot guide ~42%]
+ * TWO STRICT LAYOUTS — no mixing:
  *
- * Mobile: every panel is w-full and stacks vertically.
+ * Mobile (< xl): flex-col, infinite vertical scroll
+ *   [Beaker] [Line chart] [Bar chart] [Equations] [Guide] — each w-full
+ *
+ * Desktop (≥ xl): grid-cols-12, fits entirely on one screen (max-h viewport)
+ *   Col 1 (span-4): Beaker (h-45%) + Equations (h-55%)
+ *   Col 2 (span-8): Charts row (h-60%) + Guide (h-40%)
  */
 import React, { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -76,17 +79,14 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     setPlaying(false);
   }
 
-  // Auto-open parameters at tutorial steps that need it
   useEffect(() => {
     if (tutorialStep === 1 || tutorialStep === 9 || tutorialStep === 12) setSettingsOpen(true);
   }, [tutorialStep]);
 
-  // Auto-open reaction dropdown at steps 7 and 12
   useEffect(() => {
     setReactionDropdownOpen(tutorialStep === 7 || tutorialStep === 12);
   }, [tutorialStep]);
 
-  // Close settings on outside click
   useEffect(() => {
     if (!settingsOpen) return;
     const handler = (e: MouseEvent) => {
@@ -97,7 +97,6 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     return () => document.removeEventListener("mousedown", handler);
   }, [settingsOpen]);
 
-  // Auto-play: arriving at step → replay; leaving → abort
   const isAutoPlayStep = (s: number) => s === 5 || s === 10 || s === 14;
   const prevTutorialStep = useRef(tutorialStep);
   useEffect(() => {
@@ -112,13 +111,11 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     }
   }, [tutorialStep]);
 
-  // Auto-advance when animation reaches end
   useEffect(() => {
     if (isAutoPlayStep(tutorialStep) && tCurrent >= MAX_TIME)
       setTutorialStep((s) => s + 1);
   }, [tutorialStep, tCurrent]);
 
-  // Pagination dots for current reaction only
   const reactionIdx = REACTIONS.findIndex((r) => r.id === reactionId);
   const dotStart    = reaction.firstTutorialStep;
   const dotEnd      = REACTIONS[reactionIdx + 1]
@@ -130,7 +127,6 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
 
       {/* ── Sticky control bar ───────────────────────────────────────── */}
       <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-3 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10">
-
         <button
           onClick={onBackToOverview}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -228,14 +224,16 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </button>
       </div>
 
-      {/* ── Content area ─────────────────────────────────────────────── */}
-      <div className="w-full max-w-[1400px] mx-auto px-4 py-4 flex flex-col gap-4">
+      {/* ── Dual-state content wrapper ───────────────────────────────────
+           Mobile: flex-col → vertical scroll
+           Desktop (≥xl): grid-cols-12 → locked to one viewport height    */}
+      <div className="w-full max-w-[1400px] mx-auto px-4 py-4 flex flex-col xl:grid xl:grid-cols-12 gap-4 xl:gap-6 xl:max-h-[calc(100vh-140px)]">
 
-        {/* ── Row 1: Beaker | Line chart | Bar chart ──────────────────── */}
-        <div className="flex flex-col md:flex-row gap-4">
+        {/* ── COLUMN 1 (xl:col-span-4): Beaker + Equations ─────────────── */}
+        <div className="w-full xl:col-span-4 flex flex-col gap-4 xl:min-h-0">
 
           {/* Beaker */}
-          <div className="w-full md:w-[27%] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[320px]">
+          <div className="w-full xl:flex-[45] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[300px] xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Particulate View
             </p>
@@ -250,58 +248,9 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             </div>
           </div>
 
-          {/* Line chart */}
-          <div className={`w-full md:flex-1 rounded-xl border bg-card p-3 flex flex-col min-h-[320px] transition-all duration-300 ${
-            tutorialStep === 6
-              ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
-              : "border-border"
-          }`}>
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-              [Concentration] vs Time
-            </p>
-            <div className="flex-1 min-h-0">
-              <Visualizer
-                series={series}
-                tCurrent={tCurrent}
-                playing={playing}
-                onTimeChange={setTCurrent}
-                onTogglePlay={() => setPlaying((p) => !p)}
-                halfLife={halfLife}
-                initialConc={initialConc}
-                reactantColor={reaction.color}
-                productColor={reaction.productColor}
-                reactantLabel={reaction.reactant}
-                productLabel={reaction.product}
-                highlightTimeControls={tutorialStep === 2 || tutorialStep === 9}
-              />
-            </div>
-          </div>
-
-          {/* Bar chart */}
-          <div className="w-full md:w-[150px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-              Current [conc]
-            </p>
-            <div className="flex-1 min-h-0">
-              <ConcentrationBarChart
-                concA={concAtT}
-                concB={productAtT}
-                initialConc={initialConc}
-                reactantColor={reaction.color}
-                productColor={reaction.productColor}
-                reactantLabel={reaction.reactant}
-                productLabel={reaction.product}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Row 2: Equations | Mascot guide ─────────────────────────── */}
-        <div className="flex flex-col md:flex-row gap-4">
-
           {/* Equations */}
-          <div className="w-full md:flex-1 rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          <div className="w-full xl:flex-[55] rounded-xl border border-border bg-card px-3 py-2 flex flex-col gap-2 xl:min-h-0 xl:overflow-y-auto">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
               Zero-Order Kinetics Equations
             </p>
             <DynamicMath
@@ -314,9 +263,62 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
               tutorialStep={tutorialStep}
             />
           </div>
+        </div>
 
-          {/* Mascot + guide bubble */}
-          <div className="w-full md:w-[42%] rounded-xl border border-border bg-card flex flex-col p-4 gap-3 min-h-[280px]">
+        {/* ── COLUMN 2 (xl:col-span-8): Charts + Guide ─────────────────── */}
+        <div className="w-full xl:col-span-8 flex flex-col gap-4 xl:min-h-0">
+
+          {/* Charts row: Line chart + Bar chart */}
+          <div className="flex flex-col sm:flex-row gap-4 xl:flex-[60] xl:min-h-0">
+
+            {/* Line chart — explicit mobile height so Recharts renders */}
+            <div className={`flex-1 w-full min-h-[300px] sm:min-h-[350px] xl:min-h-0 rounded-xl border bg-card p-3 flex flex-col transition-all duration-300 ${
+              tutorialStep === 6
+                ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
+                : "border-border"
+            }`}>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
+                [Concentration] vs Time
+              </p>
+              <div className="flex-1 min-h-0">
+                <Visualizer
+                  series={series}
+                  tCurrent={tCurrent}
+                  playing={playing}
+                  onTimeChange={setTCurrent}
+                  onTogglePlay={() => setPlaying((p) => !p)}
+                  halfLife={halfLife}
+                  initialConc={initialConc}
+                  reactantColor={reaction.color}
+                  productColor={reaction.productColor}
+                  reactantLabel={reaction.reactant}
+                  productLabel={reaction.product}
+                  highlightTimeControls={tutorialStep === 2 || tutorialStep === 9}
+                />
+              </div>
+            </div>
+
+            {/* Bar chart — full width on mobile, 200px on sm+ */}
+            <div className="w-full sm:w-[200px] shrink-0 min-h-[300px] sm:min-h-0 rounded-xl border border-border bg-card p-3 flex flex-col">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
+                Current [conc]
+              </p>
+              <div className="flex-1 min-h-0">
+                <ConcentrationBarChart
+                  concA={concAtT}
+                  concB={productAtT}
+                  initialConc={initialConc}
+                  reactantColor={reaction.color}
+                  productColor={reaction.productColor}
+                  reactantLabel={reaction.reactant}
+                  productLabel={reaction.product}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Guide / mascot — takes remaining height on desktop */}
+          <div className="w-full xl:flex-[40] xl:min-h-0 rounded-xl border border-border bg-card flex flex-col p-4 gap-3 min-h-[260px]">
             <div className="flex items-start gap-3 flex-1 min-h-0">
               <BeakerMascot
                 mood={tutorial.mascotMood as MascotMood}
