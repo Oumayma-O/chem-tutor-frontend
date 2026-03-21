@@ -155,7 +155,7 @@ export function ParticulateBeaker({
     <div className="flex flex-col h-full gap-1">
       <svg
         viewBox={`0 0 ${VW} ${VH}`}
-        className="flex-1 min-h-0 w-full h-full"
+        className="w-full h-auto max-w-[300px] max-h-[260px] mx-auto md:max-w-none md:max-h-none md:flex-1 md:min-h-0"
         style={{ overflow: "visible" }}
       >
         {/* Empty upper beaker (air gap) */}
