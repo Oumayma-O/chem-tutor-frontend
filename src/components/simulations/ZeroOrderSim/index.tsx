@@ -236,7 +236,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         <div className="flex flex-col md:flex-row gap-4 xl:flex-[55] xl:min-h-0">
 
           {/* Beaker */}
-          <div className="w-full md:w-[27%] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[300px] xl:min-h-0">
+          <div className="w-full md:w-[27%] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[260px] max-h-[360px] md:max-h-none xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Particulate View
             </p>
@@ -279,7 +279,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Bar chart */}
-          <div className="w-full md:w-[150px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0 xl:min-h-0">
+          <div className="w-full md:w-[190px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0 xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
