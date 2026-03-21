@@ -230,7 +230,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
 
       {/* ── Content area ─────────────────────────────────────────────── */}
       {/* Mobile: flex-col scrolls freely. Desktop (xl): locked to one screen height. */}
-      <div className="w-full min-w-0 overflow-x-hidden max-w-[1400px] mx-auto px-4 py-4 flex flex-col items-center lg:items-stretch gap-4 xl:h-[calc(100vh-110px)] xl:overflow-hidden">
+      <div className="w-full min-w-0 overflow-x-hidden max-w-[1400px] mx-auto px-4 py-4 flex flex-col items-stretch gap-4 xl:h-[calc(100vh-110px)] xl:overflow-hidden">
 
         {/* ── Row 1: Beaker | Line chart | Bar chart ──────────────────── */}
         <div className="flex flex-col md:flex-row gap-4 xl:flex-[55] xl:min-h-0">
@@ -279,7 +279,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Bar chart */}
-          <div className="w-full md:w-[380px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0 xl:min-h-0">
+          <div className="w-full md:w-[300px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0 xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
