@@ -229,13 +229,14 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
       </div>
 
       {/* ── Content area ─────────────────────────────────────────────── */}
-      <div className="w-full max-w-[1400px] mx-auto px-4 py-4 flex flex-col gap-4">
+      {/* Mobile: flex-col scrolls freely. Desktop (xl): locked to one screen height. */}
+      <div className="w-full max-w-[1400px] mx-auto px-4 py-4 flex flex-col gap-4 xl:h-[calc(100vh-110px)] xl:overflow-hidden">
 
         {/* ── Row 1: Beaker | Line chart | Bar chart ──────────────────── */}
-        <div className="flex flex-col md:flex-row md:max-h-[420px] gap-4">
+        <div className="flex flex-col md:flex-row gap-4 xl:flex-[55] xl:min-h-0">
 
           {/* Beaker */}
-          <div className="w-full md:w-[27%] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[320px]">
+          <div className="w-full md:w-[27%] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[300px] xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Particulate View
             </p>
@@ -251,7 +252,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Line chart */}
-          <div className={`w-full md:flex-1 rounded-xl border bg-card p-3 flex flex-col min-h-[320px] transition-all duration-300 ${
+          <div className={`w-full md:flex-1 rounded-xl border bg-card p-3 flex flex-col min-h-[300px] xl:min-h-0 transition-all duration-300 ${
             tutorialStep === 6
               ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
               : "border-border"
@@ -278,7 +279,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Bar chart */}
-          <div className="w-full md:w-[200px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0">
+          <div className="w-full md:w-[150px] shrink-0 rounded-xl border border-border bg-card p-3 flex flex-col min-h-[240px] md:min-h-0 xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
@@ -297,10 +298,10 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </div>
 
         {/* ── Row 2: Equations | Mascot guide ─────────────────────────── */}
-        <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex flex-col md:flex-row gap-4 xl:flex-[45] xl:min-h-0">
 
           {/* Equations */}
-          <div className="w-full md:flex-1 rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3">
+          <div className="w-full md:flex-1 rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 xl:min-h-0 xl:overflow-y-auto">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Zero-Order Kinetics Equations
             </p>
@@ -316,7 +317,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* Mascot + guide bubble */}
-          <div className="w-full md:w-[42%] rounded-xl border border-border bg-card flex flex-col p-4 gap-3 min-h-[280px]">
+          <div className="w-full md:w-[42%] rounded-xl border border-border bg-card flex flex-col p-4 gap-3 min-h-[280px] xl:min-h-0">
             <div className="flex items-start gap-3 flex-1 min-h-0">
               <BeakerMascot
                 mood={tutorial.mascotMood as MascotMood}
