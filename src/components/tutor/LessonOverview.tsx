@@ -106,7 +106,7 @@ export function LessonOverview({
 
           {/* Action buttons */}
           <div className="flex flex-wrap gap-3 pt-2">
-            {lesson.has_simulation && onStartSimulation ? (
+            {onStartSimulation ? (
               <>
                 <Button size="lg" onClick={onStartSimulation} className="gap-2">
                   <Beaker className="w-5 h-5" />

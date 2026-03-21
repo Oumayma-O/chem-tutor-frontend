@@ -1,5 +1,5 @@
 import { LucideIcon } from "lucide-react";
-import { MathText } from "@/lib/mathDisplay";
+import { formatMathContent } from "@/lib/mathDisplay";
 
 interface LessonSectionCardProps {
   title: string;
@@ -41,7 +41,7 @@ export function LessonSectionCard({
               key={i}
               className="border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/40 rounded-xl p-3 font-mono text-sm text-slate-800 dark:text-foreground"
             >
-              <MathText>{item}</MathText>
+              {formatMathContent(item)}
             </div>
           )
         )}

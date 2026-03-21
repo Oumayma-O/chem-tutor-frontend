@@ -14,6 +14,7 @@ import { apiGenerateProblemV2 } from "@/lib/api";
 import { apiGetReferenceCard, refCardQueryKey, REF_CARD_STALE_MS, REF_CARD_GC_MS } from "@/lib/api/problems";
 import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
 import { enqueuePrefetch } from "@/lib/problemPrefetchCache";
+import { getSimEntry } from "@/components/simulations/registry";
 
 export default function UnitLandingPage() {
   const { unitId, lessonIndex } = useParams<{ unitId?: string; lessonIndex?: string }>();
@@ -169,7 +170,7 @@ export default function UnitLandingPage() {
                 unitTitle={unit.title}
                 onStartPractice={() => navigate(`/tutor/${unit.id}/${currentLessonIdx}`)}
                 onStartSimulation={
-                  currentLesson.has_simulation
+                  (currentLesson.has_simulation || !!getSimEntry(unit.id, currentLessonIdx))
                     ? () => navigate(`/unit/${unit.id}/${currentLessonIdx}/simulation`)
                     : undefined
                 }

@@ -46,12 +46,12 @@ function Sup({ children }: { children: ReactNode }) {
 
 function EqRow({ children, highlight = false }: { children: ReactNode; highlight?: boolean }) {
   return (
-    <div className={`bg-slate-50 dark:bg-slate-900/60 border rounded-xl px-3 py-1.5 transition-all duration-300 ${
+    <div className={`bg-slate-50 dark:bg-slate-900/60 border rounded-xl px-3 py-1 transition-all duration-300 ${
       highlight
         ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
         : "border-slate-200 dark:border-slate-700"
     }`}>
-      <div className="flex items-center gap-1 flex-wrap leading-7 text-sm overflow-x-auto">
+      <div className="flex items-center gap-1 flex-wrap leading-7 text-sm min-w-0">
         {children}
       </div>
     </div>
@@ -99,7 +99,7 @@ export function DynamicMath({
   const hlF       = isFinite(halfLife) ? halfLife.toFixed(2) : "∞";
 
   return (
-    <div className="space-y-2 font-mono text-foreground w-full max-w-2xl mx-auto px-2">
+    <div className="space-y-1.5 font-mono text-foreground w-full max-w-2xl mx-auto px-1">
       <EqRow>
         <span>Rate = k = −</span>
         <Frac top="Δc" bot="Δt" />
