@@ -125,8 +125,8 @@ const totalLessons = lessonTitles.length;
   return (
     <aside
       className={cn(
-        "shrink-0 border-r border-border bg-card overflow-y-auto transition-all duration-300 ease-in-out h-[calc(100vh-57px)] fixed left-0 top-[57px] z-50 lg:sticky lg:z-auto",
-        open ? "w-[260px] opacity-100" : "w-0 opacity-0 overflow-hidden",
+        "shrink-0 border-r border-border bg-card overflow-y-auto transition-all duration-300 ease-in-out h-[calc(100vh-57px)] sticky top-[57px]",
+        open ? "w-[200px] lg:w-[260px] opacity-100" : "w-0 opacity-0 overflow-hidden",
       )}
     >
       <div className="p-4 pt-5 pb-4 border-b border-border">

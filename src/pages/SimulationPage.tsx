@@ -82,13 +82,6 @@ export default function SimulationPage() {
 
       {/* ── Body ─────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
-        {/* Mobile backdrop — tap to close sidebar */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
         <CourseSidebar
           currentUnitId={unit.id}
           currentLessonIndex={lessonIndex}
