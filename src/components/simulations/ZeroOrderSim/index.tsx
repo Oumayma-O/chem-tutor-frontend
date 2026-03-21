@@ -43,6 +43,13 @@ function highlightChemVars(text: string): React.ReactNode[] {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+const SS_STEP     = "zeroOrder_step";
+const SS_REACTION = "zeroOrder_reaction";
+
+function clearSession() {
+  sessionStorage.removeItem(SS_STEP);
+  sessionStorage.removeItem(SS_REACTION);
+}
 
 export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
   const [reactionId, setReactionId]     = useState(REACTIONS[0].id);
@@ -53,6 +60,29 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reactionDropdownOpen, setReactionDropdownOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  // Hydrate from sessionStorage once on mount
+  useEffect(() => {
+    const savedStep     = sessionStorage.getItem(SS_STEP);
+    const savedReaction = sessionStorage.getItem(SS_REACTION);
+    if (savedReaction) {
+      const r = REACTIONS.find((rx) => rx.id === savedReaction);
+      if (r) {
+        setReactionId(r.id);
+        setInitialConc(r.defaultConc);
+      }
+    }
+    if (savedStep) {
+      const s = parseInt(savedStep, 10);
+      if (!isNaN(s) && s >= 0 && s < TUTORIAL_STEPS.length) setTutorialStep(s);
+    }
+  }, []);
+
+  // Persist on change
+  useEffect(() => {
+    sessionStorage.setItem(SS_STEP, tutorialStep.toString());
+    sessionStorage.setItem(SS_REACTION, reactionId);
+  }, [tutorialStep, reactionId]);
 
   const reaction   = REACTIONS.find((r) => r.id === reactionId) ?? REACTIONS[0];
   const k          = reaction.k;
@@ -71,9 +101,12 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
   }
 
   function handleReset() {
-    setInitialConc(reaction.defaultConc);
+    clearSession();
+    setReactionId(REACTIONS[0].id);
+    setInitialConc(REACTIONS[0].defaultConc);
     setTCurrent(0);
     setPlaying(false);
+    setTutorialStep(0);
   }
 
   // Auto-open parameters at tutorial steps that need it
@@ -137,7 +170,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
       <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-3 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10">
 
         <button
-          onClick={onBackToOverview}
+          onClick={() => { clearSession(); onBackToOverview(); }}
           className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-3 h-3" />
@@ -225,7 +258,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </button>
 
         <button
-          onClick={onStartPractice}
+          onClick={() => { clearSession(); onStartPractice(); }}
           className="ml-auto flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
         >
           Skip to Practice
@@ -257,6 +290,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             <div className="flex-1 min-h-0">
               <ParticulateBeaker
                 fractionA={fractionA}
+                playing={playing}
                 reactantColor={reaction.color}
                 productColor={reaction.productColor}
                 reactantLabel={reaction.reactant}
@@ -341,9 +375,9 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* GUIDE / MASCOT */}
-          <div className="md:flex-1 xl:min-h-0
+          <div className="md:flex-1 min-h-0 overflow-hidden
             rounded-xl border border-border bg-card flex flex-col p-4 gap-3">
-            <div className="flex items-start gap-3 flex-1 min-h-0">
+            <div className="flex items-start gap-3 flex-1 min-h-0 overflow-hidden">
               <BeakerMascot
                 mood={tutorial.mascotMood as MascotMood}
                 size={64}
@@ -399,7 +433,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
 
               {isLastStep ? (
                 <button
-                  onClick={onStartPractice}
+                  onClick={() => { clearSession(); onStartPractice(); }}
                   className="flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 transition-colors"
                 >
                   Start Practice

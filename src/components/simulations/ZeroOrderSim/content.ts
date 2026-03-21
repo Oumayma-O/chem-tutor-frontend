@@ -106,25 +106,25 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 7,
     title: "Great pick — C → D!",
-    body: "C → D has k = 0.03 M/s — half the speed of A → B — but the same starting concentration [C]₀ = 1.0 M.\n\nThis isolates k: watch how the graph line becomes shallower!",
+    body: "k = 0.03 M/s — half the speed of A → B — same [C]₀ = 1.0 M.\n\nThis isolates k. The rate is set by the catalyst surface, not by how many C particles float around. Fewer site turnovers per second = shallower slope.",
     mascotMood: "happy",
   },
   {
     id: 8,
-    title: "Adjust [C]₀ if you like",
-    body: "The initial concentration [C]₀ is already set to 1.0 M — the same as A → B — so you can focus purely on how a smaller k affects the slope.\n\nOpen Parameters to explore further.",
+    title: "Watch the surface dots",
+    body: "Open Parameters to confirm [C]₀ = 1.0 M — same as A → B.\n\nNow watch the glowing dots on the catalyst plate. They light up less often here because k is smaller — the surface is the rate-limiter, not the amount of C.",
     mascotMood: "thinking",
   },
   {
     id: 9,
     title: "Watch C → D animate",
-    body: "Let's run the reaction! Notice the line drops more slowly than A → B — same intercept, shallower slope.\n\nThat's k controlling the rate of depletion. Hit Next to skip ahead.",
+    body: "The line drops more slowly than A → B — same intercept, shallower slope.\n\nEven if you packed in more C particles, the rate wouldn't change. The catalyst surface can only process so many reactions per second.",
     mascotMood: "happy",
   },
   {
     id: 10,
     title: "Same intercept, shallower slope",
-    body: "Both lines start at [X]₀ = 1.0 M, but C → D's slope (−0.03) is gentler than A → B's (−0.07).\n\n💡 k controls how steeply the line drops.",
+    body: "Both lines start at 1.0 M, but C → D's slope (−0.03) is gentler than A → B's (−0.07).\n\n💡 k = site turnovers per second. Smaller k → fewer turnovers → shallower slope. More C in solution wouldn't help.",
     mascotMood: "explaining",
   },
   {
