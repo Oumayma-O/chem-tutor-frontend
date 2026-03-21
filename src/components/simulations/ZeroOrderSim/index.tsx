@@ -1,16 +1,14 @@
 /**
  * Zero-Order Kinetics — interactive simulation.
  *
- * Layout strategy: ONE system — pinned control bar + horizontal-scroll grid.
+ * Layout strategy: flex-wrap
  *
- *   ┌─ control bar (pinned, never scrolls) ────────────────────────────┐
- *   ├─ overflow-x-auto scroll wrapper ─────────────────────────────────┤
- *   │  min-w-[1100px] grid grid-cols-12                                │
- *   │  [Beaker col-3] [LineChart+BarChart col-6] [Equations+Guide col-3]│
+ *   ┌─ sticky control bar ──────────────────────────────────────────────┐
+ *   ├─ flex-wrap row ───────────────────────────────────────────────────┤
+ *   │  [Beaker]  [Line Chart + Bar Chart]  [Equations + Guide]          │
+ *   │  Desktop: side-by-side (min-w rules fit all on one row)           │
+ *   │  Mobile:  w-full → natural vertical stacking                      │
  *   └──────────────────────────────────────────────────────────────────┘
- *
- * On desktop: grid centres at max-w-7xl.
- * On mobile:  grid stays 1100 px wide, user swipes — SVGs never squish.
  */
 import React, { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -124,17 +122,17 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
   }, [tutorialStep, tCurrent]);
 
   // Pagination dots for current reaction only
-  const reactionIdx      = REACTIONS.findIndex((r) => r.id === reactionId);
-  const dotStart         = reaction.firstTutorialStep;
-  const dotEnd           = REACTIONS[reactionIdx + 1]
+  const reactionIdx = REACTIONS.findIndex((r) => r.id === reactionId);
+  const dotStart    = reaction.firstTutorialStep;
+  const dotEnd      = REACTIONS[reactionIdx + 1]
     ? REACTIONS[reactionIdx + 1].firstTutorialStep - 1
     : TUTORIAL_STEPS.length - 1;
 
   return (
-    <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
+    <div className="w-full">
 
-      {/* ── Control bar — pinned, never scrolls ──────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3 px-4 lg:px-6 py-3 border-b border-border bg-card shrink-0">
+      {/* ── Control bar — sticky inside scrollable main ──────────────── */}
+      <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-3 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10">
 
         <button
           onClick={onBackToOverview}
@@ -233,20 +231,65 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </button>
       </div>
 
-      {/* ── Scroll container ─────────────────────────────────────────────
-           Desktop: grid centres at max-w-7xl
-           Mobile:  min-w-[1100px] keeps SVGs intact — user swipes         */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto">
-        <div className="min-w-[1100px] max-w-7xl mx-auto grid grid-cols-12 gap-6 px-4 py-6">
+      {/* ── Flex-wrap content row ─────────────────────────────────────── */}
+      <div className="w-full max-w-7xl mx-auto px-4 py-6 flex flex-wrap gap-6 items-stretch">
 
-          {/* ── Beaker ─────────────────────────────── col-span-3 */}
-          <div className="col-span-3 rounded-xl border border-border bg-card p-3 flex flex-col" style={{ height: 440 }}>
+        {/* ── Beaker ───────────────────────────────────────────────────── */}
+        <div className="w-full lg:flex-1 lg:min-w-[280px] lg:max-w-[350px] rounded-xl border border-border bg-card p-3 flex flex-col min-h-[360px]">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
+            Particulate View
+          </p>
+          <div className="flex-1 min-h-0 w-full h-full">
+            <ParticulateBeaker
+              fractionA={fractionA}
+              reactantColor={reaction.color}
+              productColor={reaction.productColor}
+              reactantLabel={reaction.reactant}
+              productLabel={reaction.product}
+            />
+          </div>
+        </div>
+
+        {/* ── Charts: Line + Bar ──────────────────────────────────────── */}
+        <div className="w-full lg:flex-[2] lg:min-w-[500px] flex flex-col sm:flex-row gap-4">
+
+          {/* Line chart */}
+          <div className={`flex-1 flex flex-col rounded-xl border bg-card p-3 min-h-[360px] transition-all duration-300 ${
+            tutorialStep === 6
+              ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
+              : "border-border"
+          }`}>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-              Particulate View
+              [Concentration] vs Time
             </p>
-            <div className="flex-1 min-h-0">
-              <ParticulateBeaker
-                fractionA={fractionA}
+            <div className="flex-1 min-h-0 w-full h-full">
+              <Visualizer
+                series={series}
+                tCurrent={tCurrent}
+                playing={playing}
+                onTimeChange={setTCurrent}
+                onTogglePlay={() => setPlaying((p) => !p)}
+                halfLife={halfLife}
+                initialConc={initialConc}
+                reactantColor={reaction.color}
+                productColor={reaction.productColor}
+                reactantLabel={reaction.reactant}
+                productLabel={reaction.product}
+                highlightTimeControls={tutorialStep === 2 || tutorialStep === 9}
+              />
+            </div>
+          </div>
+
+          {/* Bar chart */}
+          <div className="w-full sm:w-[150px] shrink-0 flex flex-col rounded-xl border border-border bg-card p-3 min-h-[280px] sm:min-h-0">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
+              Current [conc]
+            </p>
+            <div className="flex-1 min-h-0 w-full h-full">
+              <ConcentrationBarChart
+                concA={concAtT}
+                concB={productAtT}
+                initialConc={initialConc}
                 reactantColor={reaction.color}
                 productColor={reaction.productColor}
                 reactantLabel={reaction.reactant}
@@ -254,159 +297,110 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
               />
             </div>
           </div>
+        </div>
 
-          {/* ── Charts: Line + Bar side-by-side ──── col-span-6 */}
-          <div className="col-span-6 flex gap-4" style={{ height: 440 }}>
+        {/* ── Equations + Guide ──────────────────────────────────────── */}
+        <div className="w-full lg:flex-1 lg:min-w-[300px] flex flex-col gap-4">
 
-            {/* Line chart */}
-            <div className={`flex-1 flex flex-col rounded-xl border bg-card p-3 transition-all duration-300 ${
-              tutorialStep === 6
-                ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
-                : "border-border"
-            }`}>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-                [Concentration] vs Time
-              </p>
-              <div className="flex-1 min-h-0">
-                <Visualizer
-                  series={series}
-                  tCurrent={tCurrent}
-                  playing={playing}
-                  onTimeChange={setTCurrent}
-                  onTogglePlay={() => setPlaying((p) => !p)}
-                  halfLife={halfLife}
-                  initialConc={initialConc}
-                  reactantColor={reaction.color}
-                  productColor={reaction.productColor}
-                  reactantLabel={reaction.reactant}
-                  productLabel={reaction.product}
-                  highlightTimeControls={tutorialStep === 2 || tutorialStep === 9}
-                />
-              </div>
-            </div>
-
-            {/* Bar chart */}
-            <div className="w-[140px] shrink-0 flex flex-col rounded-xl border border-border bg-card p-3">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-                Current [conc]
-              </p>
-              <div className="flex-1 min-h-0">
-                <ConcentrationBarChart
-                  concA={concAtT}
-                  concB={productAtT}
-                  initialConc={initialConc}
-                  reactantColor={reaction.color}
-                  productColor={reaction.productColor}
-                  reactantLabel={reaction.reactant}
-                  productLabel={reaction.product}
-                />
-              </div>
-            </div>
+          {/* Equations */}
+          <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 shrink-0">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+              Zero-Order Kinetics Equations
+            </p>
+            <DynamicMath
+              k={k}
+              initialConc={initialConc}
+              tCurrent={tCurrent}
+              concAtT={concAtT}
+              halfLife={halfLife}
+              reactantLabel={reaction.reactant}
+              tutorialStep={tutorialStep}
+            />
           </div>
 
-          {/* ── Equations + Guide ─────────────────── col-span-3 */}
-          <div className="col-span-3 flex flex-col gap-4" style={{ height: 440 }}>
-
-            {/* Equations */}
-            <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3 shrink-0">
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                Zero-Order Kinetics Equations
-              </p>
-              <DynamicMath
-                k={k}
-                initialConc={initialConc}
-                tCurrent={tCurrent}
-                concAtT={concAtT}
-                halfLife={halfLife}
-                reactantLabel={reaction.reactant}
-                tutorialStep={tutorialStep}
+          {/* Mascot + guide bubble */}
+          <div className="rounded-xl border border-border bg-card flex flex-col p-4 gap-3 flex-1 min-h-[280px]">
+            <div className="flex items-start gap-3 flex-1 min-h-0">
+              <BeakerMascot
+                mood={tutorial.mascotMood as MascotMood}
+                size={52}
+                className="shrink-0 self-end"
               />
+              <div className="flex-1 min-h-0 rounded-2xl bg-muted/60 border border-border p-3 relative overflow-y-auto">
+                <span className="absolute -left-2 bottom-6 w-2.5 h-2.5 rotate-45 bg-muted/60 border-l border-b border-border" />
+                <p className="text-sm font-semibold text-foreground leading-snug">{tutorial.title}</p>
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={tutorialStep}
+                    className="text-xs text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-line"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    {highlightChemVars(tutorial.body)}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
             </div>
 
-            {/* Mascot + guide bubble */}
-            <div className="rounded-xl border border-border bg-card flex flex-col p-4 gap-3 flex-1 min-h-0">
-              <div className="flex items-start gap-3 flex-1 min-h-0">
-                <BeakerMascot
-                  mood={tutorial.mascotMood as MascotMood}
-                  size={52}
-                  className="shrink-0 self-end"
-                />
-                <div className="flex-1 min-h-0 rounded-2xl bg-muted/60 border border-border p-3 relative overflow-y-auto">
-                  <span className="absolute -left-2 bottom-6 w-2.5 h-2.5 rotate-45 bg-muted/60 border-l border-b border-border" />
-                  <p className="text-sm font-semibold text-foreground leading-snug">{tutorial.title}</p>
-                  <AnimatePresence mode="wait">
-                    <motion.p
-                      key={tutorialStep}
-                      className="text-xs text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-line"
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.18 }}
-                    >
-                      {highlightChemVars(tutorial.body)}
-                    </motion.p>
-                  </AnimatePresence>
-                </div>
+            {/* Nav row */}
+            <div className="flex items-center justify-between border-t border-border pt-3 shrink-0">
+              <button
+                onClick={() => {
+                  if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(0); }
+                  setTutorialStep((s) => Math.max(0, s - 1));
+                }}
+                disabled={tutorialStep === 0}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                Back
+              </button>
+
+              <div className="flex gap-1.5">
+                {Array.from({ length: dotEnd - dotStart + 1 }, (_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setTutorialStep(dotStart + i)}
+                    className="w-1.5 h-1.5 rounded-full transition-colors"
+                    style={{
+                      backgroundColor:
+                        dotStart + i === tutorialStep
+                          ? "hsl(var(--primary))"
+                          : "hsl(var(--muted-foreground) / 0.3)",
+                    }}
+                  />
+                ))}
               </div>
 
-              {/* Nav row */}
-              <div className="flex items-center justify-between border-t border-border pt-3 shrink-0">
+              {isLastStep ? (
+                <button
+                  onClick={onStartPractice}
+                  className="flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 transition-colors"
+                >
+                  Start Practice
+                  <Zap className="w-3.5 h-3.5" />
+                </button>
+              ) : (
                 <button
                   onClick={() => {
-                    if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(0); }
-                    setTutorialStep((s) => Math.max(0, s - 1));
+                    if (isAutoPlayStep(tutorialStep)) {
+                      setPlaying(false);
+                      setTCurrent(MAX_TIME);
+                    }
+                    setTutorialStep((s) => s + 1);
                   }}
-                  disabled={tutorialStep === 0}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  Back
+                  Next
+                  <ChevronRight className="w-3.5 h-3.5" />
                 </button>
-
-                <div className="flex gap-1.5">
-                  {Array.from({ length: dotEnd - dotStart + 1 }, (_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setTutorialStep(dotStart + i)}
-                      className="w-1.5 h-1.5 rounded-full transition-colors"
-                      style={{
-                        backgroundColor:
-                          dotStart + i === tutorialStep
-                            ? "hsl(var(--primary))"
-                            : "hsl(var(--muted-foreground) / 0.3)",
-                      }}
-                    />
-                  ))}
-                </div>
-
-                {isLastStep ? (
-                  <button
-                    onClick={onStartPractice}
-                    className="flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 transition-colors"
-                  >
-                    Start Practice
-                    <Zap className="w-3.5 h-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => {
-                      if (isAutoPlayStep(tutorialStep)) {
-                        setPlaying(false);
-                        setTCurrent(MAX_TIME);
-                      }
-                      setTutorialStep((s) => s + 1);
-                    }}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    Next
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
-
         </div>
+
       </div>
     </div>
   );

@@ -92,7 +92,7 @@ export default function SimulationPage() {
           getLessonStatus={getStatus}
         />
 
-        <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-slate-50 dark:bg-slate-950">
+        <main className="flex-1 w-full bg-slate-50 dark:bg-slate-950 overflow-y-auto overflow-x-hidden">
           <Suspense
             fallback={
               <div className="flex items-center justify-center h-full">
