@@ -172,159 +172,102 @@ export function SecondOrderBeaker({
       const pending = pendingPairsRef.current;
       const pendSet = pendingSetRef.current;
 
-      // ══════════════════════════════════════════════════════════════
-      if (!isPlay) {
-        // ── SCRUBBING: cancel all pairs, sync instantly ─────────────
+      // ── 1. Check pending pairs for physical collision ─────────────
+      // Runs every frame regardless of playing/scrubbing state.
+      // Magnetized particles always animate at full ATTRACT speed.
+      const reacted = new Set<number>();
 
-        for (const pair of pending) {
-          // Restore random Brownian velocities to previously-magnetized particles
-          const pA = ps[pair.idA], pB = ps[pair.idB];
-          const a1 = Math.random() * Math.PI * 2;
-          const a2 = Math.random() * Math.PI * 2;
+      for (const pair of pending) {
+        const pA = ps[pair.idA], pB = ps[pair.idB];
+        const dx = pB.x - pA.x, dy = pB.y - pA.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist <= REACT_DIST) {
+          // ── COLLISION FIRES ─────────────────────────────────────
+          const burstColor = pA.type === "A" ? colors.reactantColor : colors.bColor;
+          const burstX = (pA.x + pB.x) / 2, burstY = (pA.y + pB.y) / 2;
+          pA.type = "P"; pA.flash = FLASH_FRAMES;
+          pB.type = "P"; pB.flash = FLASH_FRAMES;
+          reacted.add(pair.idA); reacted.add(pair.idB);
+          pendSet.delete(pair.idA); pendSet.delete(pair.idB);
+          const slot = burstSlotRef.current;
+          burstSlotRef.current = (burstSlotRef.current + 1) % N_BURSTS;
+          burstsRef.current.push({ slot, x: burstX, y: burstY, frame: BURST_FRAMES, color: burstColor });
+          const nx = dx / (dist || 1), ny = dy / (dist || 1);
+          const a1 = Math.atan2(ny,  nx)  + (Math.random() - 0.5) * 1.2;
+          const a2 = Math.atan2(-ny, -nx) + (Math.random() - 0.5) * 1.2;
           pA.dx = Math.cos(a1); pA.dy = Math.sin(a1);
           pB.dx = Math.cos(a2); pB.dy = Math.sin(a2);
-        }
-        pending.length = 0;
-        pendSet.clear();
-
-        for (const p of ps) {
-          p.type  = resolveType(p.id, cA, cB, rt);
-          p.flash = 0;
-        }
-
-        // Gentle jitter motion while paused
-        for (const p of ps) {
-          p.x += p.dx * p.sf * PAUSE_SPEED;
-          p.y += p.dy * p.sf * PAUSE_SPEED;
-          if (p.x < PZ.minX + RADIUS) { p.x = PZ.minX + RADIUS; p.dx =  Math.abs(p.dx); }
-          if (p.x > PZ.maxX - RADIUS) { p.x = PZ.maxX - RADIUS; p.dx = -Math.abs(p.dx); }
-          if (p.y < PZ.minY + RADIUS) { p.y = PZ.minY + RADIUS; p.dy =  Math.abs(p.dy); }
-          if (p.y > PZ.maxY - RADIUS) { p.y = PZ.maxY - RADIUS; p.dy = -Math.abs(p.dy); }
-        }
-
-      // ══════════════════════════════════════════════════════════════
-      } else {
-        // ── PLAYING: magnetic attraction physics ────────────────────
-
-        // ── 1. Check each pending pair for physical collision ───────
-        const reacted = new Set<number>();
-
-        for (const pair of pending) {
-          const pA = ps[pair.idA];
-          const pB = ps[pair.idB];
-          const dx   = pB.x - pA.x;
-          const dy   = pB.y - pA.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist <= REACT_DIST) {
-            // ── COLLISION FIRES ─────────────────────────────────────
-            const burstColor = pA.type === "A" ? colors.reactantColor : colors.bColor;
-            const burstX     = (pA.x + pB.x) / 2;
-            const burstY     = (pA.y + pB.y) / 2;
-
-            pA.type = "P"; pA.flash = FLASH_FRAMES;
-            pB.type = "P"; pB.flash = FLASH_FRAMES;
-            reacted.add(pair.idA);
-            reacted.add(pair.idB);
-            pendSet.delete(pair.idA);
-            pendSet.delete(pair.idB);
-
-            // Burst ring at contact midpoint
-            const slot = burstSlotRef.current;
-            burstSlotRef.current = (burstSlotRef.current + 1) % N_BURSTS;
-            burstsRef.current.push({ slot, x: burstX, y: burstY, frame: BURST_FRAMES, color: burstColor });
-
-            // Bounce away in roughly opposite directions
-            const nx  = dx / (dist || 1);
-            const ny  = dy / (dist || 1);
-            const a1  = Math.atan2(ny,  nx)  + (Math.random() - 0.5) * 1.2;
-            const a2  = Math.atan2(-ny, -nx) + (Math.random() - 0.5) * 1.2;
-            pA.dx = Math.cos(a1); pA.dy = Math.sin(a1);
-            pB.dx = Math.cos(a2); pB.dy = Math.sin(a2);
-
-          } else {
-            // ── Still approaching: magnetize toward partner ──────────
-            const inv = 1 / (dist || 1);
-            pA.dx =  dx * inv;  pA.dy =  dy * inv;   // A → B
-            pB.dx = -dx * inv;  pB.dy = -dy * inv;   // B → A
-          }
-        }
-        pendingPairsRef.current = pending.filter(pair => !reacted.has(pair.idA));
-
-        // ── 2. Compute how many new pairs are needed ────────────────
-        const currentP    = ps.filter(p => p.type === "P").length;
-        const targetP     = rt === "ab"
-          ? (BEAKER_AB_EACH - cA) + (BEAKER_AB_EACH - cB)
-          : BEAKER_TOTAL_AA - cA;
-        const inProgressP = pendingPairsRef.current.length * 2;
-
-        if (currentP > targetP) {
-          // Hard sync — happens after backward scrub then play
-          for (const pair of pendingPairsRef.current) {
-            pendSet.delete(pair.idA);
-            pendSet.delete(pair.idB);
-          }
-          pendingPairsRef.current = [];
-          pendSet.clear();
-          for (const p of ps) { p.type = resolveType(p.id, cA, cB, rt); p.flash = 0; }
         } else {
-          // Form new magnetized pairs if the math is ahead of the visuals
-          const newPairsNeeded = Math.max(
-            0, Math.floor((targetP - currentP - inProgressP) / 2)
-          );
-
-          for (let n = 0; n < newPairsNeeded; n++) {
-            if (rt === "ab") {
-              const freeA = ps.filter(p => p.type === "A" && !pendSet.has(p.id));
-              const freeB = ps.filter(p => p.type === "B" && !pendSet.has(p.id));
-              if (!freeA.length || !freeB.length) break;
-              // Pick a random A, then its nearest B
-              const pA = freeA[Math.floor(Math.random() * freeA.length)];
-              let partner = freeB[0];
-              let minD2 = Infinity;
-              for (const q of freeB) {
-                const d2 = (q.x - pA.x) ** 2 + (q.y - pA.y) ** 2;
-                if (d2 < minD2) { minD2 = d2; partner = q; }
-              }
-              pendingPairsRef.current.push({ idA: pA.id, idB: partner.id });
-              pendSet.add(pA.id); pendSet.add(partner.id);
-            } else {
-              // aa / aa-fast: two A particles
-              const freeA = ps.filter(p => p.type === "A" && !pendSet.has(p.id));
-              if (freeA.length < 2) break;
-              // Pick a random A, then its nearest A
-              const pA = freeA[Math.floor(Math.random() * freeA.length)];
-              let partner: Particle | null = null;
-              let minD2 = Infinity;
-              for (const q of freeA) {
-                if (q.id === pA.id) continue;
-                const d2 = (q.x - pA.x) ** 2 + (q.y - pA.y) ** 2;
-                if (d2 < minD2) { minD2 = d2; partner = q; }
-              }
-              if (!partner) break;
-              pendingPairsRef.current.push({ idA: pA.id, idB: partner.id });
-              pendSet.add(pA.id); pendSet.add(partner.id);
-            }
-          }
-        }
-
-        // ── 3. Move all particles ───────────────────────────────────
-        for (const p of ps) {
-          // Magnetized particles use a flat boosted speed; normal particles
-          // keep their individual speed factor (sf) for natural-looking motion.
-          const step = pendSet.has(p.id)
-            ? PLAY_SPEED * ATTRACT_MULT
-            : PLAY_SPEED * p.sf;
-          p.x += p.dx * step;
-          p.y += p.dy * step;
-          if (p.x < PZ.minX + RADIUS) { p.x = PZ.minX + RADIUS; p.dx =  Math.abs(p.dx); }
-          if (p.x > PZ.maxX - RADIUS) { p.x = PZ.maxX - RADIUS; p.dx = -Math.abs(p.dx); }
-          if (p.y < PZ.minY + RADIUS) { p.y = PZ.minY + RADIUS; p.dy =  Math.abs(p.dy); }
-          if (p.y > PZ.maxY - RADIUS) { p.y = PZ.maxY - RADIUS; p.dy = -Math.abs(p.dy); }
-          if (p.flash > 0) p.flash--;
+          // ── Magnetize toward partner ─────────────────────────────
+          const inv = 1 / (dist || 1);
+          pA.dx =  dx * inv; pA.dy =  dy * inv;
+          pB.dx = -dx * inv; pB.dy = -dy * inv;
         }
       }
-      // ══════════════════════════════════════════════════════════════
+      pendingPairsRef.current = pending.filter(pair => !reacted.has(pair.idA));
+
+      // ── 2. Sync target vs actual; form new pairs or revert ────────
+      const currentP    = ps.filter(p => p.type === "P").length;
+      const targetP     = rt === "ab"
+        ? (BEAKER_AB_EACH - cA) + (BEAKER_AB_EACH - cB)
+        : BEAKER_TOTAL_AA - cA;
+      const inProgressP = pendingPairsRef.current.length * 2;
+
+      if (currentP > targetP) {
+        // Backward scrub — instantly revert excess P → A/B
+        for (const pair of pendingPairsRef.current) {
+          pendSet.delete(pair.idA); pendSet.delete(pair.idB);
+        }
+        pendingPairsRef.current = [];
+        pendSet.clear();
+        for (const p of ps) { p.type = resolveType(p.id, cA, cB, rt); p.flash = 0; }
+      } else {
+        const newPairsNeeded = Math.max(0, Math.floor((targetP - currentP - inProgressP) / 2));
+        for (let n = 0; n < newPairsNeeded; n++) {
+          if (rt === "ab") {
+            const freeA = ps.filter(p => p.type === "A" && !pendSet.has(p.id));
+            const freeB = ps.filter(p => p.type === "B" && !pendSet.has(p.id));
+            if (!freeA.length || !freeB.length) break;
+            const pA = freeA[Math.floor(Math.random() * freeA.length)];
+            let partner = freeB[0]; let minD2 = Infinity;
+            for (const q of freeB) {
+              const d2 = (q.x - pA.x) ** 2 + (q.y - pA.y) ** 2;
+              if (d2 < minD2) { minD2 = d2; partner = q; }
+            }
+            pendingPairsRef.current.push({ idA: pA.id, idB: partner.id });
+            pendSet.add(pA.id); pendSet.add(partner.id);
+          } else {
+            const freeA = ps.filter(p => p.type === "A" && !pendSet.has(p.id));
+            if (freeA.length < 2) break;
+            const pA = freeA[Math.floor(Math.random() * freeA.length)];
+            let partner: Particle | null = null; let minD2 = Infinity;
+            for (const q of freeA) {
+              if (q.id === pA.id) continue;
+              const d2 = (q.x - pA.x) ** 2 + (q.y - pA.y) ** 2;
+              if (d2 < minD2) { minD2 = d2; partner = q; }
+            }
+            if (!partner) break;
+            pendingPairsRef.current.push({ idA: pA.id, idB: partner.id });
+            pendSet.add(pA.id); pendSet.add(partner.id);
+          }
+        }
+      }
+
+      // ── 3. Move all particles ─────────────────────────────────────
+      // Magnetized pairs always use ATTRACT speed so collisions are
+      // snappy even while scrubbing. Normal particles respect play/pause.
+      const baseSpeed = isPlay ? PLAY_SPEED : PAUSE_SPEED;
+      for (const p of ps) {
+        const step = pendSet.has(p.id) ? PLAY_SPEED * ATTRACT_MULT : baseSpeed * p.sf;
+        p.x += p.dx * step;
+        p.y += p.dy * step;
+        if (p.x < PZ.minX + RADIUS) { p.x = PZ.minX + RADIUS; p.dx =  Math.abs(p.dx); }
+        if (p.x > PZ.maxX - RADIUS) { p.x = PZ.maxX - RADIUS; p.dx = -Math.abs(p.dx); }
+        if (p.y < PZ.minY + RADIUS) { p.y = PZ.minY + RADIUS; p.dy =  Math.abs(p.dy); }
+        if (p.y > PZ.maxY - RADIUS) { p.y = PZ.maxY - RADIUS; p.dy = -Math.abs(p.dy); }
+        if (p.flash > 0) p.flash--;
+      }
 
       // ── Animate burst rings ───────────────────────────────────────
       burstsRef.current = burstsRef.current.filter(b => {
