@@ -63,9 +63,9 @@ export function FirstOrderVisualizer({
   }, [playing, onTimeChange, onTogglePlay]);
 
   return (
-    <div className="flex flex-col h-full gap-1.5">
+    <div className="flex flex-col gap-1.5 xl:h-full">
       {/* Chart */}
-      <div className="flex-1 min-h-0">
+      <div className="h-[200px] xl:flex-1 xl:min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={series} margin={{ top: 6, right: 10, bottom: 28, left: -4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

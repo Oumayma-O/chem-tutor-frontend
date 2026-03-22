@@ -44,14 +44,14 @@ export function LnAChart({ series, tCurrent, halfLife, initialConc, reactantColo
   ];
 
   return (
-    <div className="flex flex-col h-full gap-1">
+    <div className="flex flex-col gap-1 xl:h-full">
       <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
         ln[{reactantLabel}] vs Time
       </p>
       <p className="text-[10px] text-muted-foreground/70 shrink-0 -mt-0.5">
         straight line → confirms 1st order
       </p>
-      <div className="flex-1 min-h-0">
+      <div className="h-[160px] xl:flex-1 xl:min-h-0">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={series} margin={{ top: 6, right: 10, bottom: 28, left: 4 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

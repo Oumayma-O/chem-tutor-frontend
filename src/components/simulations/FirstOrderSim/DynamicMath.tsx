@@ -91,7 +91,7 @@ export function DynamicMath({
   const lnAt = isFinite(lnAatT) ? lnAatT.toFixed(3) : "−∞";
 
   return (
-    <div className="space-y-1 font-mono text-foreground w-full max-w-2xl mx-auto px-1 mt-1">
+    <div className="flex-1 flex flex-col justify-center space-y-1 font-mono text-foreground w-full mx-auto px-1">
 
       {/* Row 1 — Integrated rate law symbolic */}
       <EqRow>

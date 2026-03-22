@@ -243,7 +243,7 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
           {/* BEAKER */}
           <div className="w-full xl:w-[22%] xl:max-w-[380px] xl:flex-shrink-0
             rounded-xl border border-border bg-card p-3 flex flex-col
-            min-h-[260px] xl:min-h-0">
+            min-h-[250px] xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Particulate View
             </p>
@@ -263,7 +263,7 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
           {/* [A] vs t CHART + SCRUBBER */}
           <div className="w-full xl:flex-1
             rounded-xl border border-border bg-card p-3 flex flex-col
-            min-h-[300px] xl:min-h-0">
+            min-h-[250px] sm:min-h-[300px] xl:min-h-0 xl:h-full">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               [Concentration] vs Time
             </p>
@@ -288,7 +288,7 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
           {/* BAR CHART */}
           <div className="w-full xl:w-[300px] xl:flex-shrink-0
             rounded-xl border border-border bg-card p-3 flex flex-col
-            min-h-[260px] xl:min-h-0">
+            min-h-[250px] xl:min-h-0 xl:h-full">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
@@ -327,11 +327,12 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
 
           {/* EQUATIONS */}
           <div className="w-full lg:flex-[1.5]
-            rounded-xl border border-border bg-card px-3 py-2 flex flex-col gap-1.5
+            rounded-xl border border-border bg-card p-3 flex flex-col gap-1.5
             min-h-[240px] lg:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground shrink-0">
               First-Order Kinetics Equations
             </p>
+            <div className="flex-1 min-h-0 flex flex-col">
             <DynamicMath
               k={k}
               initialConc={initialConc}
@@ -342,6 +343,7 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
               reactantLabel={reaction.reactant}
               tutorialStep={tutorialStep}
             />
+          </div>
           </div>
 
           {/* GUIDE / MASCOT */}
