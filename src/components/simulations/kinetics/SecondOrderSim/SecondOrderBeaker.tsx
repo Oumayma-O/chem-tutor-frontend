@@ -178,18 +178,49 @@ export function SecondOrderBeaker({
         if (p.y > PZ.maxY - RADIUS) { p.y = PZ.maxY - RADIUS; p.dy = -Math.abs(p.dy); }
         if (p.flash > 0) p.flash--;
 
-        // ── Resolve type from parent counts; flash + burst on change ─
+        // ── Resolve type from parent counts; collision effect on change ─
         const newType = resolveType(p.id, cA, cB, rt);
         if (newType !== p.type) {
-          // Spawn a burst ring at this particle's current position
-          const slot = burstSlotRef.current;
-          burstSlotRef.current = (burstSlotRef.current + 1) % N_BURSTS;
-          const burstColor = p.type === "A" ? colors.reactantColor
-            : p.type === "B" ? colors.bColor
-            : colors.productColor;
-          burstsRef.current.push({ slot, x: p.x, y: p.y, frame: BURST_FRAMES, color: burstColor });
+          const oldType = p.type;
           p.type = newType;
           p.flash = FLASH_FRAMES;
+
+          // Only show collision when playing and a forward reaction (A/B → P) occurs
+          if (isPlay && newType === "P") {
+            // Find nearest eligible collision partner
+            let nearest: Particle | null = null;
+            let minDist2 = Infinity;
+            for (const q of ps) {
+              if (q.id === p.id) continue;
+              const eligible = rt === "ab"
+                ? (oldType === "A" ? q.type === "B" : q.type === "A")
+                : q.type === "A";
+              if (!eligible) continue;
+              const dx = q.x - p.x, dy = q.y - p.y;
+              const d2 = dx * dx + dy * dy;
+              if (d2 < minDist2) { minDist2 = d2; nearest = q; }
+            }
+
+            // Teleport p to be touching the partner, then burst at midpoint
+            let burstX = p.x, burstY = p.y;
+            if (nearest) {
+              const dx   = p.x - nearest.x;
+              const dy   = p.y - nearest.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              // Place p at exactly 2.1 radii from the partner
+              p.x = nearest.x + (dx / dist) * RADIUS * 2.1;
+              p.y = nearest.y + (dy / dist) * RADIUS * 2.1;
+              p.x = Math.max(PZ.minX + RADIUS, Math.min(PZ.maxX - RADIUS, p.x));
+              p.y = Math.max(PZ.minY + RADIUS, Math.min(PZ.maxY - RADIUS, p.y));
+              burstX = (p.x + nearest.x) / 2;
+              burstY = (p.y + nearest.y) / 2;
+            }
+
+            const slot = burstSlotRef.current;
+            burstSlotRef.current = (burstSlotRef.current + 1) % N_BURSTS;
+            const burstColor = oldType === "A" ? colors.reactantColor : colors.bColor;
+            burstsRef.current.push({ slot, x: burstX, y: burstY, frame: BURST_FRAMES, color: burstColor });
+          }
         }
       }
 
