@@ -279,7 +279,7 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               [Concentration] vs Time
             </p>
-            <div className="flex-1 min-h-0">
+            <div className="h-[260px] xl:h-auto xl:flex-1 xl:min-h-0">
               <SecondOrderVisualizer
                 series={series}
                 tCurrent={tCurrent}
@@ -304,7 +304,7 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
-            <div className="flex-1 min-h-0">
+            <div className="h-[220px] xl:flex-1 xl:min-h-0">
               <ConcentrationBarChart
                 concA={concAtT}
                 concB={isAB ? concAtT : productAtT}
@@ -328,7 +328,7 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
           <div className="w-full lg:w-[28%] lg:flex-shrink-0
             rounded-xl border border-border bg-card p-3 flex flex-col
             min-h-[240px] lg:min-h-0">
-            <div className="flex-1 min-h-0">
+            <div className="h-[220px] lg:flex-1 lg:min-h-0">
               <InvAChart
                 series={series}
                 tCurrent={tCurrent}

@@ -164,10 +164,10 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
     : TUTORIAL_STEPS.length - 1;
 
   return (
-    <div className="w-full max-w-[1600px] mx-auto">
+    <div className="flex flex-col w-full max-w-[1600px] mx-auto xl:h-full xl:overflow-hidden">
 
       {/* ── Sticky control bar ───────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-3 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10">
+      <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-2 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10 shrink-0">
 
         <button
           onClick={() => { clearSession(); onBackToOverview(); }}
@@ -271,19 +271,17 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
            Tablet  (md–xl): top row = Beaker|Bar flex-wrap; Line below; Eq|Guide row
            Desktop (≥xl):  Beaker|Line(flex-1)|Bar in one row; Eq|Guide below
            Ultra-wide: max-w-[1600px] on outer wrapper keeps proportions    */}
-      <div className="w-full px-4 xl:px-10 py-4 flex flex-col gap-3
-        xl:h-[calc(100vh-110px)] xl:overflow-hidden">
+      <div className="flex flex-col gap-2 px-4 xl:px-6 py-2 xl:flex-1 xl:min-h-0 xl:overflow-hidden">
 
         {/* ── TOP ROW: Beaker | Line Chart | Bar Chart ─────────────────
              Tablet:  Beaker + Bar side-by-side (50/50), Line below (order-3)
              Desktop: Beaker (26%) | Line (flex-1) | Bar (14%) in one row   */}
-        <div className="flex flex-wrap xl:flex-nowrap items-stretch gap-3 xl:flex-[3] xl:min-h-0">
+        <div className="flex flex-col xl:flex-row items-stretch gap-2 xl:flex-1 xl:min-h-0">
 
-          {/* BEAKER — tablet left col, desktop far-left */}
-          <div className="order-1 xl:order-1
-            w-full md:w-[calc(50%-6px)] xl:flex-shrink-0 xl:w-1/4 xl:h-full
+          {/* BEAKER */}
+          <div className="w-full xl:w-[22%] xl:max-w-[380px] xl:flex-shrink-0
             rounded-xl border border-border bg-card p-3 flex flex-col
-            max-h-[360px] xl:max-h-none">
+            min-h-[250px] xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Particulate View
             </p>
@@ -300,15 +298,14 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             </div>
           </div>
 
-          {/* BAR CHART — tablet right col, desktop far-right */}
-          <div className="order-2 xl:order-3
-            w-full md:w-[calc(50%-6px)] xl:flex-shrink-0 xl:w-1/4 xl:h-full
+          {/* BAR CHART */}
+          <div className="w-full xl:w-[300px] xl:flex-shrink-0
             rounded-xl border border-border bg-card p-3 flex flex-col
-            max-h-[360px] xl:max-h-none">
+            min-h-[250px] xl:min-h-0 xl:h-full">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               Current [conc]
             </p>
-            <div className="flex-1 min-h-0">
+            <div className="h-[220px] xl:flex-1 xl:min-h-0">
               <ConcentrationBarChart
                 concA={concAtT}
                 concB={productAtT}
@@ -321,11 +318,10 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             </div>
           </div>
 
-          {/* LINE CHART — tablet full-width second row, desktop center */}
-          <div className={`order-3 xl:order-2
-            w-full xl:flex-1 xl:min-w-[400px] xl:h-full
+          {/* LINE CHART */}
+          <div className={`w-full xl:flex-1
             rounded-xl border bg-card p-3 flex flex-col
-            md:min-h-[220px] md:max-h-[420px] xl:max-h-none
+            min-h-[250px] sm:min-h-[300px] xl:min-h-0 xl:h-full
             transition-all duration-300 ${
               tutorialStep === 6
                 ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
@@ -334,7 +330,7 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
               [Concentration] vs Time
             </p>
-            <div className="h-[260px] md:h-auto md:flex-1 md:min-h-0">
+            <div className="h-[260px] xl:h-auto xl:flex-1 xl:min-h-0">
               <Visualizer
                 series={series}
                 tCurrent={tCurrent}
@@ -356,11 +352,12 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
 
         {/* ── BOTTOM ROW: Equations | Guide ────────────────────────────
              Mobile: stacked. Tablet+: side-by-side, Equations wider.       */}
-        <div className="flex flex-col md:flex-row gap-3 xl:flex-[2] xl:min-h-0">
+        <div className="flex flex-col lg:flex-row items-stretch gap-2 xl:flex-1 xl:min-h-0">
 
           {/* EQUATIONS */}
-          <div className="md:flex-[1.5] xl:min-h-0
-            rounded-xl border border-border bg-card px-3 py-2.5 flex flex-col gap-2">
+          <div className="w-full lg:flex-[1.5]
+            rounded-xl border border-border bg-card px-3 py-2.5 flex flex-col gap-2
+            min-h-[240px] lg:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               Zero-Order Kinetics Equations
             </p>
@@ -376,8 +373,9 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* GUIDE / MASCOT */}
-          <div className="md:flex-1 min-h-0 overflow-hidden
-            rounded-xl border border-border bg-card flex flex-col p-4 gap-3">
+          <div className="w-full lg:flex-1 overflow-hidden
+            rounded-xl border border-border bg-card flex flex-col p-4 gap-3
+            min-h-[240px] lg:min-h-0">
             <div className="flex items-start gap-3 flex-1 min-h-0 overflow-hidden">
               <BeakerMascot
                 mood={tutorial.mascotMood as MascotMood}
