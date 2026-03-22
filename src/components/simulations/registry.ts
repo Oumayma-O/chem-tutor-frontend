@@ -18,7 +18,7 @@ export const SIM_REGISTRY: SimEntry[] = [
     lessonIndex: 1,
     title: "Zero-Order Kinetics",
     component: lazy(() =>
-      import("./ZeroOrderSim/index").then((m) => ({ default: m.ZeroOrderSim }))
+      import("./kinetics/ZeroOrderSim/index").then((m) => ({ default: m.ZeroOrderSim }))
     ),
   },
   {
@@ -26,7 +26,7 @@ export const SIM_REGISTRY: SimEntry[] = [
     lessonIndex: 2,
     title: "First-Order Reactions",
     component: lazy(() =>
-      import("./FirstOrderSim/index").then((m) => ({ default: m.FirstOrderSim }))
+      import("./kinetics/FirstOrderSim/index").then((m) => ({ default: m.FirstOrderSim }))
     ),
   },
 ];
