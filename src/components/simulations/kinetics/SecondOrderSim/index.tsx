@@ -1,10 +1,10 @@
 /**
  * Second-Order Kinetics — interactive simulation.
  *
- * Two-row, three-column layout (identical to FirstOrderSim):
+ * Two-row, three-column layout:
  *
- *   ROW 1  [Beaker ~22%]  |  [[A] vs t + scrubber, flex-1]  |  [Bar Chart ~300px]
- *   ROW 2  [1/[A] vs t ~28%]  |  [Equations flex-1.5]  |  [Guide flex-1]
+ *   ROW 1  [Collision Beaker ~22%]  |  [[A] vs t + scrubber, flex-1]  |  [Bar Chart ~300px]
+ *   ROW 2  [1/[A] vs t ~28%]        |  [Equations flex-1.5]           |  [Guide flex-1]
  */
 import React, { useState, useEffect, useRef, Fragment } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,7 +16,7 @@ import { useSecondOrder } from "./useSecondOrder";
 import { SecondOrderVisualizer } from "./SecondOrderVisualizer";
 import { InvAChart } from "./InvAChart";
 import { DynamicMath } from "./DynamicMath";
-import { ParticulateBeaker } from "../shared/ParticulateBeaker";
+import { SecondOrderBeaker } from "./SecondOrderBeaker";
 import { ConcentrationBarChart } from "../shared/ConcentrationBarChart";
 import { REACTIONS, TUTORIAL_STEPS, INITIAL_CONC, MAX_TIME } from "./content";
 
@@ -128,7 +128,7 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
     return () => document.removeEventListener("mousedown", h);
   }, [settingsOpen]);
 
-  // Auto-play step
+  // Auto-play steps: 11 (A+A), 15 (A+B), 18 (A+A-fast)
   const isAutoPlayStep = (s: number) => s === 11 || s === 15 || s === 18;
   const prevStepRef = useRef(tutorialStep);
   useEffect(() => {
@@ -172,14 +172,14 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
           Reaction:
           <Select value={reactionId} onValueChange={handleReactionChange}
             open={reactionDropdownOpen} onOpenChange={setReactionDropdownOpen}>
-            <SelectTrigger className={`h-6 text-xs w-28 rounded-md transition-all duration-300 ${
+            <SelectTrigger className={`h-6 text-xs w-36 rounded-md transition-all duration-300 ${
               tutorialStep === 12 || tutorialStep === 16
                 ? "border-blue-400 ring-2 ring-blue-300 dark:ring-blue-500 ring-offset-1" : ""}`}>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {REACTIONS.map((r) => {
-                const isSuggested = (tutorialStep === 12 && r.id === "cd") || (tutorialStep === 16 && r.id === "ef");
+                const isSuggested = (tutorialStep === 12 && r.id === "ab") || (tutorialStep === 16 && r.id === "aa-fast");
                 return (
                   <SelectItem key={r.id} value={r.id}
                     style={isSuggested ? { backgroundColor: "#f59e0b", color: "white" } : undefined}
@@ -240,22 +240,24 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
         {/* ── ROW 1: Beaker | [A] vs t | Bar Chart ─────────────── */}
         <div className="flex flex-col xl:flex-row items-stretch gap-2 xl:flex-1 xl:min-h-0">
 
-          {/* BEAKER */}
+          {/* COLLISION BEAKER */}
           <div className="w-full xl:w-[22%] xl:max-w-[380px] xl:flex-shrink-0
             rounded-xl border border-border bg-card p-3 flex flex-col
             min-h-[250px] xl:min-h-0">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-2 shrink-0">
-              Particulate View
+              Collision View
             </p>
             <div className="flex-1 min-h-0">
-              <ParticulateBeaker
-                fractionA={fractionA}
+              <SecondOrderBeaker
+                reactionType={reaction.reactionType}
                 playing={playing}
+                fractionA={fractionA}
                 reactantColor={reaction.color}
                 productColor={reaction.productColor}
+                bColor={reaction.bColor ?? "#f43f5e"}
                 reactantLabel={reaction.reactant}
                 productLabel={reaction.product}
-                showCatalyst={false}
+                bLabel={reaction.bReactant ?? "B"}
               />
             </div>
           </div>
@@ -341,7 +343,9 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
                 invAatT={invAatT}
                 halfLife={halfLife}
                 reactantLabel={reaction.reactant}
+                bReactantLabel={reaction.bReactant}
                 tutorialStep={tutorialStep}
+                rateDisplay={reaction.rateDisplay}
               />
             </div>
           </div>

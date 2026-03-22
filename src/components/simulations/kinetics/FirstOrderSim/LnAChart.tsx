@@ -10,15 +10,15 @@ import {
 import type { DataPoint } from "./useFirstOrder";
 import { MAX_TIME } from "./content";
 
-interface TooltipProps { active?: boolean; payload?: { dataKey: string; value: number; color: string }[]; label?: number }
-function LnTooltip({ active, payload, label }: TooltipProps) {
+interface TooltipProps { active?: boolean; payload?: { dataKey: string; value: number; color: string }[]; label?: number; reactantLabel?: string }
+function LnTooltip({ active, payload, label, reactantLabel = "A" }: TooltipProps) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs shadow-lg space-y-0.5">
       <p className="font-semibold">t = {Number(label).toFixed(1)} s</p>
       {payload.map((p) => (
         <p key={p.dataKey} style={{ color: p.color }}>
-          ln[A] = {Number(p.value).toFixed(3)}
+          ln[{reactantLabel}] = {Number(p.value).toFixed(3)}
         </p>
       ))}
     </div>
@@ -60,8 +60,8 @@ export function LnAChart({ series, tCurrent, halfLife, initialConc, reactantColo
               label={{ value: "Time (s)", position: "insideBottom", offset: -12, fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
             <YAxis domain={domain}
               tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-              label={{ value: "ln[A]", angle: -90, position: "insideLeft", offset: 8, fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
-            <Tooltip content={<LnTooltip />} />
+              label={{ value: `ln[${reactantLabel}]`, angle: -90, position: "insideLeft", offset: 8, fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+            <Tooltip content={<LnTooltip reactantLabel={reactantLabel} />} />
             {hl && (
               <ReferenceLine x={hl} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 3"
                 label={{ value: "t½", position: "insideTopRight", fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />

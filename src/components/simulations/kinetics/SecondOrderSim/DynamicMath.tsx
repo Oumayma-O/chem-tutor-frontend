@@ -66,7 +66,9 @@ interface Props {
   invAatT: number;
   halfLife: number;
   reactantLabel: string;
+  bReactantLabel?: string;
   tutorialStep: number;
+  rateDisplay: string;    // e.g. "k[A]²" or "k[A][B]"
 }
 
 export function DynamicMath({
@@ -77,7 +79,9 @@ export function DynamicMath({
   invAatT,
   halfLife,
   reactantLabel,
+  bReactantLabel,
   tutorialStep,
+  rateDisplay,
 }: Props) {
   const showNumbers  = tutorialStep >= 2;
   const showHalfLife = tutorialStep >= 4;
@@ -127,15 +131,33 @@ export function DynamicMath({
 
       {/* Row 4 — Rate law */}
       <EqRow>
-        <span>Rate = k[{reactantLabel}]<Sup>2</Sup></span>
-        <span className="mx-3 text-muted-foreground">→</span>
-        <Live>{kF}</Live>
-        <span> × </span>
-        <Live>{atF}</Live>
-        <Sup>2</Sup>
-        <span> = </span>
-        <Live>{(k * concAtT * concAtT).toFixed(4)}</Live>
-        <span> M/s</span>
+        <span>Rate = </span>
+        {rateDisplay === "k[A][B]" ? (
+          <>
+            <span>k[{reactantLabel}][{bReactantLabel ?? "B"}]</span>
+            <span className="mx-3 text-muted-foreground">→</span>
+            <Live>{kF}</Live>
+            <span> × </span>
+            <Live>{atF}</Live>
+            <span> × </span>
+            <Live>{atF}</Live>
+            <span> = </span>
+            <Live>{(k * concAtT * concAtT).toFixed(4)}</Live>
+            <span> M/s</span>
+          </>
+        ) : (
+          <>
+            <span>k[{reactantLabel}]<Sup>2</Sup></span>
+            <span className="mx-3 text-muted-foreground">→</span>
+            <Live>{kF}</Live>
+            <span> × </span>
+            <Live>{atF}</Live>
+            <Sup>2</Sup>
+            <span> = </span>
+            <Live>{(k * concAtT * concAtT).toFixed(4)}</Live>
+            <span> M/s</span>
+          </>
+        )}
       </EqRow>
     </div>
   );
