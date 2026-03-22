@@ -219,11 +219,13 @@ export function SecondOrderBeaker({
       pendingPairsRef.current = pending.filter(pair => !reacted.has(pair.idA));
 
       // ── 2. Sync target vs actual; form new pairs or revert ────────
+      // 2→1 model: each reaction creates 1 P (pA) + 1 dead (pB).
+      // targetP counts only P slots (not dead slots).
       const currentP    = ps.filter(p => p.type === "P").length;
       const targetP     = rt === "ab"
-        ? (BEAKER_AB_EACH - cA) + (BEAKER_AB_EACH - cB)
-        : BEAKER_TOTAL_AA - cA;
-      const inProgressP = pendingPairsRef.current.length * 2;
+        ? (BEAKER_AB_EACH - cA)                          // A+B→C: A-side slots → P
+        : Math.floor((BEAKER_TOTAL_AA - cA) / 2);        // A+A→B: half of consumed → P
+      const inProgressP = pendingPairsRef.current.length; // each pair → 1 P (not 2)
 
       if (currentP > targetP) {
         // Backward scrub — instantly revert excess P → A/B
@@ -234,7 +236,7 @@ export function SecondOrderBeaker({
         pendSet.clear();
         for (const p of ps) { p.type = resolveType(p.id, cA, cB, rt); p.flash = 0; }
       } else {
-        const newPairsNeeded = Math.max(0, Math.floor((targetP - currentP - inProgressP) / 2));
+        const newPairsNeeded = Math.max(0, targetP - currentP - inProgressP); // 1 pair → 1 P
         for (let n = 0; n < newPairsNeeded; n++) {
           if (rt === "ab") {
             const freeA = ps.filter(p => p.type === "A" && !pendSet.has(p.id));
