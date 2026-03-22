@@ -1,4 +1,4 @@
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useParams, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { ChevronRight, Loader2, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useUnit } from "@/hooks/useUnit";
 import { useAuth } from "@/hooks/useAuth";
 import { useLessonCompletion } from "@/hooks/useLessonCompletion";
 import { getSimEntry } from "@/components/simulations/registry";
+import { setLastActiveTab } from "@/utils/lessonTabStore";
 
 export default function SimulationPage() {
   const { unitId, lessonIndex: lessonIndexStr } = useParams<{
@@ -23,6 +24,11 @@ export default function SimulationPage() {
   const { unit, lessonTitles, loading, error } = useUnit(unitId);
   const { user } = useAuth();
   const { getStatus } = useLessonCompletion(unitId || "", user?.id);
+
+  // Record that the student is on the simulation tab for this lesson
+  useEffect(() => {
+    setLastActiveTab(user?.id, unitId, lessonIndex, "simulation");
+  }, [user?.id, unitId, lessonIndex]);
 
   if (loading) {
     return (

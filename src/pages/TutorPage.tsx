@@ -9,6 +9,7 @@ import { useLessonCompletion } from "@/hooks/useLessonCompletion";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Menu, Loader2, ChevronRight } from "lucide-react";
+import { setLastActiveTab } from "@/utils/lessonTabStore";
 
 export default function TutorPage() {
   const { unitId, lessonIndex } = useParams<{ unitId?: string; lessonIndex?: string }>();
@@ -22,6 +23,11 @@ export default function TutorPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [unitId, lessonIndex]);
+
+  // Record that the student is on the practice tab for this lesson
+  useEffect(() => {
+    setLastActiveTab(user?.id, unitId, currentLessonIdx, "practice");
+  }, [user?.id, unitId, currentLessonIdx]);
 
   if (loading) {
     return (

@@ -15,6 +15,7 @@ import { apiGetReferenceCard, refCardQueryKey, REF_CARD_STALE_MS, REF_CARD_GC_MS
 import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
 import { enqueuePrefetch } from "@/lib/problemPrefetchCache";
 import { getSimEntry } from "@/components/simulations/registry";
+import { setLastActiveTab } from "@/utils/lessonTabStore";
 
 export default function UnitLandingPage() {
   const { unitId, lessonIndex } = useParams<{ unitId?: string; lessonIndex?: string }>();
@@ -33,6 +34,11 @@ export default function UnitLandingPage() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, [unitId, lessonIndex]);
+
+  // Record that the student is on the overview tab for this lesson
+  useEffect(() => {
+    setLastActiveTab(user?.id, unitId, currentLessonIdx, "overview");
+  }, [user?.id, unitId, currentLessonIdx]);
 
   // ── Eager prefetch: single 300 ms timer fires both the reference card and the
   //    Level-1 problem together so the LLM work begins as early as possible.

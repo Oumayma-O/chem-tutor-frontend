@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { Home } from "lucide-react";
+import { getLastActiveTab } from "@/utils/lessonTabStore";
 
 const LESSON_STATE_STORAGE_KEY = "chemtutor_lesson_state";
 
@@ -174,8 +175,14 @@ const totalLessons = lessonTitles.length;
                 <button
                   key={`${currentUnitId}-${i}`}
                   onClick={() => {
-                    const resumePractice = hasSavedTutorState(userId, currentUnitId, i);
-                    navigate(resumePractice ? `/tutor/${currentUnitId}/${i}` : `/unit/${currentUnitId}/${i}`);
+                    const lastTab = getLastActiveTab(userId, currentUnitId, i);
+                    if (lastTab === "simulation") {
+                      navigate(`/unit/${currentUnitId}/${i}/simulation`);
+                    } else if (lastTab === "practice" || hasSavedTutorState(userId, currentUnitId, i)) {
+                      navigate(`/tutor/${currentUnitId}/${i}`);
+                    } else {
+                      navigate(`/unit/${currentUnitId}/${i}`);
+                    }
                   }}
                   className={cn(
                     "flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm transition-colors text-left",
