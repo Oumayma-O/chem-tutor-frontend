@@ -45,7 +45,7 @@ export const BEAKER_TOTAL_AA = 52;
 export const BEAKER_AB_EACH  = 26;
 
 // ── Types ─────────────────────────────────────────────────────────────
-type PType = "A" | "B" | "P";
+type PType = "A" | "B" | "P" | "dead";
 
 interface Particle {
   id: number;
@@ -97,13 +97,24 @@ function createParticles(rt: ReactionType): Particle[] {
   });
 }
 
-/** Maps particle id → expected PType given current counts (used for scrubbing). */
+/**
+ * Maps particle id → expected PType given current counts.
+ *
+ * 2 → 1 merge model:
+ *   A+A→B : the first half of consumed A slots become P, the second half become dead
+ *   A+B→C : consumed A slots become P, consumed B slots become dead
+ */
 function resolveType(id: number, cA: number, cB: number, rt: ReactionType): PType {
   if (rt === "ab") {
-    if (id < BEAKER_AB_EACH) return id < cA ? "A" : "P";
-    return (id - BEAKER_AB_EACH) < cB ? "B" : "P";
+    if (id < BEAKER_AB_EACH) return id < cA ? "A" : "P";   // A → product
+    return (id - BEAKER_AB_EACH) < cB ? "B" : "dead";       // B → dead
   }
-  return id < cA ? "A" : "P";
+  // aa / aa-fast: each reaction consumes 2 A → 1 product + 1 dead
+  const consumed = BEAKER_TOTAL_AA - cA;
+  const numP = Math.floor(consumed / 2);
+  if (id < cA)       return "A";
+  if (id < cA + numP) return "P";
+  return "dead";
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -186,8 +197,8 @@ export function SecondOrderBeaker({
           // ── COLLISION FIRES ─────────────────────────────────────
           const burstColor = pA.type === "A" ? colors.reactantColor : colors.bColor;
           const burstX = (pA.x + pB.x) / 2, burstY = (pA.y + pB.y) / 2;
-          pA.type = "P"; pA.flash = FLASH_FRAMES;
-          pB.type = "P"; pB.flash = FLASH_FRAMES;
+          pA.type = "P"; pA.flash = FLASH_FRAMES; // survives as product
+          pB.type = "dead"; pB.flash = 0;         // consumed — disappears
           reacted.add(pair.idA); reacted.add(pair.idB);
           pendSet.delete(pair.idA); pendSet.delete(pair.idB);
           const slot = burstSlotRef.current;
@@ -259,6 +270,7 @@ export function SecondOrderBeaker({
       // snappy even while scrubbing. Normal particles respect play/pause.
       const baseSpeed = isPlay ? PLAY_SPEED : PAUSE_SPEED;
       for (const p of ps) {
+        if (p.type === "dead") continue; // consumed particles don't move
         const step = pendSet.has(p.id) ? PLAY_SPEED * ATTRACT_MULT : baseSpeed * p.sf;
         p.x += p.dx * step;
         p.y += p.dy * step;
@@ -289,19 +301,24 @@ export function SecondOrderBeaker({
       for (const p of ps) {
         const el = svg.getElementById(`sp-${p.id}`) as SVGCircleElement | null;
         if (!el) continue;
-        el.setAttribute("cx", p.x.toFixed(1));
-        el.setAttribute("cy", p.y.toFixed(1));
-        if (p.flash > 0) {
-          el.setAttribute("fill",    "#ffffff");
-          el.setAttribute("r",       (RADIUS * 1.7).toFixed(1));
-          el.setAttribute("opacity", "0.95");
+        if (p.type === "dead") {
+          el.setAttribute("r",       "0");
+          el.setAttribute("opacity", "0");
         } else {
-          const fill = p.type === "A" ? colors.reactantColor
-            : p.type === "B" ? colors.bColor
-            : colors.productColor;
-          el.setAttribute("fill",    fill);
-          el.setAttribute("r",       String(RADIUS));
-          el.setAttribute("opacity", "1");
+          el.setAttribute("cx", p.x.toFixed(1));
+          el.setAttribute("cy", p.y.toFixed(1));
+          if (p.flash > 0) {
+            el.setAttribute("fill",    "#ffffff");
+            el.setAttribute("r",       (RADIUS * 1.7).toFixed(1));
+            el.setAttribute("opacity", "0.95");
+          } else {
+            const fill = p.type === "A" ? colors.reactantColor
+              : p.type === "B" ? colors.bColor
+              : colors.productColor;
+            el.setAttribute("fill",    fill);
+            el.setAttribute("r",       String(RADIUS));
+            el.setAttribute("opacity", "1");
+          }
         }
       }
     }

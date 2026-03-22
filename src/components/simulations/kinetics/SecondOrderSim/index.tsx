@@ -90,9 +90,10 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
   // Particle counts for SecondOrderBeaker (visual only — derived from fractionA)
   const beakerCountA = Math.round(fractionA * (isAB ? BEAKER_AB_EACH : BEAKER_TOTAL_AA));
   const beakerCountB = isAB ? Math.round(fractionA * BEAKER_AB_EACH) : 0;
+  // 2→1 merge: one particle becomes product, one disappears
   const beakerCountP = isAB
-    ? (BEAKER_AB_EACH - beakerCountA) + (BEAKER_AB_EACH - beakerCountB)
-    : BEAKER_TOTAL_AA - beakerCountA;
+    ? (BEAKER_AB_EACH - beakerCountA)                          // A+B→C: only A slots become P
+    : Math.floor((BEAKER_TOTAL_AA - beakerCountA) / 2);        // A+A→B: half the consumed become P
   const tutorial   = TUTORIAL_STEPS[tutorialStep];
   const isLastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
 
