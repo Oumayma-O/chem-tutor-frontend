@@ -11,19 +11,19 @@
 import { useEffect, useRef, useLayoutEffect } from "react";
 import type { ReactionType } from "./content";
 
-// ── Beaker geometry (SVG coordinate space) ────────────────────────────
-const VW = 300;
-const VH = 290;
-const BK = { x: 22, y: 36, w: 256, h: 210 };  // body; rim sits 18px above BK.y
+// ── Beaker geometry — matches shared ParticulateBeaker exactly ────────
+const VW = 200;
+const VH = 220;
+const BK = { x: 18, y: 32, w: 164, h: 168 };
 const PZ = {
-  minX: BK.x + 6,
-  maxX: BK.x + BK.w - 6,
-  minY: BK.y + 6,
-  maxY: BK.y + BK.h - 6,
+  minX: BK.x + RADIUS + 3,
+  maxX: BK.x + BK.w - RADIUS - 3,
+  minY: BK.y + RADIUS + 4,
+  maxY: BK.y + BK.h - RADIUS - 2,
 };
 
 // ── Physics constants ─────────────────────────────────────────────────
-const RADIUS       = 7;
+const RADIUS       = 5;
 const PLAY_SPEED   = 1.3;
 const PAUSE_SPEED  = 0.28;
 const FLASH_FRAMES = 16;
@@ -207,7 +207,8 @@ export function SecondOrderBeaker({
       <svg
         ref={svgRef}
         viewBox={`0 0 ${VW} ${VH}`}
-        style={{ width: "100%", flex: 1, minHeight: 0 }}
+        className="w-full h-auto max-w-[300px] max-h-[260px] mx-auto md:max-w-none md:max-h-[290px] xl:max-h-none md:flex-1 md:min-h-0"
+        style={{ overflow: "visible" }}
         aria-label="Second-order collision beaker"
       >
         {/* ── Beaker interior fill (behind particles) ────────────── */}
@@ -240,7 +241,7 @@ export function SecondOrderBeaker({
 
         {/* ── Rim cap ────────────────────────────────────────────── */}
         <rect
-          x={BK.x - 8} y={BK.y - 18} width={BK.w + 16} height="18" rx="3"
+          x={BK.x - 6} y={BK.y - 16} width={BK.w + 12} height="16" rx="3"
           fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2.5"
         />
 
@@ -248,7 +249,7 @@ export function SecondOrderBeaker({
         {[0.25, 0.5, 0.75].map((f, gi) => (
           <line key={gi}
             x1={BK.x + BK.w - 14} y1={BK.y + f * BK.h}
-            x2={BK.x + BK.w + 4}  y2={BK.y + f * BK.h}
+            x2={BK.x + BK.w + 2}  y2={BK.y + f * BK.h}
             stroke="hsl(var(--muted-foreground))" strokeWidth="1.5"
           />
         ))}
