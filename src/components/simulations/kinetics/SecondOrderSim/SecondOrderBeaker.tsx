@@ -41,8 +41,8 @@ const PZ = {
 };
 
 // ── Pool sizes — exported so parent can compute countA/countB ─────────
-export const BEAKER_TOTAL_AA = 36;
-export const BEAKER_AB_EACH  = 18;
+export const BEAKER_TOTAL_AA = 52;
+export const BEAKER_AB_EACH  = 26;
 
 // ── Types ─────────────────────────────────────────────────────────────
 type PType = "A" | "B" | "P";
