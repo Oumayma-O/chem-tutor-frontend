@@ -11,6 +11,9 @@
 import { useEffect, useRef, useLayoutEffect } from "react";
 import type { ReactionType } from "./content";
 
+// ── Physics constants ─────────────────────────────────────────────────
+const RADIUS       = 5;
+
 // ── Beaker geometry — matches shared ParticulateBeaker exactly ────────
 const VW = 200;
 const VH = 220;
@@ -21,9 +24,6 @@ const PZ = {
   minY: BK.y + RADIUS + 4,
   maxY: BK.y + BK.h - RADIUS - 2,
 };
-
-// ── Physics constants ─────────────────────────────────────────────────
-const RADIUS       = 5;
 const PLAY_SPEED   = 1.3;
 const PAUSE_SPEED  = 0.28;
 const FLASH_FRAMES = 16;
