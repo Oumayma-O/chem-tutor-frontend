@@ -14,12 +14,12 @@ import type { ReactionType } from "./content";
 // ── Beaker geometry (SVG coordinate space) ────────────────────────────
 const VW = 300;
 const VH = 290;
-const BK = { x: 28, y: 18, w: 244, h: 220 };
+const BK = { x: 22, y: 36, w: 256, h: 210 };  // body; rim sits 18px above BK.y
 const PZ = {
-  minX: BK.x + 5,
-  maxX: BK.x + BK.w - 5,
-  minY: BK.y + 5,
-  maxY: BK.y + BK.h - 5,
+  minX: BK.x + 6,
+  maxX: BK.x + BK.w - 6,
+  minY: BK.y + 6,
+  maxY: BK.y + BK.h - 6,
 };
 
 // ── Physics constants ─────────────────────────────────────────────────
@@ -210,25 +210,11 @@ export function SecondOrderBeaker({
         style={{ width: "100%", flex: 1, minHeight: 0 }}
         aria-label="Second-order collision beaker"
       >
-        {/* ── Beaker body ────────────────────────────────────────── */}
+        {/* ── Beaker interior fill (behind particles) ────────────── */}
         <rect
-          x={BK.x} y={BK.y} width={BK.w} height={BK.h}
-          rx="6" ry="6"
-          fill="hsl(var(--muted)/0.15)"
-          stroke="hsl(var(--border))"
-          strokeWidth="2"
+          x={BK.x} y={BK.y} width={BK.w} height={BK.h} rx="5"
+          fill="hsl(var(--card))" fillOpacity="0.1"
         />
-        {/* Scale ticks */}
-        {[0.25, 0.5, 0.75].map((f) => {
-          const yy = BK.y + BK.h * (1 - f);
-          return (
-            <line key={f}
-              x1={BK.x + BK.w - 10} y1={yy}
-              x2={BK.x + BK.w}      y2={yy}
-              stroke="hsl(var(--border))" strokeWidth="1"
-            />
-          );
-        })}
 
         {/* ── Particles (pre-rendered; positions/colors updated via RAF) ── */}
         {Array.from({ length: total }, (_, i) => {
@@ -241,44 +227,57 @@ export function SecondOrderBeaker({
               cy={PZ.minY + RADIUS}
               r={RADIUS}
               fill={isB ? bColor : reactantColor}
+              opacity={0.9}
             />
           );
         })}
 
-        {/* ── Legend ─────────────────────────────────────────────── */}
-        <g transform={`translate(${BK.x + 6}, ${BK.y + BK.h + 16})`}>
-          <circle cx={6}  cy={0} r={5} fill={reactantColor} />
-          <text   x={14} y={4}  fontSize="10" fill="hsl(var(--muted-foreground))">{reactantLabel}</text>
-          {isAB ? (
-            <>
-              <circle cx={34} cy={0} r={5} fill={bColor} />
-              <text   x={42} y={4}  fontSize="10" fill="hsl(var(--muted-foreground))">{bLabel}</text>
-              <circle cx={62} cy={0} r={5} fill={productColor} />
-              <text   x={70} y={4}  fontSize="10" fill="hsl(var(--muted-foreground))">{productLabel}</text>
-            </>
-          ) : (
-            <>
-              <circle cx={34} cy={0} r={5} fill={productColor} />
-              <text   x={42} y={4}  fontSize="10" fill="hsl(var(--muted-foreground))">{productLabel}</text>
-            </>
-          )}
-        </g>
+        {/* ── Beaker outline (drawn over particles) ──────────────── */}
+        <rect
+          x={BK.x} y={BK.y} width={BK.w} height={BK.h} rx="5"
+          fill="none" stroke="hsl(var(--border))" strokeWidth="3"
+        />
 
-        {/* ── Caption ────────────────────────────────────────────── */}
-        <text
-          x={VW / 2} y={BK.y + BK.h + 42}
-          textAnchor="middle" fontSize="9"
-          fill="hsl(var(--muted-foreground))"
-        >
-          {caption}
-        </text>
+        {/* ── Rim cap ────────────────────────────────────────────── */}
+        <rect
+          x={BK.x - 8} y={BK.y - 18} width={BK.w + 16} height="18" rx="3"
+          fill="hsl(var(--card))" stroke="hsl(var(--border))" strokeWidth="2.5"
+        />
+
+        {/* ── Graduation marks ───────────────────────────────────── */}
+        {[0.25, 0.5, 0.75].map((f, gi) => (
+          <line key={gi}
+            x1={BK.x + BK.w - 14} y1={BK.y + f * BK.h}
+            x2={BK.x + BK.w + 4}  y2={BK.y + f * BK.h}
+            stroke="hsl(var(--muted-foreground))" strokeWidth="1.5"
+          />
+        ))}
       </svg>
 
-      {/* ── Particle counters (driven by parent counts) ─────────── */}
-      <div className="flex justify-center items-center gap-3 text-[10px] font-mono shrink-0 pt-1 flex-wrap">
-        <span style={{ color: reactantColor }}>[{reactantLabel}]: <strong>{countA}</strong></span>
-        {isAB && <span style={{ color: bColor }}>[{bLabel}]: <strong>{countB}</strong></span>}
-        <span style={{ color: productColor }}>[{productLabel}]: <strong>{countProduct}</strong></span>
+      {/* ── Legend + counters ───────────────────────────────────── */}
+      <div className="flex flex-col items-center gap-0.5 shrink-0">
+        <div className="flex justify-center gap-4 text-xs text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: reactantColor }} />
+            {reactantLabel}
+          </span>
+          {isAB && (
+            <span className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: bColor }} />
+              {bLabel}
+            </span>
+          )}
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: productColor }} />
+            {productLabel}
+          </span>
+        </div>
+        <div className="flex justify-center items-center gap-3 text-[10px] font-mono text-muted-foreground flex-wrap">
+          <span style={{ color: reactantColor }}>[{reactantLabel}]: <strong>{countA}</strong></span>
+          {isAB && <span style={{ color: bColor }}>[{bLabel}]: <strong>{countB}</strong></span>}
+          <span style={{ color: productColor }}>[{productLabel}]: <strong>{countProduct}</strong></span>
+        </div>
+        <p className="text-[10px] text-muted-foreground/60 text-center leading-tight">{caption}</p>
       </div>
     </div>
   );
