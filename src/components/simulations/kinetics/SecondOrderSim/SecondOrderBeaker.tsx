@@ -26,7 +26,12 @@ const PZ = {
 };
 const PLAY_SPEED   = 1.3;
 const PAUSE_SPEED  = 0.28;
-const FLASH_FRAMES = 16;
+const FLASH_FRAMES = 18;
+
+// ── Collision burst ring pool ─────────────────────────────────────────
+const N_BURSTS     = 12;
+const BURST_FRAMES = 22;   // frames the ring expands over
+const BURST_R_MAX  = 20;   // max extra radius beyond RADIUS
 
 // ── Particle pool sizes — must match resolveType logic ────────────────
 export const BEAKER_TOTAL_AA = 36;   // particles for aa / aa-fast
@@ -44,6 +49,14 @@ interface Particle {
   sf: number;  // per-particle speed factor (0.6–1.4)
   type: PType;
   flash: number;
+}
+
+interface Burst {
+  slot: number;   // which pre-rendered ring element to use
+  x: number;
+  y: number;
+  frame: number;  // counts down from BURST_FRAMES to 0
+  color: string;
 }
 
 // ── Seeded LCG — deterministic initial positions ──────────────────────
@@ -124,6 +137,8 @@ export function SecondOrderBeaker({
   const countBRef       = useRef(countB);
   const reactionTypeRef = useRef(reactionType);
   const colorsRef       = useRef({ reactantColor, productColor, bColor });
+  const burstsRef       = useRef<Burst[]>([]);
+  const burstSlotRef    = useRef(0);
 
   useLayoutEffect(() => { playingRef.current = playing; }, [playing]);
   useLayoutEffect(() => { countARef.current = countA; }, [countA]);
@@ -132,10 +147,11 @@ export function SecondOrderBeaker({
     colorsRef.current = { reactantColor, productColor, bColor };
   }, [reactantColor, productColor, bColor]);
 
-  // Reset particles when reaction type switches
+  // Reset particles and clear burst rings when reaction type switches
   useEffect(() => {
     reactionTypeRef.current = reactionType;
     particlesRef.current = createParticles(reactionType);
+    burstsRef.current = [];
   }, [reactionType]);
 
   // RAF loop — all mutable state in refs; bypasses React reconciler
@@ -162,28 +178,56 @@ export function SecondOrderBeaker({
         if (p.y > PZ.maxY - RADIUS) { p.y = PZ.maxY - RADIUS; p.dy = -Math.abs(p.dy); }
         if (p.flash > 0) p.flash--;
 
-        // ── Resolve type from parent counts; flash on change ─────
+        // ── Resolve type from parent counts; flash + burst on change ─
         const newType = resolveType(p.id, cA, cB, rt);
         if (newType !== p.type) {
+          // Spawn a burst ring at this particle's current position
+          const slot = burstSlotRef.current;
+          burstSlotRef.current = (burstSlotRef.current + 1) % N_BURSTS;
+          const burstColor = p.type === "A" ? colors.reactantColor
+            : p.type === "B" ? colors.bColor
+            : colors.productColor;
+          burstsRef.current.push({ slot, x: p.x, y: p.y, frame: BURST_FRAMES, color: burstColor });
           p.type = newType;
           p.flash = FLASH_FRAMES;
         }
       }
 
-      // ── Update SVG elements (imperative — bypasses reconciler) ──
+      // ── Animate burst rings ─────────────────────────────────────
+      burstsRef.current = burstsRef.current.filter(b => {
+        b.frame--;
+        const progress = b.frame / BURST_FRAMES;  // 1→0 as ring expands
+        const ringEl = svg.getElementById(`burst-${b.slot}`) as SVGCircleElement | null;
+        if (ringEl) {
+          ringEl.setAttribute("cx",      b.x.toFixed(1));
+          ringEl.setAttribute("cy",      b.y.toFixed(1));
+          ringEl.setAttribute("r",       (RADIUS + (1 - progress) * BURST_R_MAX).toFixed(1));
+          ringEl.setAttribute("opacity", (progress * 0.75).toFixed(2));
+          ringEl.setAttribute("stroke",  b.color);
+        }
+        if (b.frame <= 0) {
+          ringEl?.setAttribute("opacity", "0");
+          return false;
+        }
+        return true;
+      });
+
+      // ── Update particle SVG elements ────────────────────────────
       for (const p of ps) {
         const el = svg.getElementById(`sp-${p.id}`) as SVGCircleElement | null;
         if (!el) continue;
         el.setAttribute("cx", p.x.toFixed(1));
         el.setAttribute("cy", p.y.toFixed(1));
-        const fill = p.type === "A" ? colors.reactantColor
-          : p.type === "B" ? colors.bColor
-          : colors.productColor;
-        el.setAttribute("fill", fill);
         if (p.flash > 0) {
-          el.setAttribute("r",       (RADIUS * 1.55).toFixed(1));
-          el.setAttribute("opacity", "0.55");
+          // White flash during reaction transition
+          el.setAttribute("fill",    "#ffffff");
+          el.setAttribute("r",       (RADIUS * 1.7).toFixed(1));
+          el.setAttribute("opacity", "0.95");
         } else {
+          const fill = p.type === "A" ? colors.reactantColor
+            : p.type === "B" ? colors.bColor
+            : colors.productColor;
+          el.setAttribute("fill",    fill);
           el.setAttribute("r",       String(RADIUS));
           el.setAttribute("opacity", "1");
         }
@@ -232,6 +276,17 @@ export function SecondOrderBeaker({
             />
           );
         })}
+
+        {/* ── Burst rings (above particles, clipped by beaker outline) ── */}
+        {Array.from({ length: N_BURSTS }, (_, i) => (
+          <circle
+            key={`burst-${i}`}
+            id={`burst-${i}`}
+            cx="0" cy="0" r="0"
+            fill="none" stroke="white" strokeWidth="2"
+            opacity="0"
+          />
+        ))}
 
         {/* ── Beaker outline (drawn over particles) ──────────────── */}
         <rect
