@@ -16,7 +16,7 @@ import { useSecondOrder } from "./useSecondOrder";
 import { SecondOrderVisualizer } from "./SecondOrderVisualizer";
 import { InvAChart } from "./InvAChart";
 import { DynamicMath } from "./DynamicMath";
-import { SecondOrderBeaker } from "./SecondOrderBeaker";
+import { SecondOrderBeaker, BEAKER_TOTAL_AA, BEAKER_AB_EACH } from "./SecondOrderBeaker";
 import { ConcentrationBarChart } from "../shared/ConcentrationBarChart";
 import { REACTIONS, TUTORIAL_STEPS, INITIAL_CONC, MAX_TIME } from "./content";
 
@@ -83,8 +83,16 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
 
   const reaction = REACTIONS.find((r) => r.id === reactionId) ?? REACTIONS[0];
   const k        = reaction.k;
+  const isAB     = reaction.reactionType === "ab";
   const { series, concAtT, productAtT, invAatT, halfLife, fractionA } =
     useSecondOrder(k, initialConc, tCurrent);
+
+  // Particle counts for SecondOrderBeaker (visual only — derived from fractionA)
+  const beakerCountA = Math.round(fractionA * (isAB ? BEAKER_AB_EACH : BEAKER_TOTAL_AA));
+  const beakerCountB = isAB ? Math.round(fractionA * BEAKER_AB_EACH) : 0;
+  const beakerCountP = isAB
+    ? (BEAKER_AB_EACH - beakerCountA) + (BEAKER_AB_EACH - beakerCountB)
+    : BEAKER_TOTAL_AA - beakerCountA;
   const tutorial   = TUTORIAL_STEPS[tutorialStep];
   const isLastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
 
@@ -250,8 +258,10 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
             <div className="flex-1 min-h-0">
               <SecondOrderBeaker
                 reactionType={reaction.reactionType}
+                countA={beakerCountA}
+                countB={beakerCountB}
+                countProduct={beakerCountP}
                 playing={playing}
-                fractionA={fractionA}
                 reactantColor={reaction.color}
                 productColor={reaction.productColor}
                 bColor={reaction.bColor ?? "#f43f5e"}
@@ -297,12 +307,15 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
             <div className="flex-1 min-h-0">
               <ConcentrationBarChart
                 concA={concAtT}
-                concB={productAtT}
+                concB={isAB ? concAtT : productAtT}
+                concC={isAB ? productAtT : undefined}
+                cColor={isAB ? reaction.productColor : undefined}
+                cLabel={isAB ? reaction.product : undefined}
                 initialConc={initialConc}
                 reactantColor={reaction.color}
-                productColor={reaction.productColor}
+                productColor={isAB ? (reaction.bColor ?? "#f43f5e") : reaction.productColor}
                 reactantLabel={reaction.reactant}
-                productLabel={reaction.product}
+                productLabel={isAB ? (reaction.bReactant ?? "B") : reaction.product}
               />
             </div>
           </div>

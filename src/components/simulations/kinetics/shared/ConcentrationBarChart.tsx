@@ -35,6 +35,10 @@ interface ConcentrationBarChartProps {
   productColor: string;
   reactantLabel: string;
   productLabel: string;
+  /** Optional third species (e.g. product C in A+B→C reactions) */
+  concC?: number;
+  cColor?: string;
+  cLabel?: string;
 }
 
 export function ConcentrationBarChart({
@@ -45,10 +49,16 @@ export function ConcentrationBarChart({
   productColor,
   reactantLabel,
   productLabel,
+  concC,
+  cColor,
+  cLabel,
 }: ConcentrationBarChartProps) {
   const data = [
     { name: reactantLabel, value: concA, color: reactantColor },
     { name: productLabel,  value: concB, color: productColor  },
+    ...(concC !== undefined
+      ? [{ name: cLabel ?? "C", value: concC, color: cColor ?? "#10b981" }]
+      : []),
   ];
 
   return (

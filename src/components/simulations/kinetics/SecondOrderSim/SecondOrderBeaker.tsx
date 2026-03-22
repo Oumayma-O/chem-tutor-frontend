@@ -1,14 +1,12 @@
 /**
- * Collision-based particulate beaker for Second-Order kinetics.
+ * Deterministic particulate beaker for Second-Order kinetics.
  *
- * Two modes:
- *   playing=true  → RAF collision physics; particles react only on physical contact
- *   playing=false → Brownian motion only; particle counts snap to fractionA
+ * Parent computes exact particle counts from fractionA via useSecondOrder.
+ * This component is a dumb renderer — RAF loop handles only Brownian motion.
+ * Type changes (A→P, B→P) are resolved each frame from countA/countB props.
  *
- * Reaction types:
- *   "aa"      → A + A → B  (only A+A collisions react)
- *   "ab"      → A + B → C  (only A+B collisions react; A+A and B+B are inert)
- *   "aa-fast" → A + A → B  (higher reaction probability per collision)
+ * playing=true  → normal speed fizz
+ * playing=false → slow-speed fizz (particles still move, just gently)
  */
 import { useEffect, useRef, useLayoutEffect } from "react";
 import type { ReactionType } from "./content";
@@ -16,8 +14,8 @@ import type { ReactionType } from "./content";
 // ── Beaker geometry (SVG coordinate space) ────────────────────────────
 const VW = 300;
 const VH = 290;
-const BK = { x: 28, y: 18, w: 244, h: 220 }; // beaker inner rect
-const PZ = {                                    // particle zone
+const BK = { x: 28, y: 18, w: 244, h: 220 };
+const PZ = {
   minX: BK.x + 5,
   maxX: BK.x + BK.w - 5,
   minY: BK.y + 5,
@@ -25,13 +23,14 @@ const PZ = {                                    // particle zone
 };
 
 // ── Physics constants ─────────────────────────────────────────────────
-const RADIUS          = 7;
-const BASE_SPEED      = 1.3;
-const REACT_PROB_NORM = 0.06;   // probability per frame per overlapping eligible pair
-const REACT_PROB_FAST = 0.16;
-const FLASH_FRAMES    = 14;
-const TOTAL_AA        = 36;     // particles for A+A reactions
-const AB_EACH         = 18;     // particles per species for A+B (18A + 18B = 36)
+const RADIUS       = 7;
+const PLAY_SPEED   = 1.3;
+const PAUSE_SPEED  = 0.28;
+const FLASH_FRAMES = 16;
+
+// ── Particle pool sizes — must match resolveType logic ────────────────
+export const BEAKER_TOTAL_AA = 36;   // particles for aa / aa-fast
+export const BEAKER_AB_EACH  = 18;   // particles per species for ab
 
 // ── Types ─────────────────────────────────────────────────────────────
 type PType = "A" | "B" | "P";
@@ -40,47 +39,70 @@ interface Particle {
   id: number;
   x: number;
   y: number;
-  vx: number;
-  vy: number;
+  dx: number;  // unit direction x
+  dy: number;  // unit direction y
+  sf: number;  // per-particle speed factor (0.6–1.4)
   type: PType;
-  originalType: "A" | "B";   // never changes — used for scrubber restoration
   flash: number;
 }
 
-// ── Seeded LCG (deterministic initial positions) ──────────────────────
+// ── Seeded LCG — deterministic initial positions ──────────────────────
 let _seed = 1;
 function lcg() {
   _seed = (1664525 * _seed + 1013904223) & 0xffffffff;
-  return ((_seed >>> 0) / 0x100000000);
+  return (_seed >>> 0) / 0x100000000;
 }
 
 function createParticles(rt: ReactionType): Particle[] {
   _seed = 54321;
-  const total = rt === "ab" ? AB_EACH * 2 : TOTAL_AA;
+  const total = rt === "ab" ? BEAKER_AB_EACH * 2 : BEAKER_TOTAL_AA;
   const w = PZ.maxX - PZ.minX - RADIUS * 2;
   const h = PZ.maxY - PZ.minY - RADIUS * 2;
   return Array.from({ length: total }, (_, i) => {
     const angle = lcg() * Math.PI * 2;
-    const speed = BASE_SPEED * (0.6 + lcg() * 0.8);
-    const origType: "A" | "B" = rt === "ab" && i >= AB_EACH ? "B" : "A";
+    const initType: PType = rt === "ab" && i >= BEAKER_AB_EACH ? "B" : "A";
     return {
       id: i,
       x: PZ.minX + RADIUS + lcg() * w,
       y: PZ.minY + RADIUS + lcg() * h,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      type: origType,
-      originalType: origType,
+      dx: Math.cos(angle),
+      dy: Math.sin(angle),
+      sf: 0.6 + lcg() * 0.8,
+      type: initType,
       flash: 0,
     };
   });
 }
 
-// ── Component ─────────────────────────────────────────────────────────
+/**
+ * Deterministic type resolver — maps particle id to PType based on counts.
+ *
+ * For "ab": ids 0…(AB_EACH-1) are the A species; ids AB_EACH…(2*AB_EACH-1) are B.
+ *   id < AB_EACH:  id < cA ? "A" : "P"
+ *   id >= AB_EACH: (id - AB_EACH) < cB ? "B" : "P"
+ *
+ * For "aa" / "aa-fast": all particles are A species.
+ *   id < cA ? "A" : "P"
+ */
+function resolveType(id: number, cA: number, cB: number, rt: ReactionType): PType {
+  if (rt === "ab") {
+    if (id < BEAKER_AB_EACH) return id < cA ? "A" : "P";
+    return (id - BEAKER_AB_EACH) < cB ? "B" : "P";
+  }
+  return id < cA ? "A" : "P";
+}
+
+// ─────────────────────────────────────────────────────────────────────
+
 interface Props {
   reactionType: ReactionType;
+  /** How many A particles to show — computed by parent from fractionA */
+  countA: number;
+  /** How many B particles to show — computed by parent; 0 for aa reactions */
+  countB: number;
+  /** Total product particles — computed by parent */
+  countProduct: number;
   playing: boolean;
-  fractionA: number;
   reactantColor: string;
   productColor: string;
   bColor: string;
@@ -90,99 +112,65 @@ interface Props {
 }
 
 export function SecondOrderBeaker({
-  reactionType, playing, fractionA,
+  reactionType, countA, countB, countProduct, playing,
   reactantColor, productColor, bColor,
   reactantLabel, productLabel, bLabel,
 }: Props) {
-  const svgRef           = useRef<SVGSVGElement>(null);
-  const particlesRef     = useRef<Particle[]>(createParticles(reactionType));
-  const rafRef           = useRef<number>(0);
-  const playingRef       = useRef(playing);
-  const fractionARef     = useRef(fractionA);
-  const reactionTypeRef  = useRef(reactionType);
-  const colorsRef        = useRef({ reactantColor, productColor, bColor });
+  const svgRef          = useRef<SVGSVGElement>(null);
+  const particlesRef    = useRef<Particle[]>(createParticles(reactionType));
+  const rafRef          = useRef<number>(0);
+  const playingRef      = useRef(playing);
+  const countARef       = useRef(countA);
+  const countBRef       = useRef(countB);
+  const reactionTypeRef = useRef(reactionType);
+  const colorsRef       = useRef({ reactantColor, productColor, bColor });
 
-  // Keep refs current each render
   useLayoutEffect(() => { playingRef.current = playing; }, [playing]);
-  useLayoutEffect(() => { fractionARef.current = fractionA; }, [fractionA]);
+  useLayoutEffect(() => { countARef.current = countA; }, [countA]);
+  useLayoutEffect(() => { countBRef.current = countB; }, [countB]);
   useLayoutEffect(() => {
     colorsRef.current = { reactantColor, productColor, bColor };
   }, [reactantColor, productColor, bColor]);
 
-  // Reset particles when reaction type changes
+  // Reset particles when reaction type switches
   useEffect(() => {
     reactionTypeRef.current = reactionType;
     particlesRef.current = createParticles(reactionType);
   }, [reactionType]);
 
-  // RAF loop — runs once, uses refs throughout
+  // RAF loop — all mutable state in refs; bypasses React reconciler
   useEffect(() => {
     function tick() {
       rafRef.current = requestAnimationFrame(tick);
       const svg = svgRef.current;
       if (!svg) return;
 
-      const ps       = particlesRef.current;
-      const rt       = reactionTypeRef.current;
-      const isPlay   = playingRef.current;
-      const prob     = rt === "aa-fast" ? REACT_PROB_FAST : REACT_PROB_NORM;
-      const colors   = colorsRef.current;
+      const ps     = particlesRef.current;
+      const speed  = playingRef.current ? PLAY_SPEED : PAUSE_SPEED;
+      const cA     = countARef.current;
+      const cB     = countBRef.current;
+      const rt     = reactionTypeRef.current;
+      const colors = colorsRef.current;
 
-      // ── Move (Brownian) ────────────────────────────────────────────
+      // ── Move (Brownian) ─────────────────────────────────────────
       for (const p of ps) {
-        p.x += p.vx;
-        p.y += p.vy;
-        if (p.x < PZ.minX + RADIUS) { p.x = PZ.minX + RADIUS; p.vx =  Math.abs(p.vx); }
-        if (p.x > PZ.maxX - RADIUS) { p.x = PZ.maxX - RADIUS; p.vx = -Math.abs(p.vx); }
-        if (p.y < PZ.minY + RADIUS) { p.y = PZ.minY + RADIUS; p.vy =  Math.abs(p.vy); }
-        if (p.y > PZ.maxY - RADIUS) { p.y = PZ.maxY - RADIUS; p.vy = -Math.abs(p.vy); }
+        p.x += p.dx * p.sf * speed;
+        p.y += p.dy * p.sf * speed;
+        if (p.x < PZ.minX + RADIUS) { p.x = PZ.minX + RADIUS; p.dx =  Math.abs(p.dx); }
+        if (p.x > PZ.maxX - RADIUS) { p.x = PZ.maxX - RADIUS; p.dx = -Math.abs(p.dx); }
+        if (p.y < PZ.minY + RADIUS) { p.y = PZ.minY + RADIUS; p.dy =  Math.abs(p.dy); }
+        if (p.y > PZ.maxY - RADIUS) { p.y = PZ.maxY - RADIUS; p.dy = -Math.abs(p.dy); }
         if (p.flash > 0) p.flash--;
-      }
 
-      if (isPlay) {
-        // ── Collision-based reactions ──────────────────────────────
-        const r2 = (RADIUS * 2.2) * (RADIUS * 2.2);
-        for (let i = 0; i < ps.length; i++) {
-          if (ps[i].type === "P") continue;
-          for (let j = i + 1; j < ps.length; j++) {
-            if (ps[j].type === "P") continue;
-            const eligible = rt === "ab"
-              ? ps[i].type !== ps[j].type          // A+B only
-              : ps[i].type === "A" && ps[j].type === "A"; // A+A only
-            if (!eligible) continue;
-            const dx = ps[i].x - ps[j].x;
-            const dy = ps[i].y - ps[j].y;
-            if (dx * dx + dy * dy < r2 && Math.random() < prob) {
-              ps[i].type = "P"; ps[i].flash = FLASH_FRAMES;
-              ps[j].type = "P"; ps[j].flash = FLASH_FRAMES;
-              // Separate to avoid instant re-collision
-              ps[i].vx *= -1; ps[i].vy *= -1;
-              ps[j].vx *= -1; ps[j].vy *= -1;
-            }
-          }
-        }
-      } else {
-        // ── Snap to fractionA when paused / scrubbing ──────────────
-        const fa       = fractionARef.current;
-        const totalA0  = rt === "ab" ? AB_EACH : TOTAL_AA;
-        const totalB0  = rt === "ab" ? AB_EACH : 0;
-        const targetA  = Math.round(fa * totalA0);
-        const targetB  = Math.round(fa * totalB0);
-        let diffA = ps.filter(p => p.type === "A").length - targetA;
-        for (const p of ps) {
-          if (diffA === 0) break;
-          if (diffA > 0 && p.type === "A")                          { p.type = "P"; diffA--; }
-          else if (diffA < 0 && p.type === "P" && p.originalType === "A") { p.type = "A"; diffA++; }
-        }
-        let diffB = ps.filter(p => p.type === "B").length - targetB;
-        for (const p of ps) {
-          if (diffB === 0) break;
-          if (diffB > 0 && p.type === "B")                          { p.type = "P"; diffB--; }
-          else if (diffB < 0 && p.type === "P" && p.originalType === "B") { p.type = "B"; diffB++; }
+        // ── Resolve type from parent counts; flash on change ─────
+        const newType = resolveType(p.id, cA, cB, rt);
+        if (newType !== p.type) {
+          p.type = newType;
+          p.flash = FLASH_FRAMES;
         }
       }
 
-      // ── Update SVG elements (imperative, bypasses React reconciler) ─
+      // ── Update SVG elements (imperative — bypasses reconciler) ──
       for (const p of ps) {
         const el = svg.getElementById(`sp-${p.id}`) as SVGCircleElement | null;
         if (!el) continue;
@@ -206,9 +194,9 @@ export function SecondOrderBeaker({
     return () => cancelAnimationFrame(rafRef.current);
   }, []); // intentionally empty — all state via refs
 
-  const total    = reactionType === "ab" ? AB_EACH * 2 : TOTAL_AA;
-  const isAB     = reactionType === "ab";
-  const caption  = isAB
+  const total   = reactionType === "ab" ? BEAKER_AB_EACH * 2 : BEAKER_TOTAL_AA;
+  const isAB    = reactionType === "ab";
+  const caption = isAB
     ? "only A+B collisions react"
     : reactionType === "aa-fast"
       ? "higher k · more reactions per collision"
@@ -242,9 +230,9 @@ export function SecondOrderBeaker({
           );
         })}
 
-        {/* ── Particles (pre-rendered circles, positions updated via RAF) ── */}
+        {/* ── Particles (pre-rendered; positions/colors updated via RAF) ── */}
         {Array.from({ length: total }, (_, i) => {
-          const isB = reactionType === "ab" && i >= AB_EACH;
+          const isB = reactionType === "ab" && i >= BEAKER_AB_EACH;
           return (
             <circle
               key={i}
@@ -285,6 +273,13 @@ export function SecondOrderBeaker({
           {caption}
         </text>
       </svg>
+
+      {/* ── Particle counters (driven by parent counts) ─────────── */}
+      <div className="flex justify-center items-center gap-3 text-[10px] font-mono shrink-0 pt-1 flex-wrap">
+        <span style={{ color: reactantColor }}>[{reactantLabel}]: <strong>{countA}</strong></span>
+        {isAB && <span style={{ color: bColor }}>[{bLabel}]: <strong>{countB}</strong></span>}
+        <span style={{ color: productColor }}>[{productLabel}]: <strong>{countProduct}</strong></span>
+      </div>
     </div>
   );
 }
