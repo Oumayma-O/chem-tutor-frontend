@@ -7,39 +7,20 @@
  *
  * Mobile: every panel is w-full and stacks vertically.
  */
-import React, { useState, useEffect, useRef, Fragment } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronLeft, ChevronRight, RotateCcw, Settings2, Zap } from "lucide-react";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
-import type { MascotMood } from "@/components/tutor/BeakerMascot";
+import React, { useState, useEffect, useRef } from "react";
+import { ArrowLeft, ChevronRight, RotateCcw, Settings2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useKinetics } from "./useKinetics";
 import { Visualizer } from "./Visualizer";
 import { DynamicMath } from "./DynamicMath";
 import { ParticulateBeaker } from "../shared/ParticulateBeaker";
 import { ConcentrationBarChart } from "../shared/ConcentrationBarChart";
+import { SimGuidePanel } from "../shared/SimGuidePanel";
 import { REACTIONS, TUTORIAL_STEPS, INITIAL_CONC, MAX_TIME } from "./content";
 
 interface Props {
   onBackToOverview: () => void;
   onStartPractice: () => void;
-}
-
-// ── Chemistry variable highlighter ───────────────────────────────────
-const CHEM_VAR_RE = /(\[[\w]+\][₀]?(?:\s*=\s*[\d.]+\s*\w+)?|k\s*=\s*[\d.]+(?:\s*[\w·⁻¹]+)*|t½\s*=\s*[\d.∞]+\s*\w*|−[\d.]+)/g;
-
-function highlightChemVars(text: string): React.ReactNode[] {
-  const result: React.ReactNode[] = [];
-  let last = 0;
-  let match: RegExpExecArray | null;
-  const re = new RegExp(CHEM_VAR_RE.source, "g");
-  while ((match = re.exec(text)) !== null) {
-    if (match.index > last) result.push(<Fragment key={last}>{text.slice(last, match.index)}</Fragment>);
-    result.push(<span key={match.index} className="font-semibold text-blue-600 dark:text-blue-400">{match[0]}</span>);
-    last = match.index + match[0].length;
-  }
-  if (last < text.length) result.push(<Fragment key={last}>{text.slice(last)}</Fragment>);
-  return result;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -373,88 +354,23 @@ export function ZeroOrderSim({ onBackToOverview, onStartPractice }: Props) {
           </div>
 
           {/* GUIDE / MASCOT */}
-          <div className="w-full lg:flex-1 overflow-hidden
-            rounded-xl border border-border bg-card flex flex-col p-4 gap-3
-            min-h-[240px] lg:min-h-0">
-            <div className="flex items-start gap-3 flex-1 min-h-0 overflow-hidden">
-              <BeakerMascot
-                mood={tutorial.mascotMood as MascotMood}
-                size={64}
-                className="shrink-0 self-end"
-              />
-              <div className="flex-1 min-h-0 rounded-2xl bg-muted/60 border border-border p-3 relative overflow-y-auto">
-                <span className="absolute -left-2 bottom-6 w-2.5 h-2.5 rotate-45 bg-muted/60 border-l border-b border-border" />
-                <p className="text-sm font-semibold text-foreground leading-snug">{tutorial.title}</p>
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={tutorialStep}
-                    className="text-xs text-muted-foreground mt-1.5 leading-relaxed whitespace-pre-line"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.18 }}
-                  >
-                    {highlightChemVars(tutorial.body)}
-                  </motion.p>
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* Nav row */}
-            <div className="flex items-center justify-between border-t border-border pt-3 shrink-0">
-              <button
-                onClick={() => {
-                  if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(0); }
-                  setTutorialStep((s) => Math.max(0, s - 1));
-                }}
-                disabled={tutorialStep === 0}
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                Back
-              </button>
-
-              <div className="flex gap-1.5">
-                {Array.from({ length: dotEnd - dotStart + 1 }, (_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setTutorialStep(dotStart + i)}
-                    className="w-1.5 h-1.5 rounded-full transition-colors"
-                    style={{
-                      backgroundColor:
-                        dotStart + i === tutorialStep
-                          ? "hsl(var(--primary))"
-                          : "hsl(var(--muted-foreground) / 0.3)",
-                    }}
-                  />
-                ))}
-              </div>
-
-              {isLastStep ? (
-                <button
-                  onClick={() => { clearSession(); onStartPractice(); }}
-                  className="flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 transition-colors"
-                >
-                  Start Practice
-                  <Zap className="w-3.5 h-3.5" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => {
-                    if (isAutoPlayStep(tutorialStep)) {
-                      setPlaying(false);
-                      setTCurrent(MAX_TIME);
-                    }
-                    setTutorialStep((s) => s + 1);
-                  }}
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  Next
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-          </div>
+          <SimGuidePanel
+            tutorial={tutorial}
+            tutorialStep={tutorialStep}
+            isLastStep={isLastStep}
+            dotStart={dotStart}
+            dotEnd={dotEnd}
+            onBack={() => {
+              if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(0); }
+              setTutorialStep((s) => Math.max(0, s - 1));
+            }}
+            onNext={() => {
+              if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(MAX_TIME); }
+              setTutorialStep((s) => s + 1);
+            }}
+            onDotClick={setTutorialStep}
+            onStartPractice={() => { clearSession(); onStartPractice(); }}
+          />
 
         </div>{/* end bottom row */}
 

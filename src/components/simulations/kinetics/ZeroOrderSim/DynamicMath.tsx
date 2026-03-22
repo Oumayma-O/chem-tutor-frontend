@@ -8,55 +8,7 @@
  *   Row 3 — half-life
  *   Row 4 — rate law with exponent
  */
-import type { ReactNode } from "react";
-
-// ── Primitive helpers ─────────────────────────────────────────────────
-
-function Frac({ top, bot }: { top: ReactNode; bot: ReactNode }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        flexDirection: "column",
-        alignItems: "center",
-        verticalAlign: "middle",
-        lineHeight: 1.15,
-        margin: "0 2px",
-      }}
-    >
-      <span style={{ borderBottom: "1px solid currentColor", paddingBottom: "1px", whiteSpace: "nowrap" }}>
-        {top}
-      </span>
-      <span style={{ paddingTop: "1px", whiteSpace: "nowrap" }}>{bot}</span>
-    </span>
-  );
-}
-
-function Live({ children }: { children: ReactNode }) {
-  return <span className="text-orange-500 font-semibold">{children}</span>;
-}
-
-function Sup({ children }: { children: ReactNode }) {
-  return (
-    <sup style={{ fontSize: "0.72em", verticalAlign: "super", lineHeight: 0 }}>
-      {children}
-    </sup>
-  );
-}
-
-function EqRow({ children, highlight = false }: { children: ReactNode; highlight?: boolean }) {
-  return (
-    <div className={`bg-slate-50 dark:bg-slate-900/60 border rounded-xl px-3 py-1 transition-all duration-300 ${
-      highlight
-        ? "border-blue-400 dark:border-blue-500 ring-2 ring-blue-300 dark:ring-blue-600 ring-offset-1"
-        : "border-slate-200 dark:border-slate-700"
-    }`}>
-      <div className="flex items-center gap-1 flex-wrap leading-7 text-sm min-w-0">
-        {children}
-      </div>
-    </div>
-  );
-}
+import { Frac, Live, Sup, EqRow } from "../shared/DynamicMathPrimitives";
 
 // ─────────────────────────────────────────────────────────────────────
 
