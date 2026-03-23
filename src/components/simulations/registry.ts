@@ -37,6 +37,14 @@ export const SIM_REGISTRY: SimEntry[] = [
       import("./kinetics/SecondOrderSim/index").then((m) => ({ default: m.SecondOrderSim }))
     ),
   },
+  {
+    unitId: "ap-unit-5",
+    lessonIndex: 4,
+    title: "Comparing Reaction Orders",
+    component: lazy(() =>
+      import("./kinetics/ComparisonSim/index").then((m) => ({ default: m.ComparisonSim }))
+    ),
+  },
 ];
 
 export function getSimEntry(unitId: string, lessonIndex: number): SimEntry | undefined {
