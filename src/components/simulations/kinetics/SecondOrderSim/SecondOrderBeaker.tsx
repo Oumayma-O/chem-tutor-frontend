@@ -15,6 +15,11 @@
  */
 import { useEffect, useRef, useLayoutEffect } from "react";
 import type { ReactionType } from "./content";
+import {
+  advanceCollisionBurstRings,
+  COLLISION_BURST_DEFAULTS,
+  type SvgCollisionBurst,
+} from "@/components/simulations/shared/collisionBurstSvg";
 
 // ── Physics ───────────────────────────────────────────────────────────
 const RADIUS       = 5;
@@ -24,10 +29,10 @@ const ATTRACT_MULT = 2.8;         // speed boost while magnetized
 const REACT_DIST   = RADIUS * 2.1; // touch threshold
 const FLASH_FRAMES = 18;
 
-// ── Burst ring pool ───────────────────────────────────────────────────
-const N_BURSTS     = 12;
-const BURST_FRAMES = 22;
-const BURST_R_MAX  = 20;
+// ── Burst ring pool (shared constants with Arrhenius beaker) ──────────
+const N_BURSTS     = COLLISION_BURST_DEFAULTS.nBursts;
+const BURST_FRAMES = COLLISION_BURST_DEFAULTS.burstFrames;
+const BURST_R_MAX  = COLLISION_BURST_DEFAULTS.burstRMax;
 
 // ── Beaker geometry — matches shared ParticulateBeaker exactly ────────
 const VW = 200;
@@ -61,13 +66,7 @@ interface PendingPair {
   idB: number; // partner    (type A for aa; opposite type for ab)
 }
 
-interface Burst {
-  slot:  number;
-  x:     number;
-  y:     number;
-  frame: number;
-  color: string;
-}
+type Burst = SvgCollisionBurst;
 
 // ── Seeded LCG — deterministic initial positions ──────────────────────
 let _seed = 1;
@@ -283,20 +282,11 @@ export function SecondOrderBeaker({
         if (p.flash > 0) p.flash--;
       }
 
-      // ── Animate burst rings ───────────────────────────────────────
-      burstsRef.current = burstsRef.current.filter(b => {
-        b.frame--;
-        const progress = b.frame / BURST_FRAMES; // 1→0
-        const el = svg.getElementById(`burst-${b.slot}`) as SVGCircleElement | null;
-        if (el) {
-          el.setAttribute("cx",      b.x.toFixed(1));
-          el.setAttribute("cy",      b.y.toFixed(1));
-          el.setAttribute("r",       (RADIUS + (1 - progress) * BURST_R_MAX).toFixed(1));
-          el.setAttribute("opacity", (progress * 0.75).toFixed(2));
-          el.setAttribute("stroke",  b.color);
-        }
-        if (b.frame <= 0) { el?.setAttribute("opacity", "0"); return false; }
-        return true;
+      burstsRef.current = advanceCollisionBurstRings(svg, burstsRef.current, {
+        elementId: (slot) => `burst-${slot}`,
+        particleRadius: RADIUS,
+        burstFrames: BURST_FRAMES,
+        burstRMax: BURST_R_MAX,
       });
 
       // ── Update particle SVG elements ──────────────────────────────

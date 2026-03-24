@@ -78,12 +78,47 @@ export function MathText({ children, className }: MathTextProps) {
  *   \b → U+0008 (bs)    → eats \beta, \begin
  * We restore the most common chemistry LaTeX commands from these artifacts.
  */
+
+/**
+ * LLM / bad JSON often produces units like:
+ *   \backslash\text{cdotK}  (meant: middle dot before K)
+ *   \text{cdotK}           (same, missing \cdot)
+ *   \textbackslash\text{cdotK}
+ * KaTeX then shows literal “\” or “cdotK”. Map these to proper \cdot \text{K} (or spacing).
+ */
+function fixMangledCdotInUnits(s: string): string {
+  let out = s;
+  out = out.replace(/\\textbackslash\s*\\text\{cdot\s*([A-Za-z]+)\}/gi, "\\cdot \\text{$1}");
+  out = out.replace(/\\backslash\s*\\text\{cdot([A-Za-z]+)\}/gi, "\\cdot \\text{$1}");
+  out = out.replace(/\\backslash\s*\\text\{\s*cdot\s*([A-Za-z]+)\s*\}/gi, "\\cdot \\text{$1}");
+  out = out.replace(/\\backslash\s*\\cdot/gi, "\\cdot");
+  out = out.replace(/\\backslash\s*\{\s*cdot\s*([A-Za-z]+)\s*\}/gi, "\\cdot \\text{$1}");
+  // \text{cdotK} with no \backslash (single mangled “command”)
+  out = out.replace(/\\text\{\s*cdot([A-Za-z]+)\s*\}/gi, "\\cdot \\text{$1}");
+  out = out.replace(/\\text\{\s*cdot\s+([A-Za-z]+)\s*\}/gi, "\\cdot \\text{$1}");
+  out = out.replace(/\\text\{\s*cdot\s*\}/gi, "\\cdot");
+  const CDOTS_PH = "__PRESERVE_CDOTS__";
+  out = out.replace(/\\cdots/g, CDOTS_PH);
+  out = out.replace(/\\cdot(?=[A-Za-z])/g, "\\cdot ");
+  out = out.split(CDOTS_PH).join("\\cdots");
+  return out;
+}
+
+/** Run unit/dot fixes on every $...$ segment (inline math only). */
+function fixMangledCdotInsideAllInlineMath(text: string): string {
+  return text.replace(/\$([^$]+)\$/g, (_, inner) => `$${fixMangledCdotInUnits(inner)}$`);
+}
+
 function normalizeLatexEscapes(text: string): string {
   // ── 1. Collapse display math $$...$$ → $...$
   let out = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => `$${inner.trim()}$`);
 
   // ── 2. Fix double-escaped backslashes sent by well-behaved backends (\\text → \text)
   out = out.replace(/\\\\/g, "\\");
+
+  // ── 2b. Gas constant / J·mol⁻¹·K⁻¹ style mangling (whole string + again per $...$ block)
+  out = fixMangledCdotInUnits(out);
+  out = fixMangledCdotInsideAllInlineMath(out);
 
   // ── 3. Fix $X$^{n} / $X$_{n}: sub/superscript leaked outside closing $
   // e.g. "$2s$^{2}" → "$2s^{2}$"  (LLM wrapped only the base, not the exponent)
@@ -105,6 +140,10 @@ function normalizeLatexEscapes(text: string): string {
   out = out.replace(/\u000dho(?=[\s{_^,.)\]$]|$)/g, "\\rho");
   // \b (backspace U+0008) victims
   out = out.replace(/\u0008eta(?=[\s{_^,.)\]$]|$)/g, "\\beta");
+
+  // ── 5. Re-apply cdot/unit fixes (JSON recovery can leave new fragments; cheap idempotent pass)
+  out = fixMangledCdotInUnits(out);
+  out = fixMangledCdotInsideAllInlineMath(out);
 
   return out;
 }

@@ -45,6 +45,22 @@ export const SIM_REGISTRY: SimEntry[] = [
       import("./kinetics/ComparisonSim/index").then((m) => ({ default: m.ComparisonSim }))
     ),
   },
+  {
+    unitId: "ap-unit-5",
+    lessonIndex: 6,
+    title: "Arrhenius Equation & Activation Energy",
+    component: lazy(() =>
+      import("./kinetics/ArrheniusSim/index").then((m) => ({ default: m.ArrheniusSim }))
+    ),
+  },
+  {
+    unitId: "ap-unit-5",
+    lessonIndex: 7,
+    title: "Catalysis",
+    component: lazy(() =>
+      import("./kinetics/ArrheniusSim/index").then((m) => ({ default: m.ArrheniusSim }))
+    ),
+  },
 ];
 
 export function getSimEntry(unitId: string, lessonIndex: number): SimEntry | undefined {

@@ -8,18 +8,24 @@ interface GivenStepProps {
   step: SolutionStep;
 }
 
-/** Format labeled values as "variable = value unit"; one string per line so only $...$ is rendered as math. */
+/** Format labeled values: label outside math, only value+unit through KaTeX (avoids “Gas constant = …” as one math block). */
 function formatLabeledValues(
   items: { variable: string; value: string; unit: string }[]
 ): React.ReactNode {
   return (
     <>
       {items.map((item, i) => {
-        const mathString = `${item.variable} = ${item.value} ${item.unit || ""}`.trim();
+        const rhs = `${item.value} ${item.unit || ""}`.trim();
         return (
           <React.Fragment key={item.variable}>
             {i > 0 && <br />}
-            <span className="equation text-foreground">{formatMathContent(mathString)}</span>
+            <span className="equation text-foreground">
+              <span className="font-mono font-medium text-foreground">
+                {formatMathContent(item.variable)}
+              </span>
+              {" = "}
+              {formatMathContent(rhs)}
+            </span>
           </React.Fragment>
         );
       })}

@@ -5,6 +5,8 @@ import sleepingPng from "@/assets/mascot/moods/sleeping.png";
 import relaxedPng from "@/assets/mascot/moods/relaxed.png";
 import sadPng from "@/assets/mascot/moods/sad.png";
 import explainingPng from "@/assets/mascot/moods/explaining.png";
+import excitedPng   from "@/assets/mascot/moods/excited.png";
+import pointingPng  from "@/assets/mascot/moods/pointing.png";
 import solverPng    from "@/assets/mascot/blueprints/solver.png";
 import recipePng    from "@/assets/mascot/blueprints/recipe.png";
 import architectPng from "@/assets/mascot/blueprints/architect.png";
@@ -13,7 +15,7 @@ import lawyerPng    from "@/assets/mascot/blueprints/lawyer.png";
 import { cn } from "@/lib/utils";
 import type { CognitiveBlueprint } from "@/types/chemistry";
 
-export type MascotMood = "default" | "happy" | "thinking" | "sleeping" | "relaxed" | "sad" | "explaining";
+export type MascotMood = "default" | "happy" | "thinking" | "sleeping" | "relaxed" | "sad" | "explaining" | "excited" | "pointing";
 
 export type MascotPose =
   | "idle"
@@ -33,6 +35,8 @@ const MOOD_ASSETS: Record<MascotMood, string> = {
   relaxed: relaxedPng,
   sad: sadPng,
   explaining: explainingPng,
+  excited: excitedPng,
+  pointing: pointingPng,
 };
 
 const BLUEPRINT_ASSETS: Record<CognitiveBlueprint, string> = {

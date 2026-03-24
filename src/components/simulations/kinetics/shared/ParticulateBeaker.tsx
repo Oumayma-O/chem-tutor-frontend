@@ -18,6 +18,11 @@
  * linear decay, so the visual naturally mirrors the underlying chemistry.
  */
 import { useEffect, useRef, useLayoutEffect } from "react";
+import {
+  advanceCollisionBurstRings,
+  COLLISION_BURST_DEFAULTS,
+  type SvgCollisionBurst,
+} from "@/components/simulations/shared/collisionBurstSvg";
 
 // ── Geometry ───────────────────────────────────────────────────────────────
 const N    = 36;
@@ -56,6 +61,12 @@ const GLOW_PAUSED  = 0.0;
 // Reaction animation
 const REACTION_FRAMES = 6;           // ~200 ms at 30 fps
 const REACTION_COLOR  = "#fbbf24";   // amber intermediate
+const COLLISION_FLASH_FRAMES = 14;
+
+const N_BURSTS = COLLISION_BURST_DEFAULTS.nBursts;
+const BURST_FRAMES = COLLISION_BURST_DEFAULTS.burstFrames;
+const BURST_R_MAX  = COLLISION_BURST_DEFAULTS.burstRMax;
+type Burst = SvgCollisionBurst;
 
 // ── Seeded LCG ─────────────────────────────────────────────────────────────
 function lcg(seed: number) {
@@ -93,6 +104,8 @@ interface Props {
   /** true = catalyst plate + surface physics (zero-order).
    *  false (default) = homogeneous in-place flash (first-order). */
   showCatalyst?:  boolean;
+  /** Expanding ring + brief white flash (same helper as SecondOrderBeaker) — Comparison second-order beaker. */
+  collisionBurstRings?: boolean;
 }
 
 export function ParticulateBeaker({
@@ -103,8 +116,10 @@ export function ParticulateBeaker({
   reactantLabel,
   productLabel,
   showCatalyst = false,
+  collisionBurstRings = false,
 }: Props) {
   // DOM refs
+  const svgRef         = useRef<SVGSVGElement | null>(null);
   const circleRefs    = useRef<(SVGCircleElement | null)[]>(new Array(N).fill(null));
   const siteRefs      = useRef<(SVGCircleElement | null)[]>(new Array(N_SITES).fill(null));
   const flashRefs     = useRef<(SVGCircleElement | null)[]>(new Array(N_FLASHES).fill(null));
@@ -144,6 +159,14 @@ export function ParticulateBeaker({
 
   const busySites = useRef<Set<number>>(new Set());
 
+  const burstsRef            = useRef<Burst[]>([]);
+  const burstSlotRef         = useRef(0);
+  const collisionBurstRef    = useRef(collisionBurstRings);
+  const postReactFlashRef    = useRef<number[]>(new Array(N).fill(0));
+  useLayoutEffect(() => {
+    collisionBurstRef.current = collisionBurstRings;
+  }, [collisionBurstRings]);
+
   // ── Initial positions before first paint ──────────────────────────────
   useLayoutEffect(() => {
     posRef.current.forEach((p, i) => {
@@ -168,6 +191,7 @@ export function ParticulateBeaker({
       const isPlaying  = playingRef.current;
       const withSurf   = showCatalystRef.current;
       const bottomWall = withSurf ? PZ.maxY : FULL_BOTTOM;
+      const burstFx    = collisionBurstRef.current;
 
       // ── 1. Process reacting queue ─────────────────────────────────────
       reactingQueue.current = reactingQueue.current.filter(entry => {
@@ -217,15 +241,38 @@ export function ParticulateBeaker({
           }
           // !withSurf: particle just continues Brownian motion as product (no bounce)
 
-          // Colour → B, restore normal radius
+          // Colour → product (or white flash phase for collisionBurstRings)
           if (pEl) {
-            pEl.setAttribute("fill", colorsRef.current.productColor);
-            pEl.setAttribute("r",    R.toFixed(1));
+            if (burstFx && !withSurf) {
+              postReactFlashRef.current[entry.idx] = COLLISION_FLASH_FRAMES;
+              pEl.setAttribute("fill", "#ffffff");
+              pEl.setAttribute("r", (R * 1.55).toFixed(1));
+            } else {
+              pEl.setAttribute("fill", colorsRef.current.productColor);
+              pEl.setAttribute("r", R.toFixed(1));
+            }
           }
           return false;
         }
         return true;
       });
+
+      // Post-reaction white flash — after queue so new flashes start fresh this frame
+      const postFlash = postReactFlashRef.current;
+      for (let i = 0; i < N; i++) {
+        if (postFlash[i] <= 0) continue;
+        postFlash[i]--;
+        const el = circleRefs.current[i];
+        if (!el) continue;
+        if (postFlash[i] > 0) {
+          el.setAttribute("fill", "#ffffff");
+          el.setAttribute("r", (R * 1.55).toFixed(1));
+        } else {
+          const { reactantColor: rC, productColor: pC } = colorsRef.current;
+          el.setAttribute("fill", dynamicConvertedSet.current.has(i) ? pC : rC);
+          el.setAttribute("r", R.toFixed(1));
+        }
+      }
 
       // ── 2. Eject motion (zero-order only, runs even when paused) ──────
       ejectQueue.current = ejectQueue.current.filter(e => {
@@ -328,6 +375,16 @@ export function ParticulateBeaker({
           flashRefs.current[i]?.setAttribute("opacity", next.toFixed(2));
         });
       }
+
+      const svg = svgRef.current;
+      if (svg && burstFx && burstsRef.current.length) {
+        burstsRef.current = advanceCollisionBurstRings(svg, burstsRef.current, {
+          elementId: (slot) => `pb-burst-${slot}`,
+          particleRadius: R,
+          burstFrames: BURST_FRAMES,
+          burstRMax: BURST_R_MAX,
+        });
+      }
     };
 
     rafRef.current = requestAnimationFrame(tick);
@@ -390,6 +447,21 @@ export function ParticulateBeaker({
           pEl?.setAttribute("cy", PZ.maxY.toFixed(1));
         }
         // !withSurf: particle flashes amber in-place, no surface snap
+        if (!withSurf && collisionBurstRef.current && aList.length >= 2) {
+          const partner = aList.find((id) => id !== pid) ?? aList[0];
+          const q = posRef.current[partner];
+          const mx = (p.x + q.x) / 2;
+          const my = (p.y + q.y) / 2;
+          const slot = burstSlotRef.current;
+          burstSlotRef.current = (burstSlotRef.current + 1) % N_BURSTS;
+          burstsRef.current.push({
+            slot,
+            x: mx,
+            y: my,
+            frame: BURST_FRAMES,
+            color: colorsRef.current.reactantColor,
+          });
+        }
 
         if (pEl) {
           pEl.setAttribute("fill", REACTION_COLOR);
@@ -414,6 +486,7 @@ export function ParticulateBeaker({
           pEl.setAttribute("fill", rC);
           pEl.setAttribute("r",    R.toFixed(1));
         }
+        postReactFlashRef.current[entry.idx] = 0;
 
         if (withSurf) {
           busySites.current.delete(entry.siteIdx);
@@ -431,6 +504,7 @@ export function ParticulateBeaker({
       while (toRestore > 0 && dynamicConvertedOrder.current.length > 0) {
         const pid = dynamicConvertedOrder.current.pop()!;
         dynamicConvertedSet.current.delete(pid);
+        postReactFlashRef.current[pid] = 0;
         circleRefs.current[pid]?.setAttribute("fill", rC);
         toRestore--;
       }
@@ -439,6 +513,7 @@ export function ParticulateBeaker({
     // Apply colour to all non-reacting particles
     circleRefs.current.forEach((el, i) => {
       if (!el || reactingSet.current.has(i)) return;
+      if (postReactFlashRef.current[i] > 0) return;
       el.setAttribute("fill", dynamicConvertedSet.current.has(i) ? pC : rC);
     });
 
@@ -446,12 +521,16 @@ export function ParticulateBeaker({
   }, [fractionA, reactantColor, productColor]);
 
   return (
-    <div className="flex flex-col h-full gap-1">
-      <svg
-        viewBox={`0 0 ${VW} ${VH}`}
-        className="w-full h-auto max-w-[300px] max-h-[260px] mx-auto md:max-w-none md:max-h-[290px] xl:max-h-none md:flex-1 md:min-h-0"
-        style={{ overflow: "visible" }}
-      >
+    <div className="flex min-h-0 h-full w-full flex-col gap-1">
+      {/* Fixed aspect matches viewBox so every instance (e.g. Comparison sim) sizes identically */}
+      <div className="flex w-full flex-1 min-h-0 items-center justify-center">
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${VW} ${VH}`}
+          className="w-full max-w-[300px] md:max-w-none aspect-[200/220] max-h-full shrink-0 md:max-h-[min(290px,100%)] mx-auto md:flex-1 md:min-h-0"
+          preserveAspectRatio="xMidYMid meet"
+          style={{ overflow: "visible" }}
+        >
         <defs>
           {showCatalyst && (
             <linearGradient id="catalystGrad" x1="0" y1="0" x2="0" y2="1">
@@ -511,6 +590,21 @@ export function ParticulateBeaker({
             opacity={0.9} />
         ))}
 
+        {collisionBurstRings &&
+          Array.from({ length: N_BURSTS }, (_, i) => (
+            <circle
+              key={`pb-burst-${i}`}
+              id={`pb-burst-${i}`}
+              cx={0}
+              cy={0}
+              r={0}
+              fill="none"
+              stroke="white"
+              strokeWidth={2}
+              opacity={0}
+            />
+          ))}
+
         {/* Beaker outline */}
         <rect x={BODY.x} y={BODY.y} width={BODY.w} height={BODY.h} rx="5"
           fill="none" stroke="hsl(var(--border))" strokeWidth="3" />
@@ -526,7 +620,8 @@ export function ParticulateBeaker({
             x2={BODY.x + BODY.w + 2}  y2={BODY.y + f * BODY.h}
             stroke="hsl(var(--muted-foreground))" strokeWidth="1.5" />
         ))}
-      </svg>
+        </svg>
+      </div>
 
       {/* Legend + caption */}
       <div className="flex flex-col items-center gap-0.5 shrink-0">
@@ -543,7 +638,11 @@ export function ParticulateBeaker({
           </span>
         </div>
         <p className="text-[10px] text-muted-foreground/60 text-center leading-tight">
-          {showCatalyst ? "surface-limited · constant rate" : "homogeneous · probabilistic"}
+          {showCatalyst
+            ? "surface-limited · constant rate"
+            : collisionBurstRings
+              ? "homogeneous · burst + ring on hit"
+              : "homogeneous · probabilistic"}
         </p>
       </div>
     </div>

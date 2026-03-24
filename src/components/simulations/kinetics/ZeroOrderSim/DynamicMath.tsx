@@ -51,7 +51,7 @@ export function DynamicMath({
   const hlF       = isFinite(halfLife) ? halfLife.toFixed(2) : "∞";
 
   return (
-    <div className="space-y-1.5 font-mono text-foreground w-full max-w-2xl mx-auto px-1">
+    <div className="flex-1 flex flex-col justify-center space-y-1 font-mono text-foreground w-full mx-auto px-1">
       <EqRow>
         <span>Rate = k = −</span>
         <Frac top="Δc" bot="Δt" />

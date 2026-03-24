@@ -7,7 +7,8 @@
  *   ROW 2  [1/[A] vs t ~28%]        |  [Equations flex-1.5]           |  [Guide flex-1]
  */
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, ChevronRight, RotateCcw, Settings2 } from "lucide-react";
+import { Settings2 } from "lucide-react";
+import { SimControlBar } from "@/components/simulations/shared/SimControlBar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSecondOrder } from "./useSecondOrder";
 import { SecondOrderVisualizer } from "./SecondOrderVisualizer";
@@ -17,6 +18,7 @@ import { SecondOrderBeaker, BEAKER_TOTAL_AA, BEAKER_AB_EACH } from "./SecondOrde
 import { ConcentrationBarChart } from "../shared/ConcentrationBarChart";
 import { SimGuidePanel } from "../shared/SimGuidePanel";
 import { REACTIONS, TUTORIAL_STEPS, INITIAL_CONC, MAX_TIME } from "./content";
+import { useClickOutside } from "@/components/simulations/shared/useClickOutside";
 
 interface Props {
   onBackToOverview: () => void;
@@ -42,6 +44,7 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reactionDropdownOpen, setReactionDropdownOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
+  useClickOutside(settingsRef, settingsOpen, () => setSettingsOpen(false));
 
   // Hydrate from sessionStorage once on mount
   useEffect(() => {
@@ -76,7 +79,6 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
     ? (BEAKER_AB_EACH - beakerCountA)                          // A+B→C: only A slots become P
     : Math.floor((BEAKER_TOTAL_AA - beakerCountA) / 2);        // A+A→B: half the consumed become P
   const tutorial   = TUTORIAL_STEPS[tutorialStep];
-  const isLastStep = tutorialStep === TUTORIAL_STEPS.length - 1;
 
   function handleReactionChange(id: string) {
     const r = REACTIONS.find((rx) => rx.id === id);
@@ -107,17 +109,6 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
     setReactionDropdownOpen(tutorialStep === 12 || tutorialStep === 16);
   }, [tutorialStep]);
 
-  // Close settings on outside click
-  useEffect(() => {
-    if (!settingsOpen) return;
-    const h = (e: MouseEvent) => {
-      if (settingsRef.current && !settingsRef.current.contains(e.target as Node))
-        setSettingsOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [settingsOpen]);
-
   // Auto-play steps: 11 (A+A), 15 (A+B), 18 (A+A-fast)
   const isAutoPlayStep = (s: number) => s === 11 || s === 15 || s === 18;
   const prevStepRef = useRef(tutorialStep);
@@ -138,26 +129,15 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
       setTutorialStep((s) => s + 1);
   }, [tutorialStep, tCurrent]);
 
-  // Pagination dots
-  const reactionIdx = REACTIONS.findIndex((r) => r.id === reactionId);
-  const dotStart    = reaction.firstTutorialStep;
-  const dotEnd      = REACTIONS[reactionIdx + 1]
-    ? REACTIONS[reactionIdx + 1].firstTutorialStep - 1
-    : TUTORIAL_STEPS.length - 1;
-
   return (
     <div className="flex flex-col w-full max-w-[1600px] mx-auto xl:h-full xl:overflow-hidden">
 
       {/* ── Sticky control bar ─────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-4 px-4 lg:px-6 py-2 border-b border-border bg-white dark:bg-card w-full sticky top-0 z-10 shrink-0">
-
-        <button onClick={() => { clearSession(); onBackToOverview(); }}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-3 h-3" />
-          Overview
-        </button>
-        <div className="h-4 w-px bg-border" />
-
+      <SimControlBar
+        onBack={() => { clearSession(); onBackToOverview(); }}
+        onReset={handleReset}
+        onStartPractice={() => { clearSession(); onStartPractice(); }}
+      >
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           Reaction:
           <Select value={reactionId} onValueChange={handleReactionChange}
@@ -210,19 +190,7 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
             </div>
           )}
         </div>
-
-        <button onClick={handleReset}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <RotateCcw className="w-3 h-3" />
-          Reset
-        </button>
-
-        <button onClick={() => { clearSession(); onStartPractice(); }}
-          className="ml-auto flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors">
-          Skip to Practice
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
-      </div>
+      </SimControlBar>
 
       {/* ── Content ────────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-2 px-4 xl:px-6 py-2 xl:flex-1 xl:min-h-0 xl:overflow-hidden">
@@ -349,9 +317,7 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
           <SimGuidePanel
             tutorial={tutorial}
             tutorialStep={tutorialStep}
-            isLastStep={isLastStep}
-            dotStart={dotStart}
-            dotEnd={dotEnd}
+            totalStepCount={TUTORIAL_STEPS.length}
             onBack={() => {
               if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(0); }
               setTutorialStep((s) => Math.max(0, s - 1));
@@ -360,7 +326,6 @@ export function SecondOrderSim({ onBackToOverview, onStartPractice }: Props) {
               if (isAutoPlayStep(tutorialStep)) { setPlaying(false); setTCurrent(MAX_TIME); }
               setTutorialStep((s) => s + 1);
             }}
-            onDotClick={setTutorialStep}
             onStartPractice={() => { clearSession(); onStartPractice(); }}
           />
 
