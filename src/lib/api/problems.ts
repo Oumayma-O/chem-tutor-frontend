@@ -208,6 +208,11 @@ export async function apiGetHint(body: {
   error_category?: string;
   misconception_tag?: string;
   validation_feedback?: string;
+  /** So hints stay scoped to this step (no repeating full theory from step 1). */
+  step_number?: number;
+  total_steps?: number;
+  step_type?: string;
+  prior_steps_summary?: string;
 }): Promise<HintOutput> {
   return post<HintOutput>("/problems/hint", body);
 }

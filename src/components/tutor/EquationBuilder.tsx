@@ -9,24 +9,13 @@ import { HintToggle } from "./HintToggle";
 import { MathText } from "@/lib/mathDisplay";
 import { STEP_ANSWER_SHELL, STEP_ANSWER_TEXT } from "./stepAnswerStyles";
 
-function buildMathExpression(tokens: string[]): string {
-  return tokens
-    .join(" ")
-    .replace(/·/g, " * ")
-    .replace(/×/g, " * ")
-    .replace(/−/g, " - ")
-    .replace(/–/g, " - ")
-    .replace(/\[([A-Za-z]+)\](\w*)/g, "$1$2")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-}
-
 interface EquationBuilderProps {
   step_number: number;
   label: string;
   instruction: string;
   availableParts: string[];
-  onValidate: (mathExpr: string) => Promise<boolean>;
+  /** Ordered slot tokens (same strings as `equation_parts` when correct). */
+  onValidate: (orderedParts: string[]) => Promise<boolean>;
   onComplete: (isCorrect: boolean) => void;
   isComplete: boolean;
   showHint: boolean;
@@ -89,7 +78,7 @@ export function EquationBuilder({
     if (slots.length === 0 || isValidating || isComplete) return;
     setIsValidating(true);
     try {
-      const isCorrect = await onValidate(buildMathExpression(slots));
+      const isCorrect = await onValidate(slots);
       if (isCorrect) { setIsIncorrect(false); onComplete(true); }
       else { setIsIncorrect(true); onComplete(false); }
     } catch {

@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Level, Problem, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { ThinkingStep, ThinkingStepType, ClassifiedError } from "@/types/cognitive";
 import { apiValidateStep, apiGetHint } from "@/lib/api";
+import { buildMathExpression } from "@/lib/equationDragDrop";
 import { evaluateExpression, isExpression } from "@/lib/mathEval";
 import { toast } from "sonner";
 import { PerProblemState } from "@/hooks/useProblemNavigation";
@@ -237,6 +238,15 @@ export function useStepHandlers({
       setHintLoading((prev) => new Set(prev).add(stepId));
 
       try {
+        const stepIndex = currentProblem.steps.findIndex((s) => s.id === stepId);
+        const priorStepsSummary =
+          stepIndex > 0
+            ? currentProblem.steps
+                .slice(0, stepIndex)
+                .map((s) => `Step ${s.step_number} (${s.label}): ${s.instruction}`)
+                .join(" · ")
+            : undefined;
+
         const data = await apiGetHint({
           step_id: stepId,
           step_label: step.label,
@@ -248,6 +258,10 @@ export function useStepHandlers({
           grade_level: gradeLevel,
           problem_context: currentProblem.description,
           validation_feedback: answers[stepId]?.validation_feedback,
+          step_number: step.step_number,
+          total_steps: currentProblem.steps.length,
+          step_type: step.type,
+          prior_steps_summary: priorStepsSummary,
         });
         if (data?.hint) {
           setHints((prev) => ({ ...prev, [stepId]: data.hint }));
@@ -310,10 +324,22 @@ export function useStepHandlers({
   );
 
   const handleValidateEquation = useCallback(
-    async (mathExpr: string, step: SolutionStep): Promise<boolean> => {
+    async (orderedParts: string[], step: SolutionStep): Promise<boolean> => {
+      const isDragDrop =
+        step.type === "drag_drop" &&
+        Array.isArray(step.equation_parts) &&
+        step.equation_parts.length > 0;
+      const missingStringAnswer =
+        step.correct_answer == null || String(step.correct_answer).trim() === "";
+
+      // Backend often sends correct_answer: null for drag_drop; order must match equation_parts exactly.
+      if (isDragDrop && missingStringAnswer) {
+        return JSON.stringify(orderedParts) === JSON.stringify(step.equation_parts);
+      }
+
       try {
         const result = await apiValidateStep({
-          student_answer: mathExpr,
+          student_answer: buildMathExpression(orderedParts),
           correct_answer: step.correct_answer || "",
           step_id: step.id,
           step_number: step.step_number,

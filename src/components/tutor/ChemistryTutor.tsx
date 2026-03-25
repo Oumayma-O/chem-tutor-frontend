@@ -829,7 +829,7 @@ export function ChemistryTutor({
                             label={step.label}
                             instruction="Drag and drop to form the correct equation"
                             availableParts={step.equation_parts}
-                            onValidate={(expr) => steps.handleValidateEquation(expr, step)}
+                            onValidate={(orderedParts) => steps.handleValidateEquation(orderedParts, step)}
                             onComplete={(correct) =>
                               steps.handleStructuredStepComplete(step.id, correct)
                             }
