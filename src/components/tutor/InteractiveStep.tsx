@@ -7,6 +7,7 @@ import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { HintToggle } from "./HintToggle";
+import { STEP_ANSWER_BOX_TEXTAREA, STEP_ANSWER_FIELD_TEXT } from "./stepAnswerStyles";
 
 interface InteractiveStepProps {
   step: SolutionStep;
@@ -56,28 +57,35 @@ export function InteractiveStep({
       />
 
       <div className="ml-16 space-y-3">
-        <div className="flex gap-3">
-          <textarea
-            ref={textareaRef}
-            value={answer?.answer || ""}
-            onChange={(e) => onAnswerChange(step.id, e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && answer?.answer && !checkingAnswer && !isCorrect) {
-                e.preventDefault();
-                onCheckAnswer(step.id);
-              }
-            }}
-            placeholder="Enter your answer"
-            disabled={isCorrect}
-            rows={1}
+        <div className="flex gap-3 items-stretch">
+          <div
             className={cn(
-              "flex-1 bg-card border-2 rounded-md px-3 py-2 text-sm w-full resize-none overflow-y-auto transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50",
-              "min-h-[40px] max-h-[120px]",
+              STEP_ANSWER_BOX_TEXTAREA,
+              "flex-1 border-2",
               isCorrect && "border-success bg-success/10",
               isIncorrect && "border-destructive bg-destructive/10",
               !isCorrect && !isIncorrect && "border-input"
             )}
-          />
+          >
+            <textarea
+              ref={textareaRef}
+              value={answer?.answer || ""}
+              onChange={(e) => onAnswerChange(step.id, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey && answer?.answer && !checkingAnswer && !isCorrect) {
+                  e.preventDefault();
+                  onCheckAnswer(step.id);
+                }
+              }}
+              placeholder="Enter your answer"
+              disabled={isCorrect}
+              rows={1}
+              className={cn(
+                STEP_ANSWER_FIELD_TEXT,
+                "w-full min-h-[2.5rem] max-h-[120px] bg-transparent border-0 rounded-none resize-none overflow-y-auto transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:opacity-50"
+              )}
+            />
+          </div>
           {!isCorrect && (
             <Button
               onClick={() => onCheckAnswer(step.id)}

@@ -170,6 +170,21 @@
   vertical-align: super;
 }
 
+/* KaTeX: inline division / binary operators less cramped */
+.katex .mord + .mbin {
+  padding-left: 0.15em;
+  padding-right: 0.15em;
+}
+
+/* Long math: swipe horizontally on small screens without a fat scrollbar */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Smooth transitions for interactive elements */
 .step-card {
   @apply transition-all duration-200 ease-in-out;

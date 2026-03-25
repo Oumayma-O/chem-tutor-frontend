@@ -15,7 +15,12 @@ export function StepHeader({ step_number, label, instruction, isComplete }: Step
       <span className="text-xs font-semibold text-accent-foreground bg-accent px-2 py-0.5 rounded">
         {label}
       </span>
-      <span className="text-foreground font-medium">{formatMathContent(instruction)}</span>
+      <span className="text-foreground font-medium">
+        {formatMathContent(
+          instruction,
+          instruction.length > 120 ? { preferDisplay: true } : undefined
+        )}
+      </span>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { HintToggle } from "./HintToggle";
 import { MathText } from "@/lib/mathDisplay";
+import { STEP_ANSWER_SHELL, STEP_ANSWER_TEXT } from "./stepAnswerStyles";
 
 function buildMathExpression(tokens: string[]): string {
   return tokens
@@ -114,7 +115,8 @@ export function EquationBuilder({
                 onClick={() => !isComplete && handleClickAdd(part)}
                 disabled={isComplete}
                 className={cn(
-                  "px-3 py-1.5 rounded-md text-sm font-mono font-medium border transition-all cursor-grab active:cursor-grabbing",
+                  STEP_ANSWER_TEXT,
+                  "px-3 py-1.5 rounded-md font-medium border transition-all cursor-grab active:cursor-grabbing",
                   "bg-card border-border text-foreground hover:border-primary hover:bg-primary/5",
                   isComplete && "opacity-50 cursor-not-allowed"
                 )}
@@ -137,7 +139,9 @@ export function EquationBuilder({
           )}
         >
           {slots.length === 0 && (
-            <span className="text-sm text-muted-foreground">Drag or click variables here to form the equation</span>
+            <span className={cn(STEP_ANSWER_TEXT, "text-muted-foreground")}>
+              Drag or click variables here to form the equation
+            </span>
           )}
           {slots.map((part, idx) => (
             <button
@@ -145,7 +149,8 @@ export function EquationBuilder({
               onClick={() => !isComplete && handleRemoveSlot(idx)}
               disabled={isComplete}
               className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-mono font-medium border transition-all",
+                STEP_ANSWER_TEXT,
+                "px-3 py-1.5 rounded-md font-medium border transition-all",
                 "bg-primary/10 border-primary/30 text-foreground hover:bg-destructive/10 hover:border-destructive/30",
                 isComplete && "cursor-default hover:bg-primary/10 hover:border-primary/30"
               )}

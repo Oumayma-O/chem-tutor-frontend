@@ -21,10 +21,6 @@ export interface KineticsResult {
   halfLife: number;
   /** Fraction of reactant remaining (0–1). */
   fractionA: number;
-  /** Fraction converted to product (0–1). */
-  fractionB: number;
-  /** Whether reaction has gone to completion at tCurrent. */
-  complete: boolean;
 }
 
 export function useKinetics(
@@ -49,9 +45,7 @@ export function useKinetics(
     const concAtT = Math.max(0, initialConc - k * tCurrent);
     const productAtT = initialConc - concAtT;
     const fractionA = concAtT / initialConc;
-    const fractionB = productAtT / initialConc;
-    const complete = concAtT === 0;
 
-    return { series, concAtT, productAtT, rate, halfLife, fractionA, fractionB, complete };
+    return { series, concAtT, productAtT, rate, halfLife, fractionA };
   }, [k, initialConc, tCurrent]);
 }

@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import type { Components } from "react-markdown";
+import { cn } from "@/lib/utils";
 
 /**
  * Renders a string that may contain:
@@ -23,6 +24,15 @@ const inlineComponents: Components = {
 };
 
 /**
+ * KaTeX treats `\\cdotK` as one invalid command. `\\cdot K` (unit kelvin) still needs `K` in `\\text{}`.
+ * Last line of defense before remark-math / KaTeX (must run before {@link autoWrapLatex}).
+ */
+function fixCdotKelvinForKatex(text: string): string {
+  if (!text) return text;
+  return text.replace(/\\cdot\s*K\b/g, "\\cdot \\text{K}");
+}
+
+/**
  * If the model forgets to wrap LaTeX in $...$, do it here.
  * Detects bare LaTeX commands (e.g. \mathrm, \times, ^{, _{) and wraps
  * contiguous math runs in $...$  so KaTeX can render them.
@@ -40,27 +50,59 @@ const inlineComponents: Components = {
  * that did not individually look like LaTeX, leaving raw commands visible).
  */
 function autoWrapLatex(text: string): string {
+  // Final safety net: \cdotX (no space) must never reach KaTeX as-is — \cdotX is an
+  // unknown command. Apply everywhere, including inside existing $...$ blocks.
+  // eslint-disable-next-line no-param-reassign
+  text = text.replace(/\\cdot([A-Za-z])/g, "\\cdot $1");
   if (/\$|\\\(/.test(text)) return text;
   if (!/\\[a-zA-Z]/.test(text) && !/[_^]\{/.test(text)) return text;
   return `$${text}$`;
 }
 
+/** Upgrade a single $...$ chunk to $$...$$ for display-style KaTeX (tall fractions, spacing). */
+function preferDisplayMathBody(text: string): string {
+  const t = text.trim();
+  if (t.startsWith("$$")) return t;
+  if (t.startsWith("$") && t.endsWith("$")) {
+    const inner = t.slice(1, -1);
+    if (inner.includes("$")) return t;
+    return `$$${inner}$$`;
+  }
+  return `$$${t}$$`;
+}
+
 interface MathTextProps {
   children: string;
   className?: string;
+  /** Block/display math ($$...$$) — use for equation lines and long expressions. */
+  preferDisplay?: boolean;
 }
 
-export function MathText({ children, className }: MathTextProps) {
+export function MathText({ children, className, preferDisplay }: MathTextProps) {
+  const safeText = fixCdotKelvinForKatex(children);
+  let body = autoWrapLatex(safeText);
+  if (preferDisplay) {
+    body = preferDisplayMathBody(body);
+  }
   const content = (
     <ReactMarkdown
       remarkPlugins={[remarkMath]}
-      rehypePlugins={[rehypeKatex]}
+      rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false, trust: false }]]}
       components={inlineComponents}
     >
-      {autoWrapLatex(children)}
+      {body}
     </ReactMarkdown>
   );
-  return className ? <span className={className}>{content}</span> : <>{content}</>;
+  return (
+    <span
+      className={cn(
+        "math-content-katex inline-block max-w-full min-w-0 overflow-x-auto scrollbar-hide align-middle",
+        className
+      )}
+    >
+      {content}
+    </span>
+  );
 }
 
 /**
@@ -79,6 +121,27 @@ export function MathText({ children, className }: MathTextProps) {
  * We restore the most common chemistry LaTeX commands from these artifacts.
  */
 
+const BREVE = "\u02D8"; // U+02D8 — often appears when \u00b7 (middle dot) is mangled by a sanitizer
+
+/**
+ * Backend markdown sanitizer sometimes destroys `\u00b7` or `\cdot` in “J/(mol·K)” and leaves
+ * visible garbage like “mol 0˘ 0b7K” (0 + breve + hex digits for U+00B7 + K). Normalize to LaTeX.
+ */
+export function fixCorruptedUnitMiddleDots(s: string): string {
+  if (!s) return s;
+  let out = s;
+  // “mol 0˘ 0b7K” / variants (spaces optional)
+  out = out.replace(new RegExp(`mol\\s*0\\s*${BREVE}\\s*0b7\\s*K`, "gi"), "mol\\cdot K");
+  out = out.replace(new RegExp(`\\(mol\\s*0\\s*${BREVE}\\s*0b7\\s*K\\)`, "gi"), "(mol\\cdot K)");
+  out = out.replace(new RegExp(`mol\\s*${BREVE}\\s*0b7\\s*K`, "gi"), "mol\\cdot K");
+  out = out.replace(/mol\s*0b7\s*K/gi, "mol\\cdot K");
+  out = out.replace(/mol\s*0{1,2}b7\s*K/gi, "mol\\cdot K");
+  // Unicode middle dot already correct but outside \text — still ok in \mathrm
+  out = out.replace(/mol\u00b7K/g, "mol\\cdot K");
+  out = out.replace(/mol\s*\u00b7\s*K/g, "mol\\cdot K");
+  return out;
+}
+
 /**
  * LLM / bad JSON often produces units like:
  *   \backslash\text{cdotK}  (meant: middle dot before K)
@@ -87,7 +150,7 @@ export function MathText({ children, className }: MathTextProps) {
  * KaTeX then shows literal “\” or “cdotK”. Map these to proper \cdot \text{K} (or spacing).
  */
 function fixMangledCdotInUnits(s: string): string {
-  let out = s;
+  let out = fixCorruptedUnitMiddleDots(s);
   out = out.replace(/\\textbackslash\s*\\text\{cdot\s*([A-Za-z]+)\}/gi, "\\cdot \\text{$1}");
   out = out.replace(/\\backslash\s*\\text\{cdot([A-Za-z]+)\}/gi, "\\cdot \\text{$1}");
   out = out.replace(/\\backslash\s*\\text\{\s*cdot\s*([A-Za-z]+)\s*\}/gi, "\\cdot \\text{$1}");
@@ -99,7 +162,7 @@ function fixMangledCdotInUnits(s: string): string {
   out = out.replace(/\\text\{\s*cdot\s*\}/gi, "\\cdot");
   const CDOTS_PH = "__PRESERVE_CDOTS__";
   out = out.replace(/\\cdots/g, CDOTS_PH);
-  out = out.replace(/\\cdot(?=[A-Za-z])/g, "\\cdot ");
+  out = out.replace(/\\cdot([A-Za-z])/g, "\\cdot $1");
   out = out.split(CDOTS_PH).join("\\cdots");
   return out;
 }
@@ -110,11 +173,17 @@ function fixMangledCdotInsideAllInlineMath(text: string): string {
 }
 
 function normalizeLatexEscapes(text: string): string {
+  // ── 0. Corrupted “mol 0˘ 0b7K” (mangled U+00B7) + \cdotX before other passes
+  let out = fixCorruptedUnitMiddleDots(text);
+  out = out.replace(/\\cdot([A-Za-z])/g, "\\cdot $1");
+
   // ── 1. Collapse display math $$...$$ → $...$
-  let out = text.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => `$${inner.trim()}$`);
+  out = out.replace(/\$\$([\s\S]+?)\$\$/g, (_, inner) => `$${inner.trim()}$`);
 
   // ── 2. Fix double-escaped backslashes sent by well-behaved backends (\\text → \text)
   out = out.replace(/\\\\/g, "\\");
+  // Re-run after backslash normalization (handles \\cdotK that just became \cdotK)
+  out = out.replace(/\\cdot([A-Za-z])/g, "\\cdot $1");
 
   // ── 2b. Gas constant / J·mol⁻¹·K⁻¹ style mangling (whole string + again per $...$ block)
   out = fixMangledCdotInUnits(out);
@@ -145,11 +214,54 @@ function normalizeLatexEscapes(text: string): string {
   out = fixMangledCdotInUnits(out);
   out = fixMangledCdotInsideAllInlineMath(out);
 
+  // ── 6. Wrap bare \cdot X outside $...$ into $\cdot X$ so autoWrapLatex's early-exit
+  //       (triggered when the string already contains some $...$) doesn't leave the
+  //       middle-dot operator as unrendered plain text or a KaTeX unknown-command error.
+  //       applyOutsideMath is safe to call here — it's a plain function declaration (hoisted).
+  out = applyOutsideMath(out, (seg) => {
+    const ph = "__CDOTS_PH__";
+    return seg
+      .replace(/\\cdots/g, ph)
+      .replace(/\\cdot([A-Za-z])/g, (_, ch) => `$\\cdot ${ch}$`)
+      .replace(new RegExp(ph, "g"), "\\cdots");
+  });
+
   return out;
 }
 
 /** LaTeX command names that are sometimes sent with ^ instead of \ (e.g. ^mathrm -> \mathrm). */
 const CARET_AS_BACKSLASH_COMMANDS = "mathrm|text|mathit|mathbf|times|cdot|ldots|rightarrow|left|right|frac|sqrt|sin|cos|log|ln";
+
+/**
+ * “Substitute” steps often arrive as plain ASCII calculators, e.g.
+ *   Ea = 8.314 * ln(8.10e-3/1.20e-3) / (1/298.15 - 1/318.15)
+ * with no $...$ and no TeX commands, so KaTeX never runs. Convert to inline math.
+ */
+function normalizeAsciiCalculatorEquation(text: string): string {
+  const joiner = text.includes("\n") ? "\n" : null;
+  const lines = joiner != null ? text.split("\n") : [text];
+  const outLines = lines.map((raw) => {
+    const line = raw.trimEnd();
+    const t = line.trim();
+    if (!t) return line;
+    if (/\$/.test(t)) return line;
+    if (/\\[a-zA-Z]/.test(t)) return line;
+    if (!/=/.test(t)) return line;
+    const sci = /\d\.?\d*e[+-]?\d/i.test(t);
+    const star = /\*/.test(t);
+    const ln = /\bln\s*\(/i.test(t);
+    if (!sci && !star && !ln) return line;
+
+    let o = t
+      .replace(/\bEa\b/g, "E_a")
+      .replace(/(\d+\.?\d*)e([+-]?\d+)/gi, (_, b: string, e: string) => `${b}\\times 10^{${e}}`)
+      .replace(/\*\s*/g, "\\cdot ")
+      .replace(/\bln\s*\(/gi, "\\ln(");
+
+    return `$${o}$`;
+  });
+  return joiner != null ? outLines.join("\n") : outLines[0] ?? text;
+}
 
 /**
  * Convert plain-text scientific notation and caret exponents to inline math.
@@ -196,12 +308,24 @@ function scientificNotationToMath(text: string): string {
   return out;
 }
 
+export type FormatMathContentOptions = {
+  /** Prefer display math ($$) for drag_drop–style equations and tall fractions. */
+  preferDisplay?: boolean;
+  /** If set, also use display math when the normalized string is at least this long. */
+  longMathThreshold?: number;
+};
+
 /**
  * Backwards-compatible shim.
  * All existing call-sites using formatMathContent(text) continue to work.
  */
-export function formatMathContent(text: string): React.ReactNode {
-  const normalized = normalizeLatexEscapes(text);
+export function formatMathContent(text: string, opts?: FormatMathContentOptions): React.ReactNode {
+  const safeText = fixCdotKelvinForKatex(text);
+  const ascii = normalizeAsciiCalculatorEquation(safeText);
+  const normalized = normalizeLatexEscapes(ascii);
   const withMath = scientificNotationToMath(normalized);
-  return <MathText>{withMath}</MathText>;
+  const preferDisplay =
+    opts?.preferDisplay === true ||
+    (opts?.longMathThreshold != null && withMath.length >= opts.longMathThreshold);
+  return <MathText preferDisplay={preferDisplay}>{withMath}</MathText>;
 }

@@ -246,6 +246,9 @@ export function ChemistryTutor({
     queryFn: () => apiGetReferenceCard(unitId, lessonIndex, currentTopicName),
     staleTime: REF_CARD_STALE_MS,
     gcTime: REF_CARD_GC_MS,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
     enabled: nav.currentLevel !== 3,
   });
 

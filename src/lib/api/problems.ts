@@ -111,11 +111,10 @@ export async function apiGenerateProblemV2(body: {
 
 // ── Reference card (fiche de cours) ───────────────────────────────────────
 
-/** React Query cache settings — 30 min stale / 30 min GC. Long enough to
- *  survive the full LLM generation latency and keep the result warm for the
- *  entire study session without ever triggering a background re-fetch. */
-export const REF_CARD_STALE_MS = 30 * 60 * 1_000;
-export const REF_CARD_GC_MS    = 30 * 60 * 1_000;
+/** React Query cache — reference card is static per lesson (not mastery-dependent).
+ *  Treat as fresh for the whole tab session and do not GC while the app is open. */
+export const REF_CARD_STALE_MS = Number.POSITIVE_INFINITY;
+export const REF_CARD_GC_MS = Number.POSITIVE_INFINITY;
 
 /** Stable React Query key for the reference card.
  *  Must match exactly between prefetchQuery (UnitLandingPage) and useQuery (ChemistryTutor). */

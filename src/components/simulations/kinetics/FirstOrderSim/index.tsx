@@ -6,10 +6,11 @@
  *   ROW 1  [Beaker ~25%]  |  [[A] vs t + scrubber, flex-1]  |  [Bar Chart ~15%]
  *   ROW 2  [ln[A] vs t ~30%]  |  [Equations flex-1.5]  |  [Guide flex-1]
  */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Settings2 } from "lucide-react";
 import { SimControlBar } from "@/components/simulations/shared/SimControlBar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { useFirstOrder } from "./useFirstOrder";
 import { FirstOrderVisualizer } from "./FirstOrderVisualizer";
 import { LnAChart } from "./LnAChart";
@@ -17,23 +18,14 @@ import { DynamicMath } from "./DynamicMath";
 import { ParticulateBeaker } from "../shared/ParticulateBeaker";
 import { ConcentrationBarChart } from "../shared/ConcentrationBarChart";
 import { SimGuidePanel } from "../shared/SimGuidePanel";
+import { useSimSession } from "../../shared/useSimSession";
+import { useAutoPlay } from "../../shared/useAutoPlay";
 import { REACTIONS, TUTORIAL_STEPS, INITIAL_CONC, MAX_TIME } from "./content";
-import { useClickOutside } from "@/components/simulations/shared/useClickOutside";
 
 interface Props {
   onBackToOverview: () => void;
   onStartPractice: () => void;
 }
-
-// ── Session storage ───────────────────────────────────────────────────
-const SS_STEP     = "firstOrder_step";
-const SS_REACTION = "firstOrder_reaction";
-function clearSession() {
-  sessionStorage.removeItem(SS_STEP);
-  sessionStorage.removeItem(SS_REACTION);
-}
-
-// ─────────────────────────────────────────────────────────────────────
 
 export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
   const [reactionId, setReactionId]     = useState(REACTIONS[0].id);
@@ -43,27 +35,21 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
   const [tutorialStep, setTutorialStep] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [reactionDropdownOpen, setReactionDropdownOpen] = useState(false);
-  const settingsRef = useRef<HTMLDivElement>(null);
-  useClickOutside(settingsRef, settingsOpen, () => setSettingsOpen(false));
 
-  // Hydrate from sessionStorage once on mount
-  useEffect(() => {
-    const savedStep     = sessionStorage.getItem(SS_STEP);
-    const savedReaction = sessionStorage.getItem(SS_REACTION);
-    if (savedReaction) {
-      const r = REACTIONS.find((rx) => rx.id === savedReaction);
-      if (r) { setReactionId(r.id); setInitialConc(r.defaultConc); }
-    }
-    if (savedStep) {
-      const s = parseInt(savedStep, 10);
-      if (!isNaN(s) && s >= 0 && s < TUTORIAL_STEPS.length) setTutorialStep(s);
-    }
-  }, []);
-
-  useEffect(() => {
-    sessionStorage.setItem(SS_STEP, tutorialStep.toString());
-    sessionStorage.setItem(SS_REACTION, reactionId);
-  }, [tutorialStep, reactionId]);
+  const { clearSession } = useSimSession({
+    stepKey:     "firstOrder_step",
+    reactionKey: "firstOrder_reaction",
+    totalSteps:  TUTORIAL_STEPS.length,
+    tutorialStep,
+    reactionId,
+    onLoad: ({ step, reactionId: rid }) => {
+      setTutorialStep(step);
+      if (rid) {
+        const r = REACTIONS.find((rx) => rx.id === rid);
+        if (r) { setReactionId(r.id); setInitialConc(r.defaultConc); }
+      }
+    },
+  });
 
   const reaction = REACTIONS.find((r) => r.id === reactionId) ?? REACTIONS[0];
   const k        = reaction.k;
@@ -100,25 +86,8 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
     setReactionDropdownOpen(tutorialStep === 11 || tutorialStep === 16);
   }, [tutorialStep]);
 
-  // Auto-play steps
   const isAutoPlayStep = (s: number) => s === 10 || s === 14 || s === 18;
-  const prevStepRef = useRef(tutorialStep);
-  useEffect(() => {
-    const prev = prevStepRef.current;
-    prevStepRef.current = tutorialStep;
-    if (isAutoPlayStep(tutorialStep)) {
-      setTCurrent(0);
-      setPlaying(true);
-    } else if (isAutoPlayStep(prev)) {
-      setPlaying(false);
-      if (tutorialStep < prev) setTCurrent(0);
-    }
-  }, [tutorialStep]);
-
-  useEffect(() => {
-    if (isAutoPlayStep(tutorialStep) && tCurrent >= MAX_TIME)
-      setTutorialStep((s) => s + 1);
-  }, [tutorialStep, tCurrent]);
+  useAutoPlay({ tutorialStep, setTutorialStep, tCurrent, maxTime: MAX_TIME, setTCurrent, setPlaying, isAutoPlayStep });
 
   return (
     <div className="flex flex-col w-full max-w-[1600px] mx-auto xl:h-full xl:overflow-hidden">
@@ -156,31 +125,32 @@ export function FirstOrderSim({ onBackToOverview, onStartPractice }: Props) {
         </div>
         <div className="h-4 w-px bg-border" />
 
-        <div className="relative" ref={settingsRef}>
-          <button onClick={() => setSettingsOpen((o) => !o)}
-            className={`flex items-center gap-1 text-xs border rounded px-2 py-0.5 transition-colors ${
-              settingsOpen ? "bg-primary text-primary-foreground border-primary"
-                : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
-            } ${tutorialStep === 1 || tutorialStep === 3 ? "ring-2 ring-primary ring-offset-1" : ""}`}>
-            <Settings2 className="w-3 h-3" />
-            Parameters
-          </button>
-          {settingsOpen && (
-            <div className="absolute top-full left-0 mt-1.5 z-50 flex items-center gap-4 px-3 py-2.5 rounded-xl border border-border bg-card shadow-lg flex-wrap min-w-max">
-              <span className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground">k:</span>
-                <span className="font-mono tabular-nums text-foreground">{k.toFixed(3)}</span>
-                <span className="text-muted-foreground">s⁻¹</span>
-              </span>
-              <div className="h-4 w-px bg-border" />
-              <span className="flex items-center gap-1 text-xs">
-                <span className="text-muted-foreground">[{reaction.reactant}]₀:</span>
-                <span className="font-mono tabular-nums text-foreground">{initialConc.toFixed(2)}</span>
-                <span className="text-muted-foreground">mol/L</span>
-              </span>
-            </div>
-          )}
-        </div>
+        <Popover open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <PopoverTrigger asChild>
+            <button
+              className={`flex items-center gap-1 text-xs border rounded px-2 py-0.5 transition-colors ${
+                settingsOpen ? "bg-primary text-primary-foreground border-primary"
+                  : "border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+              } ${tutorialStep === 1 || tutorialStep === 3 ? "ring-2 ring-primary ring-offset-1" : ""}`}
+            >
+              <Settings2 className="w-3 h-3" />
+              Parameters
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" sideOffset={6} className="w-auto flex items-center gap-4 px-3 py-2.5">
+            <span className="flex items-center gap-1 text-xs">
+              <span className="text-muted-foreground">k:</span>
+              <span className="font-mono tabular-nums text-foreground">{k.toFixed(3)}</span>
+              <span className="text-muted-foreground">s⁻¹</span>
+            </span>
+            <div className="h-4 w-px bg-border" />
+            <span className="flex items-center gap-1 text-xs">
+              <span className="text-muted-foreground">[{reaction.reactant}]₀:</span>
+              <span className="font-mono tabular-nums text-foreground">{initialConc.toFixed(2)}</span>
+              <span className="text-muted-foreground">mol/L</span>
+            </span>
+          </PopoverContent>
+        </Popover>
       </SimControlBar>
 
       {/* ── Content ────────────────────────────────────────────────────── */}

@@ -7,6 +7,8 @@ import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { HintToggle } from "./HintToggle";
+import { formatMathContent } from "@/lib/mathDisplay";
+import { STEP_ANSWER_BOX_FORM, STEP_ANSWER_FIELD_TEXT, STEP_ANSWER_TEXT } from "./stepAnswerStyles";
 
 interface LabeledValue {
   variable: string;
@@ -88,7 +90,8 @@ export function KnownsIdentifier({
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="ml-16 space-y-3">
-        <div className="space-y-2">
+        <div className={STEP_ANSWER_BOX_FORM}>
+          <div className="space-y-2 w-full">
           {variables.map((v) => {
             const showUnit = hasUnit(v);
             return (
@@ -96,17 +99,19 @@ export function KnownsIdentifier({
                 key={v.variable}
                 className={cn(
                   "grid gap-2 items-center",
-                  showUnit ? "grid-cols-[100px_1fr_100px]" : "grid-cols-[100px_1fr]"
+                  showUnit ? "grid-cols-[minmax(6rem,7.5rem)_1fr_minmax(5rem,6.25rem)]" : "grid-cols-[minmax(6rem,7.5rem)_1fr]"
                 )}
               >
-                <span className="text-sm font-mono font-medium text-foreground">{v.variable} →</span>
+                <span className={cn(STEP_ANSWER_TEXT, "equation text-right leading-snug")}>
+                  {formatMathContent(v.variable)} →
+                </span>
                 <Input
                   value={values[v.variable]?.value || ""}
                   onChange={(e) => handleChange(v.variable, "value", e.target.value)}
                   disabled={isComplete}
                   placeholder="Enter your answer"
                   className={cn(
-                    "text-sm",
+                    STEP_ANSWER_FIELD_TEXT,
                     (isComplete || (hasAttempted && !fieldErrors[v.variable])) && "border-success bg-success/10",
                     fieldErrors[v.variable] && "border-destructive bg-destructive/10"
                   )}
@@ -118,7 +123,7 @@ export function KnownsIdentifier({
                     disabled={isComplete}
                     placeholder="Unit"
                     className={cn(
-                      "text-sm",
+                      STEP_ANSWER_FIELD_TEXT,
                       (isComplete || (hasAttempted && !fieldErrors[v.variable])) && "border-success bg-success/10",
                       fieldErrors[v.variable] && "border-destructive bg-destructive/10"
                     )}
@@ -127,6 +132,7 @@ export function KnownsIdentifier({
               </div>
             );
           })}
+          </div>
         </div>
 
         {!isComplete && <Button size="sm" onClick={handleCheck}>Check</Button>}

@@ -14,7 +14,6 @@ export interface SecondOrderResult {
   concAtT: number;
   productAtT: number;
   invAatT: number;
-  rate: number;
   halfLife: number;
   fractionA: number;
 }
@@ -42,9 +41,8 @@ export function useSecondOrder(
     const concAtT    = 1 / (k * tCurrent + inv0);
     const productAtT = initialConc - concAtT;
     const invAatT    = k * tCurrent + inv0;
-    const rate       = k * concAtT * concAtT;
     const fractionA  = concAtT / initialConc;
 
-    return { series, concAtT, productAtT, invAatT, rate, halfLife, fractionA };
+    return { series, concAtT, productAtT, invAatT, halfLife, fractionA };
   }, [k, initialConc, tCurrent]);
 }

@@ -136,7 +136,7 @@ export function ComparisonVisuals({
           </p>
 
           {chartsRevealed ? (
-            <div className="flex-1 min-h-0">
+            <div className="h-[220px] sm:h-auto sm:flex-1 sm:min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={series} margin={{ top: 4, right: 12, bottom: 28, left: -4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

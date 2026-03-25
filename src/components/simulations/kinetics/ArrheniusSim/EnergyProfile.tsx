@@ -127,7 +127,7 @@ export function EnergyProfile({
   const catPeakY = peakYUncatalysed + reductionFraction * (reactantsY - peakYUncatalysed);
 
   const tsX = TRANSITION_STATE_X;
-  const dhX = deltaHBracketX();
+  const dhX = DH_BRACKET_X;
 
   const energyScale = useMemo(() => buildEnergyScale(reaction), [reaction]);
   const yGridLines = useMemo(() => {

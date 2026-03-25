@@ -6,6 +6,7 @@ import {
   getResolvedResult,
   setPrefetchPromise,
 } from "@/lib/problemPrefetchCache";
+import { fixCorruptedUnitMiddleDots } from "@/lib/mathDisplay";
 
 interface UseGeneratedProblemOptions {
   unitId: string;
@@ -22,6 +23,14 @@ export interface GenerateResult {
   pagination: ProblemPagination | null;
 }
 
+/** Sanitize API strings: mangled middle-dot units + \cdotK KaTeX pitfall. */
+function fixCdot(s: string | null | undefined): string {
+  if (!s) return s ?? "";
+  let out = fixCorruptedUnitMiddleDots(s);
+  out = out.replace(/\\cdot([A-Za-z])/g, (_, l: string) => "\\cdot " + l);
+  return out;
+}
+
 export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResult {
   const pd = data.problem;
   const steps: SolutionStep[] = pd.steps.map((s) => ({
@@ -29,23 +38,27 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
     step_number: s.step_number,
     type: s.type as SolutionStep["type"],
     label: s.label,
-    instruction: s.instruction,
-    content: s.content ?? undefined,
+    instruction: fixCdot(s.instruction),
+    content: s.content != null ? fixCdot(s.content) : undefined,
     placeholder: s.placeholder ?? undefined,
-    explanation: s.explanation ?? undefined,
-    equation_parts: s.equation_parts ?? undefined,
+    explanation: fixCdot(s.explanation) || undefined,
+    equation_parts: s.equation_parts?.map((p) => fixCdot(p)) ?? undefined,
     // correct_equation stores the answer for drag_drop steps
     correct_equation: s.type === "drag_drop" ? (s.correct_answer ?? undefined) : undefined,
-    labeled_values: s.labeled_values ?? undefined,
-    comparison_parts: s.comparison_parts ?? undefined,
-    correct_answer: s.correct_answer ?? undefined,
-    hint: s.hint ?? undefined,
+    labeled_values: s.labeled_values?.map((lv) => ({
+      variable: fixCdot(lv.variable),
+      value: fixCdot(lv.value),
+      unit: fixCdot(lv.unit),
+    })) ?? undefined,
+    comparison_parts: s.comparison_parts?.map((p) => fixCdot(p)) ?? undefined,
+    correct_answer: fixCdot(s.correct_answer) || undefined,
+    hint: s.hint != null ? fixCdot(s.hint) : undefined,
   }));
 
   const problem: Problem = {
     id: pd.id,
     title: pd.title,
-    description: pd.statement,
+    description: fixCdot(pd.statement),
     lesson: pd.lesson,
     difficulty: pd.difficulty as Problem["difficulty"],
     steps,

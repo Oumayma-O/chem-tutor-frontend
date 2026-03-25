@@ -18,8 +18,6 @@ export interface FirstOrderResult {
   productAtT: number;
   /** ln([A]t) at the current slider time. */
   lnAatT: number;
-  /** Rate = k·[A]t at the current slider time. */
-  rate: number;
   /** Half-life = ln(2)/k — constant, independent of [A]₀. */
   halfLife: number;
   /** [A]t / [A]₀ — drives the shared ParticulateBeaker. */
@@ -48,9 +46,8 @@ export function useFirstOrder(
     const concAtT    = initialConc * Math.exp(-k * tCurrent);
     const productAtT = initialConc - concAtT;
     const lnAatT     = Math.log(concAtT);
-    const rate       = k * concAtT;
     const fractionA  = concAtT / initialConc;
 
-    return { series, concAtT, productAtT, lnAatT, rate, halfLife, fractionA };
+    return { series, concAtT, productAtT, lnAatT, halfLife, fractionA };
   }, [k, initialConc, tCurrent]);
 }

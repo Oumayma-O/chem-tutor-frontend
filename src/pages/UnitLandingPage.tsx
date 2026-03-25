@@ -66,6 +66,9 @@ export default function UnitLandingPage() {
         queryFn: () => apiGetReferenceCard(uid, lidx, lname),
         staleTime: REF_CARD_STALE_MS,
         gcTime: REF_CARD_GC_MS,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
       });
 
       // Level-1 problem — queued so at most MAX_CONCURRENT LLM calls run at once.

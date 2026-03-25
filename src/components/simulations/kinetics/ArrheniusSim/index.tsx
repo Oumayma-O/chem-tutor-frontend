@@ -256,14 +256,14 @@ export function ArrheniusSim({ onBackToOverview, onStartPractice }: Props) {
           <div
             data-tutorial="energy-profile-chart"
             className={cn(
-              "flex-1 min-h-[220px] rounded-xl border border-border bg-card p-3",
+              "flex flex-col flex-1 min-h-[240px] rounded-xl border border-border bg-card p-3",
               hasTutorialHighlight(hl, "energy-profile-chart") && tutorialUi.ringClass,
             )}
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
               Energy Profile
             </p>
-            <div className="w-full h-[calc(100%-24px)]">
+            <div className="w-full h-[200px] xl:h-full xl:flex-1 xl:min-h-0">
               <EnergyProfile
                 reaction={arrhState.reaction}
                 effectiveEa={arrhState.effectiveEa}
@@ -282,14 +282,14 @@ export function ArrheniusSim({ onBackToOverview, onStartPractice }: Props) {
           <div
             data-tutorial="arrhenius-plot"
             className={cn(
-              "flex-1 min-h-[220px] rounded-xl border border-border bg-card p-3",
+              "flex flex-col flex-1 min-h-[240px] rounded-xl border border-border bg-card p-3",
               hasTutorialHighlight(hl, "arrhenius-plot") && tutorialUi.ringClass,
             )}
           >
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
               ln(k) vs 1/T
             </p>
-            <div className="w-full h-[calc(100%-24px)]">
+            <div className="w-full h-[200px] xl:h-full xl:flex-1 xl:min-h-0">
               <ArrheniusGraph
                 lineSeries={arrhState.lineSeries}
                 currentInvT={arrhState.invT}

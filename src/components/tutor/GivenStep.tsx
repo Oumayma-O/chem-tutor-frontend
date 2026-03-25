@@ -8,24 +8,18 @@ interface GivenStepProps {
   step: SolutionStep;
 }
 
-/** Format labeled values: label outside math, only value+unit through KaTeX (avoids “Gas constant = …” as one math block). */
+/** Format labeled values as "variable = value unit"; one string per line so only $...$ is rendered as math. */
 function formatLabeledValues(
   items: { variable: string; value: string; unit: string }[]
 ): React.ReactNode {
   return (
     <>
       {items.map((item, i) => {
-        const rhs = `${item.value} ${item.unit || ""}`.trim();
+        const mathString = `${item.variable} = ${item.value} ${item.unit || ""}`.trim();
         return (
           <React.Fragment key={item.variable}>
             {i > 0 && <br />}
-            <span className="equation text-foreground">
-              <span className="font-mono font-medium text-foreground">
-                {formatMathContent(item.variable)}
-              </span>
-              {" = "}
-              {formatMathContent(rhs)}
-            </span>
+            <span className="equation text-foreground">{formatMathContent(mathString)}</span>
           </React.Fragment>
         );
       })}
@@ -79,7 +73,9 @@ export function GivenStep({ step }: GivenStepProps) {
     </p>
   ) : step.equation_parts && step.equation_parts.length > 0 ? (
     <p className="equation text-foreground font-medium">
-      {formatMathContent(`$${step.equation_parts.join(" ").replace(/\$/g, "")}$`)}
+      {formatMathContent(`$${step.equation_parts.join(" ").replace(/\$/g, "")}$`, {
+        preferDisplay: true,
+      })}
     </p>
   ) : (
     <p className="text-muted-foreground text-sm">—</p>
@@ -92,7 +88,12 @@ export function GivenStep({ step }: GivenStepProps) {
         <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
           {step.label}
         </span>
-        <span className="text-foreground font-medium">{formatMathContent(step.instruction)}</span>
+        <span className="text-foreground font-medium">
+          {formatMathContent(
+            step.instruction,
+            step.instruction.length > 120 ? { preferDisplay: true } : undefined
+          )}
+        </span>
       </div>
       <div className="ml-16 space-y-2">
         <div className="bg-card rounded-md p-4 border border-border">

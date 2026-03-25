@@ -13,6 +13,7 @@ import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { HintToggle } from "./HintToggle";
+import { STEP_ANSWER_BOX, STEP_ANSWER_TEXT } from "./stepAnswerStyles";
 
 interface ComparisonStepProps {
   step_number: number;
@@ -61,15 +62,16 @@ export function ComparisonStep({
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="ml-16 space-y-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="font-mono text-sm bg-muted/80 px-3 py-2 rounded-lg border border-border shadow-sm min-w-0">
+        <div className={cn(STEP_ANSWER_BOX, STEP_ANSWER_TEXT, "equation flex-nowrap sm:flex-wrap")}>
+          <span className="min-w-0 px-1 text-center sm:text-left">
             {formatMathContent(comparisonParts[0])}
           </span>
 
           <Select value={selected || undefined} onValueChange={handleValueChange} disabled={isComplete}>
             <SelectTrigger
               className={cn(
-                "w-14 h-10 rounded-lg border bg-muted/50 text-center font-mono text-lg font-semibold shadow-sm",
+                STEP_ANSWER_TEXT,
+                "w-14 h-10 shrink-0 rounded-lg border bg-background text-center font-semibold shadow-sm",
                 "focus:ring-2 focus:ring-ring focus:ring-offset-1",
                 isComplete && selected === correctAnswer && "border-success bg-success/10 text-success",
                 isIncorrect && "border-destructive bg-destructive/5"
@@ -79,14 +81,14 @@ export function ComparisonStep({
             </SelectTrigger>
             <SelectContent align="center">
               {OPERATORS.map((op) => (
-                <SelectItem key={op} value={op} className="font-mono text-center justify-center">
+                <SelectItem key={op} value={op} className={cn(STEP_ANSWER_TEXT, "text-center justify-center")}>
                   {op}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
 
-          <span className="font-mono text-sm bg-muted/80 px-3 py-2 rounded-lg border border-border shadow-sm min-w-0">
+          <span className="min-w-0 px-1 text-center sm:text-left">
             {formatMathContent(comparisonParts[1])}
           </span>
         </div>
