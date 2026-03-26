@@ -44,7 +44,11 @@ export function InteractiveStep({
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
+    const lineHeightPx = Number.parseFloat(window.getComputedStyle(el).lineHeight || "20");
+    const maxHeight = lineHeightPx * 3;
+    const nextHeight = Math.min(el.scrollHeight, maxHeight);
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [answer?.answer]);
 
   return (
@@ -61,7 +65,7 @@ export function InteractiveStep({
           <div
             className={cn(
               STEP_ANSWER_BOX_TEXTAREA,
-              "flex-1 border-2",
+              "flex-1 border-2 focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400",
               isCorrect && "border-success bg-success/10",
               isIncorrect && "border-destructive bg-destructive/10",
               !isCorrect && !isIncorrect && "border-input"
@@ -82,7 +86,7 @@ export function InteractiveStep({
               rows={1}
               className={cn(
                 STEP_ANSWER_FIELD_TEXT,
-                "w-full min-h-[2.5rem] max-h-[120px] bg-transparent border-0 rounded-none resize-none overflow-y-auto transition-all outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-0 disabled:opacity-50"
+                "w-full min-h-[40px] text-sm md:text-sm placeholder:text-sm py-2 px-3 bg-transparent border-0 rounded-none resize-none overflow-y-auto transition-all outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 disabled:opacity-50"
               )}
             />
           </div>

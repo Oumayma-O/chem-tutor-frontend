@@ -3,7 +3,7 @@ import { SimControlBar } from "@/components/simulations/shared/SimControlBar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
-import { REACTIONS, TUTORIAL_STEPS, type TutorialHighlight } from "./content";
+import { REACTIONS, TUTORIAL_STEPS } from "./content";
 import { useArrhenius, arrheniusRateConstant } from "./useArrhenius";
 import { getArrheniusTutorialUiState, hasTutorialHighlight } from "./arrheniusTutorialUi";
 import { EnergyProfile } from "./EnergyProfile";
@@ -162,9 +162,6 @@ export function ArrheniusSim({ onBackToOverview, onStartPractice }: Props) {
         onBack={onBackToOverview}
         onReset={handleReset}
         onStartPractice={handleStartPractice}
-        practiceButtonClassName={
-          hasTutorialHighlight(hl, "practice-button") ? tutorialUi.ringClass : undefined
-        }
       >
         {/* Reaction dropdown */}
         <div
@@ -350,6 +347,10 @@ export function ArrheniusSim({ onBackToOverview, onStartPractice }: Props) {
               onBack={handleBack}
               onNext={handleNext}
               onStartPractice={handleStartPractice}
+              practiceButtonClassName={cn(
+                hasTutorialHighlight(hl, "start-practice-button") &&
+                  "ring-2 ring-blue-400/80 dark:ring-blue-500/70 ring-offset-1 ring-offset-background",
+              )}
               nextDisabled={nextDisabled}
             />
           </div>

@@ -32,13 +32,11 @@ interface PeriodicTablePanelProps {
 function ElementCell({
   cell,
   className,
-  onMouseEnter,
-  onMouseLeave,
+  onPointerEnter,
 }: {
   cell: Cell;
   className?: string;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  onPointerEnter?: () => void;
 }) {
   const massDisplay = Number.isInteger(cell.atomicMass)
     ? `[${cell.atomicMass}]`
@@ -52,8 +50,7 @@ function ElementCell({
         className
       )}
       title={`${cell.symbol} — ${cell.number}`}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
+      onPointerEnter={onPointerEnter}
     >
       <span className="text-[9px] text-gray-500 leading-none self-start">{cell.number}</span>
       <span className="text-xs font-bold leading-tight -mt-0.5">{cell.symbol}</span>
@@ -75,6 +72,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
   /** null = wrap contents; set to explicit size when user resizes */
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [hoveredElement, setHoveredElement] = useState<Cell | null>(null);
+  const hoverClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef({ x: 0, y: 0, left: 0, top: 0 });
   const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
@@ -188,6 +186,29 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
   const lanthanoidRow = getLanthanoidRow();
   const actinoidRow = getActinoidRow();
 
+  const handleElementPointerEnter = useCallback((cell: Cell) => {
+    if (hoverClearTimerRef.current) {
+      clearTimeout(hoverClearTimerRef.current);
+      hoverClearTimerRef.current = null;
+    }
+    setHoveredElement(cell);
+  }, []);
+
+  const handleTablePointerLeave = useCallback(() => {
+    if (hoverClearTimerRef.current) clearTimeout(hoverClearTimerRef.current);
+    // Small debounce prevents flicker/stuck transitions during rapid pointer movement.
+    hoverClearTimerRef.current = setTimeout(() => {
+      setHoveredElement(null);
+      hoverClearTimerRef.current = null;
+    }, 30);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hoverClearTimerRef.current) clearTimeout(hoverClearTimerRef.current);
+    };
+  }, []);
+
   return (
     <div
       ref={panelRef}
@@ -265,7 +286,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
         </div>
       </div>
 
-      <div className="p-3 overflow-x-auto" onMouseLeave={() => setHoveredElement(null)}>
+      <div className="p-3 overflow-x-auto" onPointerLeave={handleTablePointerLeave}>
         {/* Legend — two columns, centered */}
         <div className="flex justify-center mb-3">
           <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-[10px]">
@@ -304,8 +325,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
                     <ElementCell
                       key={`${ri}-${ci}`}
                       cell={cell}
-                      onMouseEnter={() => setHoveredElement(cell)}
-                      onMouseLeave={() => setHoveredElement(null)}
+                      onPointerEnter={() => handleElementPointerEnter(cell)}
                     />
                   ) : (
                     <div key={`${ri}-${ci}`} className="min-h-[42px]" />
@@ -333,8 +353,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
                   <ElementCell
                     key={cell.number}
                     cell={cell}
-                    onMouseEnter={() => setHoveredElement(cell)}
-                    onMouseLeave={() => setHoveredElement(null)}
+                    onPointerEnter={() => handleElementPointerEnter(cell)}
                   />
                 ))}
               </div>
@@ -353,8 +372,7 @@ export function PeriodicTablePanel({ onClose }: PeriodicTablePanelProps) {
                   <ElementCell
                     key={cell.number}
                     cell={cell}
-                    onMouseEnter={() => setHoveredElement(cell)}
-                    onMouseLeave={() => setHoveredElement(null)}
+                    onPointerEnter={() => handleElementPointerEnter(cell)}
                   />
                 ))}
               </div>

@@ -170,6 +170,12 @@
   vertical-align: super;
 }
 
+/* Normalize KaTeX font size so math renders at the same size as surrounding text */
+.equation .katex,
+.bg-card .katex {
+  font-size: 1em;
+}
+
 /* KaTeX: inline division / binary operators less cramped */
 .katex .mord + .mbin {
   padding-left: 0.15em;

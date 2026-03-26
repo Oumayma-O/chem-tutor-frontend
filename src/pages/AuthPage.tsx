@@ -49,6 +49,11 @@ function signupCourseToProfileName(value: string): string {
   return map[value] ?? value;
 }
 
+function capitalizeFirstInput(text: string): string {
+  if (!text) return text;
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 const INTEREST_OPTIONS = [
   { value: "sports", label: "Sports", icon: "🏀" },
   { value: "music", label: "Music", icon: "🎵" },
@@ -358,7 +363,15 @@ export default function AuthPage() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="signup-name">Name</Label>
-                    <Input id="signup-name" placeholder="Your name" value={signupName} onChange={(e) => setSignupName(e.target.value)} required maxLength={100} />
+                    <Input
+                      id="signup-name"
+                      placeholder="Your name"
+                      value={signupName}
+                      onChange={(e) => setSignupName(capitalizeFirstInput(e.target.value))}
+                      autoCapitalize="words"
+                      required
+                      maxLength={100}
+                    />
                   </div>
 
                   <div className="space-y-1.5">
@@ -424,7 +437,8 @@ export default function AuthPage() {
                         id="signup-class"
                         placeholder="e.g., AP Chemistry Period 3"
                         value={signupClassName}
-                        onChange={(e) => setSignupClassName(e.target.value)}
+                        onChange={(e) => setSignupClassName(capitalizeFirstInput(e.target.value))}
+                        autoCapitalize="words"
                         required
                         maxLength={100}
                       />

@@ -8,6 +8,17 @@ interface GivenStepProps {
   step: SolutionStep;
 }
 
+/** Capitalize first visible letter when the line starts like plain text (not LaTeX/math). */
+function capitalizeFirst(text: string): string {
+  if (!text) return text;
+  const leadingWs = text.match(/^\s*/)?.[0] ?? "";
+  const rest = text.slice(leadingWs.length);
+  if (!rest) return text;
+  const first = rest[0];
+  if (/[a-z]/.test(first)) return `${leadingWs}${first.toUpperCase()}${rest.slice(1)}`;
+  return text;
+}
+
 /** Format labeled values as "variable = value unit"; one string per line so only $...$ is rendered as math. */
 function formatLabeledValues(
   items: { variable: string; value: string; unit: string }[]
@@ -15,7 +26,7 @@ function formatLabeledValues(
   return (
     <>
       {items.map((item, i) => {
-        const mathString = `${item.variable} = ${item.value} ${item.unit || ""}`.trim();
+        const mathString = capitalizeFirst(`${item.variable} = ${item.value} ${item.unit || ""}`.trim());
         return (
           <React.Fragment key={item.variable}>
             {i > 0 && <br />}
@@ -57,7 +68,7 @@ export function GivenStep({ step }: GivenStepProps) {
     step.correct_answer !== "";
   const hasLabeledValues = step.labeled_values && step.labeled_values.length > 0;
 
-  const answerText = (step.correct_answer ?? "").trim();
+  const answerText = capitalizeFirst((step.correct_answer ?? "").trim());
   const content = hasComparison ? (
     formatComparison(step.comparison_parts!, step.correct_answer!)
   ) : hasLabeledValues ? (
@@ -67,7 +78,7 @@ export function GivenStep({ step }: GivenStepProps) {
       {answerText.split(", ").map((line, i) => (
         <React.Fragment key={i}>
           {i > 0 && <br />}
-          {formatMathContent(line)}
+          {formatMathContent(capitalizeFirst(line))}
         </React.Fragment>
       ))}
     </p>

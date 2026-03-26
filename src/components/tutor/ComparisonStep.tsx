@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { formatMathContent } from "@/lib/mathDisplay";
 import {
   Select,
@@ -13,7 +14,7 @@ import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { HintToggle } from "./HintToggle";
-import { STEP_ANSWER_BOX, STEP_ANSWER_TEXT } from "./stepAnswerStyles";
+import { STEP_ANSWER_TEXT } from "./stepAnswerStyles";
 
 interface ComparisonStepProps {
   step_number: number;
@@ -50,11 +51,15 @@ export function ComparisonStep({
 
   const handleValueChange = (value: string) => {
     if (isComplete) return;
-    const op = value as Operator;
-    setSelected(op);
+    setSelected(value as Operator);
     setIsIncorrect(false);
-    if (op === correctAnswer) { onComplete(true); }
-    else { setIsIncorrect(true); onComplete(false); }
+  };
+
+  const handleCheck = () => {
+    if (!selected || isComplete) return;
+    const isCorrect = selected === correctAnswer;
+    setIsIncorrect(!isCorrect);
+    onComplete(isCorrect);
   };
 
   return (
@@ -62,35 +67,45 @@ export function ComparisonStep({
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="ml-16 space-y-3">
-        <div className={cn(STEP_ANSWER_BOX, STEP_ANSWER_TEXT, "equation flex-nowrap sm:flex-wrap")}>
-          <span className="min-w-0 px-1 text-center sm:text-left">
-            {formatMathContent(comparisonParts[0])}
-          </span>
+        <div className="flex items-start gap-4 w-full">
+          <div className="flex-1 flex items-center justify-center gap-3 min-h-[3rem]">
+            <span className={cn(STEP_ANSWER_TEXT, "equation min-w-0 px-4 py-2 rounded-md border bg-card shadow-sm text-center sm:text-left")}>
+              {formatMathContent(comparisonParts[0])}
+            </span>
 
-          <Select value={selected || undefined} onValueChange={handleValueChange} disabled={isComplete}>
-            <SelectTrigger
-              className={cn(
-                STEP_ANSWER_TEXT,
-                "w-14 h-10 shrink-0 rounded-lg border bg-background text-center font-semibold shadow-sm",
-                "focus:ring-2 focus:ring-ring focus:ring-offset-1",
-                isComplete && selected === correctAnswer && "border-success bg-success/10 text-success",
-                isIncorrect && "border-destructive bg-destructive/5"
-              )}
-            >
-              <SelectValue placeholder="?" />
-            </SelectTrigger>
-            <SelectContent align="center">
-              {OPERATORS.map((op) => (
-                <SelectItem key={op} value={op} className={cn(STEP_ANSWER_TEXT, "text-center justify-center")}>
-                  {op}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            <Select value={selected || undefined} onValueChange={handleValueChange} disabled={isComplete}>
+              <SelectTrigger
+                className={cn(
+                  STEP_ANSWER_TEXT,
+                  "w-14 h-10 shrink-0 rounded-lg border bg-background text-center font-semibold shadow-sm",
+                  "focus:ring-2 focus:ring-ring focus:ring-offset-1",
+                  isComplete && selected === correctAnswer && "border-success bg-success/10 text-success",
+                  isIncorrect && "border-destructive bg-destructive/5"
+                )}
+              >
+                <SelectValue placeholder="?" />
+              </SelectTrigger>
+              <SelectContent align="center">
+                {OPERATORS.map((op) => (
+                  <SelectItem key={op} value={op} className={cn(STEP_ANSWER_TEXT, "text-center justify-center")}>
+                    {op}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <span className="min-w-0 px-1 text-center sm:text-left">
-            {formatMathContent(comparisonParts[1])}
-          </span>
+            <span className={cn(STEP_ANSWER_TEXT, "equation min-w-0 px-4 py-2 rounded-md border bg-card shadow-sm text-center sm:text-left")}>
+              {formatMathContent(comparisonParts[1])}
+            </span>
+          </div>
+          <Button
+            onClick={handleCheck}
+            disabled={!selected || isComplete}
+            size="sm"
+            className="shrink-0 min-w-[80px]"
+          >
+            Check
+          </Button>
         </div>
 
         {isComplete && <CorrectFeedback />}

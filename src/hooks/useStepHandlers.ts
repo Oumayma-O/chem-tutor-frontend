@@ -71,6 +71,8 @@ export function useStepHandlers({
   const [structuredStepComplete, setStructuredStepComplete] = useState<Record<string, boolean>>({});
 
   const hasClassifiedRef = useRef(false);
+  /** Tracks step IDs where a silent background hint prefetch is in-flight. */
+  const silentPrefetchRef = useRef<Set<string>>(new Set());
 
   // Derive interactive steps: all steps that require student input (not purely given).
   // Level 2: only type "interactive" (steps 1–2 are given/faded).
@@ -222,6 +224,45 @@ export function useStepHandlers({
 
       if (isCorrect) {
         toast.success(isFirstAttempt ? "Perfect! First try!" : "Correct!");
+      } else if (!hints[stepId] && !hintLoading.has(stepId) && !silentPrefetchRef.current.has(stepId)) {
+        // Wrong answer — silently prefetch the hint so it's instant when the student clicks "Show Hint"
+        const stepIndex = currentProblem.steps.findIndex((s) => s.id === stepId);
+        const priorStepsSummary =
+          stepIndex > 0
+            ? currentProblem.steps
+                .slice(0, stepIndex)
+                .map((s) => `Step ${s.step_number} (${s.label}): ${s.instruction}`)
+                .join(" · ")
+            : undefined;
+        silentPrefetchRef.current.add(stepId);
+        setHintLoading((prev) => new Set(prev).add(stepId));
+        apiGetHint({
+          step_id: stepId,
+          step_label: step.label,
+          step_instruction: step.instruction,
+          student_input: studentText,
+          correct_answer: step.correct_answer || "",
+          attempt_count: (answers[stepId]?.attempts || 0) + 1,
+          interests: interests || [],
+          grade_level: gradeLevel,
+          problem_context: currentProblem.description,
+          step_number: step.step_number,
+          total_steps: currentProblem.steps.length,
+          step_type: step.type,
+          prior_steps_summary: priorStepsSummary,
+        })
+          .then((data) => {
+            const hintText = data?.hint || step.hint;
+            if (hintText) {
+              setHints((prev) => (prev[stepId] ? prev : { ...prev, [stepId]: hintText }));
+            }
+          })
+          .catch(() => { /* silent — user can still request hint manually */ })
+          .finally(() => {
+            silentPrefetchRef.current.delete(stepId);
+            // If the user clicked "Show Hint" while prefetch was in-flight, clear the loading indicator now
+            setHintLoading((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
+          });
       }
     },
     [currentProblem, answers, checkingAnswer, onMarkInProgress, recordThinkingStep, calculatorEnabled], // eslint-disable-line react-hooks/exhaustive-deps

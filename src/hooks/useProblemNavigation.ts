@@ -320,6 +320,9 @@ export function useProblemNavigation({
       if (isFetchingLevelRef.current[level as Level]) return null;
       isFetchingLevelRef.current[level as Level] = true;
 
+      // Capture the level at call-time so we can detect stale results after an await.
+      const expectedLevel = level as Level;
+
       // Only clear a same-level stale prefetch. A cross-level prefetch (e.g. L2 prefetch
       // while we generate a new L1 "See Another") should be preserved — it's still valid.
       if (prefetchedLevel.current === level) {
@@ -329,15 +332,21 @@ export function useProblemNavigation({
       setProblemLoading(true);
       try {
         const { problem, pagination: pag } = await generateProblem(difficulty, excludeIds, level, false, forceRegenerate);
-        setCurrentProblem(problem);
-        setPagination(pag ?? defaultPaginationForLevel(level as Level));
-        // Use the difficulty the backend actually assigned, not the request value,
-        // so currentDifficulty stays in sync with the backend playlist key.
-        setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
+
+        // Guard: if the user switched levels while we were awaiting the API, don't
+        // overwrite the now-active level's problem/pagination/difficulty.
+        const isCurrentLevel = stateSnapshot.current.currentLevel === expectedLevel;
+        if (isCurrentLevel) {
+          setCurrentProblem(problem);
+          setPagination(pag ?? defaultPaginationForLevel(level as Level));
+          // Use the difficulty the backend actually assigned, not the request value,
+          // so currentDifficulty stays in sync with the backend playlist key.
+          setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
+        }
         if (level === 1 && level1ProblemsRef.current.length === 0) {
           level1ProblemsRef.current[0] = problem;
         }
-        if (userId && problem) {
+        if (userId && problem && isCurrentLevel) {
           apiStartAttempt({
             user_id: userId,
             unit_id: unitId,
@@ -348,9 +357,13 @@ export function useProblemNavigation({
           })
             .then(({ attempt_id }) => onAttemptStart(attempt_id))
             .catch(() => onAttemptStart(null));
+        } else if (!isCurrentLevel) {
+          // Stale result — don't track an attempt for the wrong level.
+          // (The already-active level started its own attempt when it loaded.)
         } else {
           onAttemptStart(null);
         }
+        // Still trigger next-level prefetch even if we switched — the data is useful.
         // Same "level < 3" guard as applyPrefetchedProblem — no spurious L3 re-prefetch.
         if (level < 3) {
           const nextLevel = level + 1;
@@ -536,6 +549,8 @@ export function useProblemNavigation({
       setCurrentLevel(level);
       stepSettersRef.current.resetTracking();
       setPagination(entry.pagination ?? defaultPaginationForLevel(level));
+      // Clear any in-flight loading state from a concurrent generate call on another level.
+      setProblemLoading(false);
       // Eager loading: when restoring to Level 2, start Level 3 prefetch so advance is zero-wait.
       if (level === 2) {
         triggerPrefetch(entry.difficulty, [], 3);
@@ -664,6 +679,10 @@ export function useProblemNavigation({
       stepSettersRef.current.resetTracking();
 
       const newProblem = await loadNewProblem(diff, excludeIds, 1);
+
+      // If the user switched levels while the generation was in-flight, discard the result.
+      // loadNewProblem already skipped the setCurrentProblem/setPagination calls via its own guard.
+      if (stateSnapshot.current.currentLevel !== 1) return;
 
       if (newProblem?.id && !seenLevel1IdsRef.current.includes(newProblem.id)) {
         seenLevel1IdsRef.current = [...seenLevel1IdsRef.current, newProblem.id];

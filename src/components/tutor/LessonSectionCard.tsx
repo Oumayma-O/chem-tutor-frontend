@@ -21,7 +21,7 @@ export function LessonSectionCard({
   itemIconColor,
 }: LessonSectionCardProps) {
   return (
-    <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+    <div className="bg-card border border-border rounded-xl shadow-sm">
       <div className="flex items-center gap-2.5 px-5 pt-5 pb-4">
         <HeaderIcon className={`w-5 h-5 shrink-0 ${headerIconColor}`} />
         <h2 className="text-base font-bold text-slate-900 dark:text-foreground">{title}</h2>
@@ -39,7 +39,7 @@ export function LessonSectionCard({
           ) : (
             <div
               key={i}
-              className="border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/40 rounded-xl p-3 font-mono text-sm text-slate-800 dark:text-foreground"
+              className="border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/40 rounded-xl px-4 py-5 min-h-[4rem] overflow-visible leading-relaxed text-sm text-slate-800 dark:text-foreground"
             >
               {formatMathContent(item)}
             </div>

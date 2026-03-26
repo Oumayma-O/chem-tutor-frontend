@@ -49,6 +49,7 @@ export function SimTutorialNavBar({
           <button
             type="button"
             onClick={onStartPractice}
+            data-tutorial="start-practice-button"
             className={cn(
               "flex items-center gap-1.5 text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-1.5 transition-colors shadow-sm",
               practiceButtonClassName,

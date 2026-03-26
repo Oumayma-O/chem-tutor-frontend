@@ -65,7 +65,8 @@ export type TutorialHighlight =
   | "energy-profile-chart"
   | "catalyst-vials"
   | "temp-slider"
-  | "practice-button";
+  | "practice-button"
+  | "start-practice-button";
 
 /** Short machine label for debugging / analytics (not shown to students). */
 export type TutorialAction =
@@ -257,7 +258,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "You've Got It!",
     body: "1. Why k increases with T\n2. How catalysts lower Eₐ\n3. Reading energy profiles\n4. ln(k) vs 1/T\n\nReal world: heat speeds reactions; enzymes lower Eₐ.\n\nReady to practise?",
     mascotMood: "happy",
-    highlight: "practice-button",
+    highlight: "start-practice-button",
     action: "start_practice",
   },
 ];
