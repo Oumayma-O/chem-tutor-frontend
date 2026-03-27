@@ -1,8 +1,6 @@
 import { useState, useCallback, useRef } from "react";
 import {
   ThinkingStep,
-  ThinkingStepType,
-  ThinkingCategory,
   ProblemAttempt,
   ClassifiedError,
   SkillMastery,
@@ -11,15 +9,7 @@ import {
 } from "@/types/cognitive";
 import { supabase } from "@/integrations/supabase/client";
 import { apiClassifyErrors, useBackendApi } from "@/lib/api";
-
-const STEP_TYPE_TO_CATEGORY: Record<ThinkingStepType, ThinkingCategory> = {
-  formula_selection: "conceptual",
-  variable_identification: "conceptual",
-  substitution: "procedural",
-  calculation: "procedural",
-  units_handling: "units",
-  final_answer: "procedural",
-};
+import { getCategoryFromLabel } from "@/lib/masteryTransforms";
 
 const INITIAL_SKILLS: SkillMastery[] = [
   { skillId: "reaction_concepts", skillName: "Reaction Concepts", category: "reaction_concepts", score: 0, status: "developing", lastUpdated: Date.now(), problemCount: 0 },
@@ -29,36 +19,46 @@ const INITIAL_SKILLS: SkillMastery[] = [
   { skillId: "graph_interpretation", skillName: "Graph Interpretation", category: "graph_interpretation", score: 0, status: "developing", lastUpdated: Date.now(), problemCount: 0 },
 ];
 
+/** Conceptual skills: update when blueprint is conceptual ("architect"|"detective"|"lawyer"). */
+const CONCEPTUAL_SKILL_CATEGORIES = new Set(["reaction_concepts", "graph_interpretation"]);
+
 export function useCognitiveTracking() {
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
-  const [currentAttempt, setCurrentAttempt] = useState<Partial<ProblemAttempt>>({});
+  const [currentAttempt] = useState<Partial<ProblemAttempt>>({});
   const [classifiedErrors, setClassifiedErrors] = useState<ClassifiedError[]>([]);
   const [skillMap, setSkillMap] = useState<SkillMastery[]>(INITIAL_SKILLS);
   const [recentAttempts, setRecentAttempts] = useState<ProblemAttempt[]>([]);
   const [learningInsight, setLearningInsight] = useState<string>("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  
+
   const stepTimers = useRef<Record<string, number>>({});
 
   const startStepTimer = useCallback((stepId: string) => {
     stepTimers.current[stepId] = Date.now();
   }, []);
 
+  /**
+   * Record one step outcome into the thinking tracker.
+   *
+   * @param skillUsed  step.skill_used from backend (e.g. "Write rate law expressions…")
+   * @param blueprint  problem.blueprint — drives the cognitive category
+   */
   const recordThinkingStep = useCallback((
     stepId: string,
-    type: ThinkingStepType,
+    skillUsed: string,
     studentInput: string,
+    stepLabel?: string | null,
     expectedValue?: string,
-    isCorrect?: boolean
+    isCorrect?: boolean,
   ) => {
     const startTime = stepTimers.current[stepId] || Date.now();
     const timeSpent = Math.round((Date.now() - startTime) / 1000);
 
     const step: ThinkingStep = {
       id: stepId,
-      type,
-      category: STEP_TYPE_TO_CATEGORY[type],
-      label: type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      skill_used: skillUsed,
+      category: getCategoryFromLabel(stepLabel ?? ""),
+      label: stepLabel || skillUsed || stepId,
       studentInput,
       expectedValue,
       isCorrect,
@@ -81,10 +81,10 @@ export function useCognitiveTracking() {
 
   const classifyErrors = useCallback(async (
     steps: ThinkingStep[],
-    problemContext: string
+    problemContext: string,
   ): Promise<ClassifiedError[]> => {
     setIsAnalyzing(true);
-    
+
     try {
       const incorrectSteps = steps.filter(s => s.isCorrect === false);
       if (incorrectSteps.length === 0) {
@@ -113,11 +113,17 @@ export function useCognitiveTracking() {
             time_spent_seconds: s.timeSpent,
           })),
         });
-        errors = (data.errors || []).map(e => ({
-          stepId: e.step_id,
+        type RawError = {
+          step_id?: string; category?: string; error_category?: string;
+          subcategory?: string; error_subcategory?: string; severity?: string;
+          description?: string; step_label?: string; concept_missing?: string;
+          misconception_tag?: string; suggested_intervention?: string;
+        };
+        errors = ((data.errors || []) as RawError[]).map(e => ({
+          stepId: e.step_id ?? "",
           category: (e.category ?? e.error_category) as ClassifiedError["category"],
           subcategory: (e.subcategory ?? e.error_subcategory) as ClassifiedError["subcategory"],
-          severity: e.severity as ClassifiedError["severity"],
+          severity: (e.severity ?? "slowing") as ClassifiedError["severity"],
           description: e.description ?? `Issue in ${e.step_label ?? "step"}`,
           conceptMissing: e.concept_missing ?? undefined,
           misconception_tag: e.misconception_tag,
@@ -127,11 +133,7 @@ export function useCognitiveTracking() {
         setLearningInsight(data.insight || "");
       } else {
         const response = await supabase.functions.invoke("classify-errors", {
-          body: {
-            steps: incorrectSteps,
-            problemContext,
-            allSteps: steps,
-          },
+          body: { steps: incorrectSteps, problemContext, allSteps: steps },
         });
         if (response.error) {
           console.error("Error classifying:", response.error);
@@ -159,66 +161,57 @@ export function useCognitiveTracking() {
     }
   }, []);
 
-  // Detect misconception patterns from recent errors
   const detectPatterns = useCallback((errors: ClassifiedError[]): MisconceptionPattern[] => {
     const tagCounts: Record<string, MisconceptionPattern> = {};
-    
     errors.forEach(err => {
       const tag = err.misconception_tag || `${err.category}_${err.subcategory || "general"}`;
       if (!tagCounts[tag]) {
-        tagCounts[tag] = {
-          tag,
-          category: err.category,
-          subcategory: err.subcategory,
-          count: 0,
-          description: err.description,
-        };
+        tagCounts[tag] = { tag, category: err.category, subcategory: err.subcategory, count: 0, description: err.description };
       }
       tagCounts[tag].count += 1;
     });
-
-    return Object.values(tagCounts)
-      .filter(p => p.count >= 2) // Only patterns with 2+ occurrences
-      .sort((a, b) => b.count - a.count);
+    return Object.values(tagCounts).filter(p => p.count >= 2).sort((a, b) => b.count - a.count);
   }, []);
 
+  /**
+   * Update per-skill scores after a problem attempt.
+   * Category alignment comes from ThinkingStep.category (blueprint-derived), not UI widget type.
+   *   Conceptual skills  (reaction_concepts, graph_interpretation) → update on conceptual steps.
+   *   Procedural skills  (rate_laws, variable_isolation, unit_conversion) → update on procedural steps.
+   */
   const updateSkillFromAttempt = useCallback((
-    errors: ClassifiedError[],
+    _errors: ClassifiedError[],
     steps: ThinkingStep[],
-    _hintsUsed: number, // tracked for analytics but no longer penalized
-    scaffoldingLevel: number = 2
+    _hintsUsed: number,
+    scaffoldingLevel: number = 2,
   ) => {
     setSkillMap(prev => {
       const updated = [...prev];
-      
+
       const correctSteps = steps.filter(s => s.isCorrect === true);
       const totalSteps = steps.length;
       const overallRate = totalSteps > 0 ? correctSteps.length / totalSteps : 0;
-      
+
       for (const skill of updated) {
-        const relevantSteps = steps.filter(s => {
-          if (skill.category === "reaction_concepts") return s.type === "formula_selection";
-          if (skill.category === "rate_laws") return s.type === "variable_identification";
-          if (skill.category === "variable_isolation") return s.type === "substitution" || s.type === "calculation" || s.type === "final_answer";
-          if (skill.category === "unit_conversion") return s.type === "units_handling" || s.type === "final_answer";
-          if (skill.category === "graph_interpretation") return false;
-          return false;
-        });
+        const skillIsConceptual = CONCEPTUAL_SKILL_CATEGORIES.has(skill.category);
+
+        // Find steps whose cognitive category aligns with this skill's domain.
+        const relevantSteps = steps.filter(s =>
+          skillIsConceptual ? s.category === "conceptual" : s.category === "procedural",
+        );
 
         let adjustment = 0;
 
         if (relevantSteps.length > 0) {
           const relevantCorrect = relevantSteps.filter(s => s.isCorrect === true).length;
           const relevantRate = relevantCorrect / relevantSteps.length;
-          // Phase 8: No hint penalty — reward eventual correctness
           adjustment = (relevantRate * 20) - ((1 - relevantRate) * 12);
         } else {
-          if (skill.category === "reaction_concepts" || skill.category === "rate_laws") {
-            if (scaffoldingLevel >= 3) {
-              adjustment = (overallRate * 18) - ((1 - overallRate) * 10);
-            } else if (scaffoldingLevel === 2 && overallRate > 0) {
-              adjustment = (overallRate * 8) - ((1 - overallRate) * 4);
-            }
+          // No directly relevant steps — apply a softer overall signal at higher scaffolding.
+          if (scaffoldingLevel >= 3) {
+            adjustment = (overallRate * 18) - ((1 - overallRate) * 10);
+          } else if (scaffoldingLevel === 2 && overallRate > 0) {
+            adjustment = (overallRate * 8) - ((1 - overallRate) * 4);
           }
         }
 
@@ -226,7 +219,6 @@ export function useCognitiveTracking() {
           skill.score = Math.max(0, Math.min(100, skill.score + adjustment));
           skill.lastUpdated = Date.now();
           skill.problemCount += 1;
-          
           if (skill.score >= 80) skill.status = "mastered";
           else if (skill.score >= 20) skill.status = "developing";
           else skill.status = "at_risk";
@@ -241,11 +233,11 @@ export function useCognitiveTracking() {
     problemId: string,
     hintsUsed: number,
     scaffoldingLevel: number,
-    firstAttemptCorrect: boolean
+    firstAttemptCorrect: boolean,
   ) => {
     const correctSteps = thinkingSteps.filter(s => s.isCorrect === true);
     const totalTime = thinkingSteps.reduce((acc, s) => acc + s.timeSpent, 0);
-    
+
     const stepFailures: Record<string, number> = {};
     thinkingSteps.forEach(step => {
       if (step.isCorrect === false) {
@@ -263,19 +255,18 @@ export function useCognitiveTracking() {
       totalTimeSeconds: totalTime,
       stepFailures,
       firstAttemptCorrect,
-      finalScore: (correctSteps.length / thinkingSteps.length) * 100,
+      finalScore: thinkingSteps.length > 0 ? (correctSteps.length / thinkingSteps.length) * 100 : 0,
     };
 
-    setRecentAttempts(prev => [attempt, ...prev.slice(0, 4)]); // Keep last 5
+    setRecentAttempts(prev => [attempt, ...prev.slice(0, 4)]);
     updateSkillFromAttempt(classifiedErrors, thinkingSteps, hintsUsed, scaffoldingLevel);
-    
+
     return attempt;
   }, [thinkingSteps, classifiedErrors, updateSkillFromAttempt]);
 
   const resetTracking = useCallback(() => {
     setThinkingSteps([]);
     setClassifiedErrors([]);
-    setCurrentAttempt({});
     stepTimers.current = {};
   }, []);
 
@@ -286,18 +277,12 @@ export function useCognitiveTracking() {
         existing.count += 1;
         existing.recentSteps.push(error.stepId);
       } else {
-        acc.push({
-          category: error.category,
-          count: 1,
-          recentSteps: [error.stepId],
-        });
+        acc.push({ category: error.category, count: 1, recentSteps: [error.stepId] });
       }
       return acc;
     }, [] as StudentCognitiveProfile["errorPatterns"]);
 
-    const weakLessons = skillMap
-      .filter(s => s.status === "at_risk")
-      .map(s => s.skillName);
+    const weakLessons = skillMap.filter(s => s.status === "at_risk").map(s => s.skillName);
 
     return {
       studentId: "current-student",
@@ -310,6 +295,9 @@ export function useCognitiveTracking() {
       weakLessons,
     };
   }, [skillMap, recentAttempts, classifiedErrors, learningInsight]);
+
+  // currentAttempt kept in return for API surface compat
+  void currentAttempt;
 
   return {
     thinkingSteps,
@@ -326,7 +314,6 @@ export function useCognitiveTracking() {
     completeProblemAttempt,
     resetTracking,
     getCognitiveProfile,
-    // Exposed for external restore (e.g. localStorage rehydration)
     setThinkingSteps,
     setClassifiedErrors,
   };

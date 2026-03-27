@@ -5,21 +5,13 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Level, Problem, SolutionStep, StudentAnswer } from "@/types/chemistry";
-import { ThinkingStep, ThinkingStepType, ClassifiedError } from "@/types/cognitive";
+import { ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { apiValidateStep, apiGetHint } from "@/lib/api";
 import { buildMathExpression } from "@/lib/equationDragDrop";
 import { evaluateExpression, isExpression } from "@/lib/mathEval";
 import { toast } from "sonner";
 import { PerProblemState } from "@/hooks/useProblemNavigation";
 import { MutableRefObject } from "react";
-
-export const STEP_TYPE_MAP: Record<number, ThinkingStepType> = {
-  1: "formula_selection",
-  2: "variable_identification",
-  3: "substitution",
-  4: "calculation",
-  5: "units_handling",
-};
 
 interface UseStepHandlersOptions {
   currentProblem: Problem | null;
@@ -33,8 +25,9 @@ interface UseStepHandlersOptions {
   classifiedErrors: ClassifiedError[];
   recordThinkingStep: (
     stepId: string,
-    type: ThinkingStepType,
+    skillUsed: string,
     studentInput: string,
+    stepLabel?: string | null,
     expectedValue?: string,
     isCorrect?: boolean,
   ) => ThinkingStep;
@@ -71,18 +64,20 @@ export function useStepHandlers({
   const [structuredStepComplete, setStructuredStepComplete] = useState<Record<string, boolean>>({});
 
   const hasClassifiedRef = useRef(false);
-  /** Tracks step IDs where a silent background hint prefetch is in-flight. */
-  const silentPrefetchRef = useRef<Set<string>>(new Set());
 
   // Derive interactive steps: all steps that require student input (not purely given).
-  // Level 2: only type "interactive" (steps 1–2 are given/faded).
+  // Level 2: interactive or multi_input (knowns-style) steps.
   // Level 3: include EquationBuilder/KnownsIdentifier steps even if type is "given".
   const interactiveSteps = useMemo(() => {
     if (!currentProblem) return [];
     return currentProblem.steps.filter((s) => {
-      if (currentLevel === 2) return s.type === "interactive";
+      if (currentLevel === 2) return s.type === "interactive" || s.type === "multi_input";
       if (currentLevel === 3) {
-        return s.type !== "given" || !!s.equation_parts || !!s.labeled_values;
+        return (
+          s.type !== "given" ||
+          !!s.equation_parts ||
+          !!s.input_fields
+        );
       }
       return s.type !== "given";
     });
@@ -116,6 +111,7 @@ export function useStepHandlers({
         is_correct: undefined,
         attempts: prev[stepId]?.attempts || 0,
         first_attempt_correct: prev[stepId]?.first_attempt_correct,
+        validation_feedback: undefined,
       },
     }));
   };
@@ -147,6 +143,7 @@ export function useStepHandlers({
       setCheckingAnswer((prev) => new Set(prev).add(stepId));
 
       let isCorrect = false;
+      let apiFeedback: string | undefined;
       try {
         // Send the step being validated (step_id, step_number, correct_answer) so backend uses this step's key
         const data = await apiValidateStep({
@@ -156,15 +153,11 @@ export function useStepHandlers({
           step_number: step.step_number,
           step_label: step.label,
           step_type: step.type,
+          step_instruction: step.instruction,
           problem_context: currentProblem.description,
         });
         isCorrect = data.is_correct;
-        if (!isCorrect && data.feedback) {
-          setAnswers((prev) => ({
-            ...prev,
-            [stepId]: { ...prev[stepId], validation_feedback: data.feedback },
-          }));
-        }
+        apiFeedback = data.feedback?.trim() || undefined;
       } catch {
         const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
         const numStudent = parseFloat(normalize(studentText));
@@ -180,6 +173,7 @@ export function useStepHandlers({
         } else {
           isCorrect = normalize(studentText) === normalize(step.correct_answer ?? "");
         }
+        apiFeedback = undefined;
       } finally {
         setCheckingAnswer((prev) => {
           const next = new Set(prev);
@@ -195,74 +189,22 @@ export function useStepHandlers({
           is_correct: isCorrect,
           attempts: (prev[stepId]?.attempts || 0) + 1,
           first_attempt_correct: prev[stepId]?.first_attempt_correct ?? (isFirstAttempt && isCorrect),
+          validation_feedback: isCorrect ? undefined : apiFeedback,
         },
       }));
 
-      const stepType = STEP_TYPE_MAP[step.step_number] || "calculation";
-      recordThinkingStep(stepId, stepType, studentText, step.correct_answer, isCorrect);
-
-      const updatedSteps = [
-        ...thinkingSteps,
-        {
-          id: stepId,
-          type: stepType,
-          category:
-            stepType === "formula_selection" || stepType === "variable_identification"
-              ? ("conceptual" as const)
-              : stepType === "units_handling"
-                ? ("units" as const)
-                : ("procedural" as const),
-          label: stepType,
-          studentInput: studentText,
-          expectedValue: step.correct_answer,
-          isCorrect,
-          timestamp: Date.now(),
-          timeSpent: 0,
-        },
-      ];
-      updateSkillFromAttempt(classifiedErrors, updatedSteps, Object.keys(hints).length, currentLevel);
+      const recorded = recordThinkingStep(
+        stepId,
+        step.skill_used ?? step.label,
+        studentText,
+        step.label,
+        step.correct_answer ?? undefined,
+        isCorrect,
+      );
+      updateSkillFromAttempt(classifiedErrors, [...thinkingSteps, recorded], Object.keys(hints).length, currentLevel);
 
       if (isCorrect) {
         toast.success(isFirstAttempt ? "Perfect! First try!" : "Correct!");
-      } else if (!hints[stepId] && !hintLoading.has(stepId) && !silentPrefetchRef.current.has(stepId)) {
-        // Wrong answer — silently prefetch the hint so it's instant when the student clicks "Show Hint"
-        const stepIndex = currentProblem.steps.findIndex((s) => s.id === stepId);
-        const priorStepsSummary =
-          stepIndex > 0
-            ? currentProblem.steps
-                .slice(0, stepIndex)
-                .map((s) => `Step ${s.step_number} (${s.label}): ${s.instruction}`)
-                .join(" · ")
-            : undefined;
-        silentPrefetchRef.current.add(stepId);
-        setHintLoading((prev) => new Set(prev).add(stepId));
-        apiGetHint({
-          step_id: stepId,
-          step_label: step.label,
-          step_instruction: step.instruction,
-          student_input: studentText,
-          correct_answer: step.correct_answer || "",
-          attempt_count: (answers[stepId]?.attempts || 0) + 1,
-          interests: interests || [],
-          grade_level: gradeLevel,
-          problem_context: currentProblem.description,
-          step_number: step.step_number,
-          total_steps: currentProblem.steps.length,
-          step_type: step.type,
-          prior_steps_summary: priorStepsSummary,
-        })
-          .then((data) => {
-            const hintText = data?.hint || step.hint;
-            if (hintText) {
-              setHints((prev) => (prev[stepId] ? prev : { ...prev, [stepId]: hintText }));
-            }
-          })
-          .catch(() => { /* silent — user can still request hint manually */ })
-          .finally(() => {
-            silentPrefetchRef.current.delete(stepId);
-            // If the user clicked "Show Hint" while prefetch was in-flight, clear the loading indicator now
-            setHintLoading((prev) => { const n = new Set(prev); n.delete(stepId); return n; });
-          });
       }
     },
     [currentProblem, answers, checkingAnswer, onMarkInProgress, recordThinkingStep, calculatorEnabled], // eslint-disable-line react-hooks/exhaustive-deps
@@ -292,13 +234,15 @@ export function useStepHandlers({
           step_id: stepId,
           step_label: step.label,
           step_instruction: step.instruction,
+          step_explanation: step.explanation,
           student_input: answers[stepId]?.answer || "",
           correct_answer: step.correct_answer || "",
           attempt_count: answers[stepId]?.attempts || 1,
           interests: interests || [],
           grade_level: gradeLevel,
           problem_context: currentProblem.description,
-          validation_feedback: answers[stepId]?.validation_feedback,
+          validation_feedback: answers[stepId]?.validation_feedback ?? undefined,
+          key_rule: step.key_rule?.trim() || undefined,
           step_number: step.step_number,
           total_steps: currentProblem.steps.length,
           step_type: step.type,
@@ -352,8 +296,14 @@ export function useStepHandlers({
       // Record into thinking tracker so ThinkingTracker populates for Level 3 structured steps
       const step = currentProblem?.steps.find((s) => s.id === stepId);
       if (step) {
-        const stepType = STEP_TYPE_MAP[step.step_number] || "variable_identification";
-        recordThinkingStep(stepId, stepType, step.correct_answer || "", step.correct_answer, isCorrect);
+        recordThinkingStep(
+          stepId,
+          step.skill_used ?? step.label,
+          step.correct_answer ?? "",
+          step.label,
+          step.correct_answer ?? undefined,
+          isCorrect,
+        );
       }
 
       if (isCorrect) {
@@ -386,6 +336,7 @@ export function useStepHandlers({
           step_number: step.step_number,
           step_label: step.label,
           step_type: "drag_drop",
+          step_instruction: step.instruction,
           problem_context: currentProblem?.description || "",
         });
         return result.is_correct;

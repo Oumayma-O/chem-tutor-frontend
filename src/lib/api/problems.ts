@@ -1,7 +1,7 @@
 import { get, post } from "./core";
 
-export interface LabeledValue {
-  variable: string;
+export interface InputField {
+  label: string;
   value: string;
   unit: string;
 }
@@ -9,18 +9,23 @@ export interface LabeledValue {
 export interface ProblemStep {
   id: string;
   step_number: number;
-  type: "given" | "interactive" | "drag_drop" | "variable_id" | "comparison";
+  type: "given" | "interactive" | "drag_drop" | "multi_input" | "comparison";
   label: string;
   instruction: string;
   /** Show-your-work trace (≤20 words). Displayed in Level 1 and on wrong answers in L2/L3. */
   explanation?: string | null;
+  /** Single rule/formula for this step; same field as backend ``ProblemStep.key_rule``. */
+  key_rule?: string | null;
+  /** Human-readable skill exercised in this step, from backend. Used for cognitive tracking. */
+  skill_used?: string | null;
   /** Pre-filled content shown in given/worked steps. */
   content?: string | null;
   /** Input placeholder text for interactive steps. */
   placeholder?: string | null;
   correct_answer?: string | null;
   equation_parts?: string[] | null;
-  labeled_values?: LabeledValue[] | null;
+  /** Multi-input rows; JSON may use `inputFields` instead — see `parseProblemOutput`. */
+  input_fields?: InputField[] | null;
   comparison_parts?: string[] | null;
   hint?: string | null;
 }
@@ -189,6 +194,7 @@ export async function apiValidateStep(body: {
   step_number: number;
   step_label: string;
   step_type?: string;
+  step_instruction?: string;
   problem_context?: string;
 }): Promise<ValidationOutput> {
   return post<ValidationOutput>("/problems/validate-step", body);
@@ -198,6 +204,7 @@ export async function apiGetHint(body: {
   step_id: string;
   step_label: string;
   step_instruction: string;
+  step_explanation?: string | null;
   student_input?: string;
   correct_answer: string;
   attempt_count?: number;
@@ -208,6 +215,8 @@ export async function apiGetHint(body: {
   error_category?: string;
   misconception_tag?: string;
   validation_feedback?: string;
+  /** From step output; anchors hint generation (matches backend key_rule). */
+  key_rule?: string | null;
   /** So hints stay scoped to this step (no repeating full theory from step 1). */
   step_number?: number;
   total_steps?: number;

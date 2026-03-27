@@ -6,7 +6,7 @@ import {
   getResolvedResult,
   setPrefetchPromise,
 } from "@/lib/problemPrefetchCache";
-import { fixCorruptedUnitMiddleDots } from "@/lib/mathDisplay";
+import { fixCorruptedUnitMiddleDots } from "@/lib/mathNormalize";
 
 interface UseGeneratedProblemOptions {
   unitId: string;
@@ -31,24 +31,46 @@ function fixCdot(s: string | null | undefined): string {
   return out;
 }
 
+/** Legacy API / cached payloads may still send `variable_id`; normalize to `multi_input`. */
+function normalizeStepWidgetType(t: string): SolutionStep["type"] {
+  if (t === "variable_id" || t === "multi_input") return "multi_input";
+  return t as SolutionStep["type"];
+}
+
+type WireInputRow = { label?: string | null; value?: string | null; unit?: string | null };
+
+/**
+ * Rows for multi_input steps. App state always uses `input_fields` (snake_case).
+ * At the wire, some stacks expose the same list as `inputFields` (camelCase); merge here only.
+ */
+function wireInputRows(s: unknown): WireInputRow[] | undefined {
+  if (!s || typeof s !== "object") return undefined;
+  const o = s as Record<string, unknown>;
+  const rows = o.input_fields ?? o.inputFields;
+  if (!Array.isArray(rows) || rows.length === 0) return undefined;
+  return rows as WireInputRow[];
+}
+
 export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResult {
   const pd = data.problem;
   const steps: SolutionStep[] = pd.steps.map((s) => ({
     id: s.id || `${pd.id}-step-${s.step_number}`,
     step_number: s.step_number,
-    type: s.type as SolutionStep["type"],
+    type: normalizeStepWidgetType(String(s.type)),
     label: s.label,
     instruction: fixCdot(s.instruction),
     content: s.content != null ? fixCdot(s.content) : undefined,
     placeholder: s.placeholder ?? undefined,
     explanation: fixCdot(s.explanation) || undefined,
+    key_rule: fixCdot(s.key_rule) || undefined,
+    skill_used: s.skill_used?.trim() || undefined,
     equation_parts: s.equation_parts?.map((p) => fixCdot(p)) ?? undefined,
     // correct_equation stores the answer for drag_drop steps
     correct_equation: s.type === "drag_drop" ? (s.correct_answer ?? undefined) : undefined,
-    labeled_values: s.labeled_values?.map((lv) => ({
-      variable: fixCdot(lv.variable),
-      value: fixCdot(lv.value),
-      unit: fixCdot(lv.unit),
+    input_fields: wireInputRows(s)?.map((f) => ({
+      label: fixCdot(f.label),
+      value: fixCdot(f.value),
+      unit: fixCdot(f.unit),
     })) ?? undefined,
     comparison_parts: s.comparison_parts?.map((p) => fixCdot(p)) ?? undefined,
     correct_answer: fixCdot(s.correct_answer) || undefined,

@@ -1,14 +1,6 @@
 // Cognitive modeling types for tracking student thinking process
 
-export type ThinkingStepType = 
-  | "formula_selection"
-  | "variable_identification"
-  | "substitution"
-  | "calculation"
-  | "units_handling"
-  | "final_answer";
-
-export type ThinkingCategory = "conceptual" | "procedural" | "units";
+export type ThinkingCategory = "conceptual" | "procedural";
 
 export type ErrorCategory = 
   | "conceptual"      // Wrong formula, wrong chemical principle, misunderstanding reaction order
@@ -30,7 +22,9 @@ export type ErrorSeverity = "blocking" | "slowing" | "minor";
 
 export interface ThinkingStep {
   id: string;
-  type: ThinkingStepType;
+  /** The skill being exercised, from step.skill_used (backend-provided). */
+  skill_used: string;
+  /** Cognitive domain derived from the problem blueprint. */
   category: ThinkingCategory;
   label: string;
   studentInput: string;

@@ -1,7 +1,13 @@
-export type StepType = "given" | "interactive" | "drag_drop" | "variable_id" | "comparison";
+export type StepType =
+  | "given"
+  | "interactive"
+  | "drag_drop"
+  | "multi_input"
+  | "comparison";
 
-export interface LabeledValue {
-  variable: string;
+/** Multi-field worked-example rows (e.g. extracted rates / concentrations). */
+export interface InputField {
+  label: string;
   value: string;
   unit: string;
 }
@@ -15,11 +21,16 @@ export interface SolutionStep {
   placeholder?: string;
   /** Show-your-work trace (≤20 words). Only rendered in Level 1 given steps. Null for trivial reads. */
   explanation?: string;
+  /** Same as backend ``key_rule``; forwarded to POST /problems/hint. */
+  key_rule?: string | null;
+  /** Human-readable skill exercised in this step (e.g. "Write rate law expressions from experimental data"). */
+  skill_used?: string | null;
   correct_answer?: string;
   hint?: string;
   equation_parts?: string[];
   correct_equation?: string;
-  labeled_values?: LabeledValue[];
+  /** When type is multi_input, rows render from here. */
+  input_fields?: InputField[];
   comparison_parts?: string[];
   content?: string;
 }
