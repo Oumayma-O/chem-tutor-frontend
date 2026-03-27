@@ -1,5 +1,5 @@
 import { useAuth } from "@/hooks/useAuth";
-import { TeacherDashboardPage } from "@/components/tutor/TeacherDashboardPage";
+import { TeacherDashboardPage } from "@/components/teacher/TeacherDashboardPage";
 import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
 
 export default function TeacherPage() {

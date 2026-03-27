@@ -31,33 +31,12 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
-
-const GRADE_OPTIONS = [
-  { value: "Middle School", label: "Middle School" },
-  { value: "9th Grade", label: "9th Grade" },
-  { value: "10th Grade", label: "10th Grade" },
-  { value: "11th Grade", label: "11th Grade" },
-  { value: "12th Grade", label: "12th Grade" },
-];
-
-const COURSE_OPTIONS = [
-  { value: "Standard Chemistry", label: "Standard Chemistry" },
-  { value: "AP Chemistry", label: "AP Chemistry" },
-];
-
-const INTEREST_OPTIONS = [
-  { value: "sports", label: "Sports", icon: "🏀" },
-  { value: "music", label: "Music", icon: "🎵" },
-  { value: "food", label: "Food & Cooking", icon: "🍕" },
-  { value: "technology", label: "Technology", icon: "💻" },
-  { value: "nature", label: "Nature", icon: "🌿" },
-  { value: "gaming", label: "Gaming", icon: "🎮" },
-  { value: "art", label: "Art & Design", icon: "🎨" },
-  { value: "health", label: "Health & Medicine", icon: "🏥" },
-  { value: "dance", label: "Dance", icon: "💃" },
-  { value: "movies", label: "Movies & TV", icon: "🎬" },
-];
+import { BeakerMascot } from "@/components/tutor/widgets";
+import {
+  PROFILE_INTEREST_OPTIONS,
+  STUDENT_PROFILE_COURSE_OPTIONS,
+  STUDENT_PROFILE_GRADE_OPTIONS,
+} from "@/lib/profileOptions";
 
 const ACHIEVEMENT_BADGES = [
   { icon: "🔬", label: "First Experiment", desc: "Complete your first unit" },
@@ -120,9 +99,9 @@ export default function StudentProfilePage() {
   };
 
   const gradeLabel =
-    GRADE_OPTIONS.find((o) => o.value === grade)?.label || grade || "Not set";
+    STUDENT_PROFILE_GRADE_OPTIONS.find((o) => o.value === grade)?.label || grade || "Not set";
   const courseLabel =
-    COURSE_OPTIONS.find((o) => o.value === course)?.label || course || "Not set";
+    STUDENT_PROFILE_COURSE_OPTIONS.find((o) => o.value === course)?.label || course || "Not set";
 
   return (
     <div className="min-h-screen bg-background">
@@ -196,7 +175,7 @@ export default function StudentProfilePage() {
                         <SelectValue placeholder="Select grade" />
                       </SelectTrigger>
                       <SelectContent>
-                        {GRADE_OPTIONS.map((opt) => (
+                        {STUDENT_PROFILE_GRADE_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -218,7 +197,7 @@ export default function StudentProfilePage() {
                         <SelectValue placeholder="Select course" />
                       </SelectTrigger>
                       <SelectContent>
-                        {COURSE_OPTIONS.map((opt) => (
+                        {STUDENT_PROFILE_COURSE_OPTIONS.map((opt) => (
                           <SelectItem key={opt.value} value={opt.value}>
                             {opt.label}
                           </SelectItem>
@@ -334,7 +313,7 @@ export default function StudentProfilePage() {
           <CardContent>
             {isEditing ? (
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {INTEREST_OPTIONS.map((interest) => (
+                {PROFILE_INTEREST_OPTIONS.filter((i) => i.value !== "other").map((interest) => (
                   <button
                     key={interest.value}
                     type="button"
@@ -369,7 +348,7 @@ export default function StudentProfilePage() {
               <div className="flex flex-wrap gap-2">
                 {interests.length > 0 ? (
                   interests.map((val) => {
-                    const opt = INTEREST_OPTIONS.find((o) => o.value === val);
+                    const opt = PROFILE_INTEREST_OPTIONS.find((o) => o.value === val);
                     return opt ? (
                       <Badge key={val} variant="secondary" className="gap-1 text-xs">
                         {opt.icon} {opt.label}

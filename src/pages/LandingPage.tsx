@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
+import { BeakerMascot } from "@/components/tutor/widgets";
 import {
   FlaskConical,
   BarChart3,

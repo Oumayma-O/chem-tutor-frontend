@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { INITIAL_CONC, MAX_TIME, TIME_STEP } from "./content";
+import { MAX_TIME, TIME_STEP } from "./content";
+import { zeroOrderConcentration, zeroOrderHalfLife } from "@/lib/kineticsMath";
 
 export interface DataPoint {
   t: number;
@@ -30,19 +31,19 @@ export function useKinetics(
 ): KineticsResult {
   return useMemo(() => {
     const rate = k;
-    const halfLife = initialConc / (2 * k);
+    const halfLife = zeroOrderHalfLife(initialConc, k);
 
     // Build full series
     const series: DataPoint[] = [];
     const steps = Math.round(MAX_TIME / TIME_STEP);
     for (let i = 0; i <= steps; i++) {
       const t = parseFloat((i * TIME_STEP).toFixed(2));
-      const reactant = Math.max(0, initialConc - k * t);
+      const reactant = zeroOrderConcentration(t, initialConc, k);
       const product = initialConc - reactant;
       series.push({ t, reactant, product, rate });
     }
 
-    const concAtT = Math.max(0, initialConc - k * tCurrent);
+    const concAtT = zeroOrderConcentration(tCurrent, initialConc, k);
     const productAtT = initialConc - concAtT;
     const fractionA = concAtT / initialConc;
 

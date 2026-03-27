@@ -1,14 +1,9 @@
-import { useState, useMemo, useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Level, LEVEL_CONFIGS, StudentAnswer, ProgressionResult } from "@/types/chemistry";
+import { Level, LEVEL_CONFIGS, StudentAnswer } from "@/types/chemistry";
 import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { getRandomProblem, getDifficultyForMastery } from "@/data/sampleProblems";
 import {
-  apiGetMastery,
-  apiUnlockLevel3,
-  apiSetTopicStatus,
-  apiSaveStep,
-  apiCompleteAttempt,
 } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -22,26 +17,20 @@ import {
   useProblemNavigation,
   StepSetters,
 } from "@/hooks/useProblemNavigation";
-import { useStepHandlers, STEP_TYPE_MAP } from "@/hooks/useStepHandlers";
-import { LevelSelector } from "./LevelSelector";
-import { ProblemCard } from "./ProblemCard";
-import { GivenStep } from "./GivenStep";
-import { InteractiveStep } from "./InteractiveStep";
-import { EquationBuilder } from "./EquationBuilder";
-import { KnownsIdentifier } from "./KnownsIdentifier";
-import { ComparisonStep } from "./ComparisonStep";
-import { ReferencePanel } from "./ReferencePanel";
-import { MasteryBreakdown } from "./MasteryBreakdown";
-import { ProgressionModal } from "./ProgressionModal";
-import { ThinkingTracker } from "./ThinkingTracker";
-import { ExitTicketMode } from "./ExitTicketMode";
-import { TimedModeLaunchScreen } from "./TimedModeLaunchScreen";
-import { TimedModeTransitionScreen } from "./TimedModeTransitionScreen";
-import { ToolsWidget } from "./ToolsWidget";
+import { useStepHandlers } from "@/hooks/useStepHandlers";
+import { LevelSelector, ProblemCard, ProblemLoadingState } from "@/components/tutor/layout";
+import {
+  TutorStepRenderer,
+} from "@/components/tutor/steps";
+import { ReferencePanel, MasteryBreakdown, ProgressionModal, ThinkingTracker } from "@/components/tutor/progress";
+import { ExitTicketMode, TimedModeLaunchScreen, TimedModeTransitionScreen } from "@/components/tutor/modes";
+import { ToolsWidget } from "@/components/tutor/widgets";
 import { useAdaptiveProgression } from "@/hooks/useAdaptiveProgression";
 import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
+import { useTutorMasterySync } from "@/hooks/useTutorMasterySync";
+import { useTutorProgression } from "@/hooks/useTutorProgression";
+import { useTutorTimedMode } from "@/hooks/useTutorTimedMode";
 import { Button } from "@/components/ui/button";
-import { ProblemLoadingState } from "@/components/tutor/ProblemLoadingState";
 
 import {
   CheckCircle,
@@ -59,45 +48,6 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-
-/**
-/** Derive overall mastery % from backend state. Use category_scores average when mastery_score is 0 or missing. */
-function overallMasteryPercent(
-  mastery_score: number | undefined | null,
-  category_scores?: { conceptual?: number; procedural?: number; computational?: number; representation?: number } | null
-): number {
-  const vals = category_scores
-    ? [
-        category_scores.conceptual,
-        category_scores.procedural,
-        category_scores.computational,
-        category_scores.representation,
-      ].filter((v): v is number => typeof v === "number")
-    : [];
-  if (vals.length > 0 && (typeof mastery_score !== "number" || mastery_score === 0)) {
-    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    return Math.round(avg * 100);
-  }
-  return typeof mastery_score === "number" ? Math.round(mastery_score * 100) : 0;
-}
-
-/** Map step type to backend reasoningPattern for mastery step_log. */
-const STEP_TYPE_TO_REASONING_PATTERN: Record<string, string> = {
-  formula_selection: "Conceptual",
-  variable_identification: "Conceptual",
-  substitution: "Procedural",
-  calculation: "Arithmetic",
-  units_handling: "Units",
-};
-
-const REASONING_TO_ERROR_CATEGORY: Record<string, string> = {
-  Conceptual: "conceptual",
-  Procedural: "procedural",
-  Substitution: "procedural",
-  Arithmetic: "computational",
-  Units: "computational",
-  Symbolic: "representation",
-};
 
 interface ChemistryTutorProps {
   unitId: string;
@@ -153,20 +103,8 @@ export function ChemistryTutor({
   >(null);
 
   // ── UI / modal state ──────────────────────────────────────────────────────
-  const [showProgressionModal, setShowProgressionModal] = useState(false);
-  const [progressionResult, setProgressionResult] = useState<ProgressionResult | null>(null);
-  const [showExitTicket, setShowExitTicket] = useState(false);
   const [exitTicketResults, setExitTicketResults] = useState<ExitTicketResult[]>([]);
   const [calculatorEnabled] = useState(true);
-
-  // ── Timed mode state ──────────────────────────────────────────────────────
-  const [timedModeActive, setTimedModeActive] = useState(false);
-  const [timedPracticeMinutes, setTimedPracticeMinutes] = useState<number | null>(null);
-  const [timedStartedAt, setTimedStartedAt] = useState<string | null>(null);
-  const [showLaunchScreen, setShowLaunchScreen] = useState(false);
-  const [showTransitionScreen, setShowTransitionScreen] = useState(false);
-  const [timedExitTicketConfigId] = useState<string | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -195,9 +133,6 @@ export function ChemistryTutor({
     thinkingSteps: [],
     classifiedErrors: [],
   });
-  const lastSavedStepLogKeyRef = useRef<string>("");
-  /** Stores the in-flight apiCompleteAttempt promise so handleContinueAfterProgression can await it. */
-  const completeAttemptPromiseRef = useRef<Promise<unknown> | null>(null);
 
   // ── Cognitive tracking ────────────────────────────────────────────────────
   const {
@@ -316,37 +251,23 @@ export function ChemistryTutor({
     structuredStepComplete: steps.structuredStepComplete,
   });
 
+  const { persistLevel3Unlock } = useTutorMasterySync({
+    userId,
+    unitId,
+    lessonIndex,
+    lessonCompleted,
+    currentAttemptId,
+    currentLevel: nav.currentLevel,
+    currentProblemId: nav.currentProblem?.id,
+    interactiveSteps: steps.interactiveSteps,
+    answers: steps.answers,
+    structuredStepComplete: steps.structuredStepComplete,
+    setHasCompletedLevel2,
+    setBackendCategoryScores,
+    setMasteryScore,
+  });
+
   // ── Side effects ──────────────────────────────────────────────────────────
-
-  // Fetch mastery from backend on load
-  useEffect(() => {
-    if (!userId) return;
-    apiGetMastery(userId, unitId, lessonIndex)
-      .then((state) => {
-        setHasCompletedLevel2((prev) => prev || !!state.level3_unlocked);
-        const cs = state.category_scores;
-        if (cs) {
-          setBackendCategoryScores({
-            conceptual: cs.conceptual ?? 0.0,
-            procedural: cs.procedural ?? 0.0,
-            computational: cs.computational ?? 0.0,
-            representation: cs.representation ?? 0.0,
-          });
-        } else {
-          setBackendCategoryScores(null);
-        }
-        setMasteryScore(overallMasteryPercent(state.mastery_score, state.category_scores));
-      })
-      .catch(() => {});
-
-  }, [userId, unitId, lessonIndex]);
-
-  // Level 3 unlock from parent's lesson completion (avoids duplicate progress API)
-  useEffect(() => {
-    if (lessonCompleted) setHasCompletedLevel2((prev) => prev || true);
-  }, [lessonCompleted]);
-
-
   // Start step timer when interactive steps become available
   useEffect(() => {
     steps.interactiveSteps.forEach((step) => {
@@ -356,303 +277,55 @@ export function ChemistryTutor({
     });
   }, [steps.interactiveSteps, steps.answers, startStepTimer]);
 
-  useEffect(() => {
-    lastSavedStepLogKeyRef.current = "";
-  }, [currentAttemptId, nav.currentProblem?.id]);
-
-  // Persist per-step progress and get a live mastery snapshot after each validated step.
-  useEffect(() => {
-    if (!userId || !currentAttemptId || nav.currentLevel === 1 || steps.interactiveSteps.length === 0) return;
-
-    const attempted = steps.interactiveSteps
-      .map((s) => {
-        const answerState = steps.answers[s.id];
-        const hasDecision =
-          typeof answerState?.is_correct === "boolean" || steps.structuredStepComplete[s.id] === true;
-        if (!hasDecision) return null;
-        const isCorrect =
-          answerState?.is_correct === true || steps.structuredStepComplete[s.id] === true;
-        const stepType = STEP_TYPE_MAP[s.step_number] ?? "calculation";
-        const reasoningPattern = STEP_TYPE_TO_REASONING_PATTERN[stepType] ?? "Procedural";
-        return {
-          step_id: s.id,
-          is_correct: isCorrect,
-          reasoning_pattern: reasoningPattern,
-          error_category: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
-        };
-      })
-      .filter(
-        (x): x is {
-          step_id: string;
-          is_correct: boolean;
-          reasoning_pattern: string;
-          error_category: string;
-        } => !!x
-      );
-
-    if (attempted.length === 0) return;
-
-    const requestStepLog = attempted.map((x) => ({
-      is_correct: x.is_correct,
-      reasoning_pattern: x.reasoning_pattern,
-      error_category: x.error_category,
-    }));
-    const payloadKey = JSON.stringify(requestStepLog);
-    if (payloadKey === lastSavedStepLogKeyRef.current) return;
-    lastSavedStepLogKeyRef.current = payloadKey;
-
-    apiSaveStep({
-      attempt_id: currentAttemptId,
-      step_log: requestStepLog,
-    })
-      .then((res) => {
-        const cs = res.mastery?.category_scores;
-        if (cs) {
-          setBackendCategoryScores({
-            conceptual: cs.conceptual ?? 0.0,
-            procedural: cs.procedural ?? 0.0,
-            computational: cs.computational ?? 0.0,
-            representation: cs.representation ?? 0.0,
-          });
-        }
-        setMasteryScore(overallMasteryPercent(res.mastery?.mastery_score, res.mastery?.category_scores));
-      })
-      .catch(() => {});
-  }, [
+  const {
+    showProgressionModal,
+    setShowProgressionModal,
+    progressionResult,
+    handleCheckProgression,
+    handleContinueAfterProgression,
+    handleStayAtLevel,
+  } = useTutorProgression({
     userId,
+    unitId,
+    lessonIndex,
     currentAttemptId,
-    nav.currentLevel,
-    steps.interactiveSteps,
-    steps.answers,
-    steps.structuredStepComplete,
-  ]);
-
-  // Timed mode countdown
-  useEffect(() => {
-    if (!timedModeActive || !timedStartedAt || !timedPracticeMinutes) {
-      setTimeRemaining(null);
-      return;
-    }
-    const tick = () => {
-      const elapsed = (Date.now() - new Date(timedStartedAt).getTime()) / 1000;
-      const remaining = Math.max(0, timedPracticeMinutes * 60 - elapsed);
-      setTimeRemaining(Math.ceil(remaining));
-      if (remaining <= 0 && !showTransitionScreen && !showExitTicket) {
-        setShowTransitionScreen(true);
-      }
-    };
-    tick();
-    const interval = setInterval(tick, 1000);
-    return () => clearInterval(interval);
-  }, [timedModeActive, timedStartedAt, timedPracticeMinutes, showTransitionScreen, showExitTicket]);
-
-  // ── Mastery / progression handlers ───────────────────────────────────────
-
-  const persistLevel3Unlock = useCallback(async () => {
-    if (!userId) return;
-    try {
-      await apiUnlockLevel3(userId, unitId, lessonIndex);
-      await apiSetTopicStatus(userId, unitId, lessonIndex, "in-progress");
-    } catch {
-      /* non-critical */
-    }
-  }, [userId, unitId, lessonIndex]);
-
-  const handleTimedTransitionComplete = useCallback(async () => {
-    setShowTransitionScreen(false);
-    setShowExitTicket(true);
-  }, []);
-
-  const handleCheckProgression = useCallback(() => {
-    if (!nav.currentProblem) return;
-    const result = checkProgression();
-    setProgressionResult(result);
-    setShowProgressionModal(true);
-
-    if (result.should_advance && result.next_level === 3 && nav.currentLevel === 2) {
-      setHasCompletedLevel2(true);
-    }
-
-    const allFirstAttempt = interactiveStepIds.every(
-      (id) => steps.answers[id]?.first_attempt_correct === true,
-    );
-    completeProblemAttempt(
-      nav.currentProblem.id,
-      Object.keys(steps.hints).length,
-      nav.currentLevel,
-      allFirstAttempt,
-    );
-
-    if (userId && currentAttemptId && steps.interactiveSteps.length > 0) {
-      const step_log = steps.interactiveSteps.map((s) => {
-        const isCorrect =
-          steps.answers[s.id]?.is_correct === true || steps.structuredStepComplete[s.id] === true;
-        const stepType = STEP_TYPE_MAP[s.step_number] ?? "calculation";
-        const reasoningPattern = STEP_TYPE_TO_REASONING_PATTERN[stepType] ?? "Procedural";
-        return {
-          is_correct: isCorrect,
-          reasoning_pattern: reasoningPattern,
-          error_category: REASONING_TO_ERROR_CATEGORY[reasoningPattern] ?? "procedural",
-        };
-      });
-      const correctCount = step_log.filter((e) => e.is_correct).length;
-      const score = correctCount / step_log.length;
-      const completePromise = apiCompleteAttempt({
-        attempt_id: currentAttemptId,
-        user_id: userId,
-        unit_id: unitId,
-        lesson_index: lessonIndex,
-        score,
-        step_log,
-        level: nav.currentLevel,
-      });
-      completeAttemptPromiseRef.current = completePromise;
-      completePromise
-        .then((decision) => {
-          if (decision.mastery) {
-            if (decision.mastery.level3_unlocked) setHasCompletedLevel2(true);
-            const cs = decision.mastery.category_scores;
-            if (cs) {
-              setBackendCategoryScores({
-                conceptual: cs.conceptual ?? 0.0,
-                procedural: cs.procedural ?? 0.0,
-                computational: cs.computational ?? 0.0,
-                representation: cs.representation ?? 0.0,
-              });
-            }
-            setMasteryScore(overallMasteryPercent(decision.mastery.mastery_score, decision.mastery.category_scores));
-          }
-          if (decision.recommended_next_difficulty) {
-            setRecommendedDifficulty(
-              decision.recommended_next_difficulty as "easy" | "medium" | "hard",
-            );
-          }
-          setCurrentAttemptId(null);
-        })
-        .catch(() => setCurrentAttemptId(null));
-    } else {
-      setCurrentAttemptId(null);
-    }
-  }, [
+    setCurrentAttemptId,
+    recommendedDifficulty,
+    setRecommendedDifficulty,
+    onTopicComplete,
+    setHasCompletedLevel2,
+    setBackendCategoryScores,
+    setMasteryScore,
+    persistLevel3Unlock,
     checkProgression,
     completeProblemAttempt,
-    nav.currentProblem,
-    steps.hints,
-    nav.currentLevel,
     interactiveStepIds,
-    steps.interactiveSteps,
-    steps.answers,
-    steps.structuredStepComplete,
-    persistLevel3Unlock,
-    userId,
-    currentAttemptId,
-    unitId,
-    lessonIndex,
-  ]);
+    steps: {
+      hints: steps.hints,
+      answers: steps.answers,
+      interactiveSteps: steps.interactiveSteps,
+      structuredStepComplete: steps.structuredStepComplete,
+    },
+    nav: {
+      currentProblem: nav.currentProblem ? { id: nav.currentProblem.id } : null,
+      currentLevel: nav.currentLevel,
+      completedProblemIds: nav.completedProblemIds,
+      setCompletedProblemIds: nav.setCompletedProblemIds,
+      saveCurrentStateToCache: nav.saveCurrentStateToCache,
+      setLevelSolved: nav.setLevelSolved,
+      resetProblemState: nav.resetProblemState,
+      levelCacheRef: nav.levelCacheRef,
+      setCurrentLevel: nav.setCurrentLevel,
+      loadNewProblem: nav.loadNewProblem,
+    },
+  });
 
-  const handleContinueAfterProgression = useCallback(async () => {
-    if (!progressionResult || !nav.currentProblem) return;
+  const timed = useTutorTimedMode();
 
-    // Await the in-flight complete-attempt response so mastery scores are up-to-date
-    // before the next problem loads, eliminating the 0% sidebar desync.
-    if (completeAttemptPromiseRef.current) {
-      try { await completeAttemptPromiseRef.current; } catch { /* non-blocking */ }
-      completeAttemptPromiseRef.current = null;
-    }
-
-    nav.saveCurrentStateToCache();
-    nav.setLevelSolved((prev) => ({ ...prev, [nav.currentLevel]: prev[nav.currentLevel] + 1 }));
-
-    const nextExcludeIds = [...nav.completedProblemIds, nav.currentProblem.id];
-    nav.setCompletedProblemIds(nextExcludeIds);
-    steps.setAnswers({});
-    steps.setHints({});
-    steps.setHintLoading(new Set());
-    steps.setStructuredStepComplete({});
-    nav.setPagination(null);
-    resetTracking();
-    setShowProgressionModal(false);
-    // When advancing 2 → 3, keep level 2 in cache so switching back shows the submitted attempt
-    const advancingToLevel3 = progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2;
-    if (!advancingToLevel3) {
-      delete nav.levelCacheRef.current[nav.currentLevel];
-    }
-
-    const backendDiff = recommendedDifficulty;
-    setRecommendedDifficulty(null);
-
-    if (progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2) {
-      setHasCompletedLevel2(true);
-      persistLevel3Unlock();
-      nav.setCurrentLevel(3);
-      nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
-      toast.success("Level 3 unlocked! Here's your first challenge…");
-      // Re-fetch mastery so sidebar shows latest backend category scores (in case complete response omitted them).
-      if (userId) {
-        apiGetMastery(userId, unitId, lessonIndex).then((state) => {
-          const cs = state.category_scores;
-          if (cs) {
-            setBackendCategoryScores({
-              conceptual: cs.conceptual ?? 0.0,
-              procedural: cs.procedural ?? 0.0,
-              computational: cs.computational ?? 0.0,
-              representation: cs.representation ?? 0.0,
-            });
-          }
-          setMasteryScore(overallMasteryPercent(state.mastery_score, state.category_scores));
-        }).catch(() => {});
-      }
-    } else if (nav.currentLevel === 3) {
-      onTopicComplete?.();
-      if (userId) apiSetTopicStatus(userId, unitId, lessonIndex, "completed").catch(() => {});
-      nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
-      toast.success("Next challenge loaded!");
-    } else {
-      nav.setCurrentLevel(2);
-      nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 2);
-      toast.info("New faded example loaded!");
-    }
-  }, [
-    progressionResult,
-    nav,
-    steps,
-    masteryScore,
-    resetTracking,
-    recommendedDifficulty,
-    persistLevel3Unlock,
-    onTopicComplete,
-    userId,
-    unitId,
-    lessonIndex,
-  ]);
-
-  const handleStayAtLevel = useCallback(() => {
-    if (!nav.currentProblem) return;
-    nav.saveCurrentStateToCache();
-    nav.setLevelSolved((prev) => ({ ...prev, [nav.currentLevel]: prev[nav.currentLevel] + 1 }));
-    const nextExcludeIds = [...nav.completedProblemIds, nav.currentProblem.id];
-    nav.setCompletedProblemIds(nextExcludeIds);
-    steps.setAnswers({});
-    steps.setHints({});
-    steps.setHintLoading(new Set());
-    steps.setStructuredStepComplete({});
-    nav.setPagination(null);
-    resetTracking();
-    setShowProgressionModal(false);
-    delete nav.levelCacheRef.current[nav.currentLevel];
-
-    if (nav.currentLevel === 2) {
-      nav.loadNewProblem("medium", nextExcludeIds, 2);
-      toast.info("Great choice! Here's another Level 2 problem for extra practice.");
-    } else if (nav.currentLevel === 3) {
-      nav.loadNewProblem("medium", nextExcludeIds, 3);
-      toast.success("Another Level 3 problem loaded!");
-    }
-  }, [nav, steps, masteryScore, resetTracking]);
 
   const handleExitTicketComplete = (result: ExitTicketResult) => {
     setExitTicketResults((prev) => [result, ...prev]);
-    setShowExitTicket(false);
+    timed.setShowExitTicket(false);
     if (result.readyFlag) {
       toast.success("Excellent! You're ready to progress!");
     } else {
@@ -660,35 +333,29 @@ export function ChemistryTutor({
     }
   };
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  };
-
   // ── Timed mode overlays ───────────────────────────────────────────────────
 
-  if (showLaunchScreen && timedPracticeMinutes) {
+  if (timed.showLaunchScreen && timed.timedPracticeMinutes) {
     return (
       <TimedModeLaunchScreen
-        practiceMinutes={timedPracticeMinutes}
-        onDismiss={() => setShowLaunchScreen(false)}
+        practiceMinutes={timed.timedPracticeMinutes}
+        onDismiss={() => timed.setShowLaunchScreen(false)}
       />
     );
   }
 
-  if (showTransitionScreen) {
-    return <TimedModeTransitionScreen onTransitionComplete={handleTimedTransitionComplete} />;
+  if (timed.showTransitionScreen) {
+    return <TimedModeTransitionScreen onTransitionComplete={timed.handleTimedTransitionComplete} />;
   }
 
-  if (showExitTicket) {
+  if (timed.showExitTicket) {
     return (
       <ExitTicketMode
         problem={getRandomProblem(getDifficultyForMastery(masteryScore), nav.completedProblemIds)}
         timeLimit={180}
         onComplete={handleExitTicketComplete}
-        onCancel={() => setShowExitTicket(false)}
-        configId={timedExitTicketConfigId || undefined}
+        onCancel={() => timed.setShowExitTicket(false)}
+        configId={timed.timedExitTicketConfigId || undefined}
       />
     );
   }
@@ -698,15 +365,15 @@ export function ChemistryTutor({
   return (
     <div className="bg-background">
       {/* Timed mode countdown banner */}
-      {timedModeActive && timeRemaining !== null && (
+      {timed.timedModeActive && timed.timeRemaining !== null && (
         <div className="bg-primary/10 border-b border-primary/30 px-4 py-2 flex items-center justify-center gap-3">
           <Timer className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium text-foreground">Timed Practice Mode</span>
           <Badge
-            variant={timeRemaining < 60 ? "destructive" : "outline"}
+            variant={timed.timeRemaining < 60 ? "destructive" : "outline"}
             className="font-mono text-sm"
           >
-            {formatTime(timeRemaining)}
+            {timed.formatTime(timed.timeRemaining)}
           </Badge>
         </div>
       )}
@@ -742,7 +409,7 @@ export function ChemistryTutor({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowExitTicket(true)}
+              onClick={() => timed.setShowExitTicket(true)}
               className="gap-1.5"
             >
               <ClipboardCheck className="w-4 h-4" />
@@ -772,9 +439,11 @@ export function ChemistryTutor({
                   </Button>
                   <span className="text-sm text-muted-foreground">
                     Example {nav.pagination.current_index + 1} of {nav.pagination.total}
-                    {nav.pagination.at_limit && (
+                    {nav.currentLevel === 1 && nav.isBackgroundGenerating ? (
+                      <span className="ml-1 text-xs text-primary animate-pulse">· generating next…</span>
+                    ) : nav.pagination.at_limit ? (
                       <span className="ml-1 text-xs text-warning">· limit reached</span>
-                    )}
+                    ) : null}
                   </span>
                   <Button
                     variant="ghost"
@@ -814,93 +483,24 @@ export function ChemistryTutor({
                 <div>
                   <h3 className="text-lg font-semibold text-foreground mb-4">Solution Steps</h3>
                   <div className="space-y-4">
-                    {displaySteps.map((step, index) => {
-                      // Level 1: all steps shown as fully worked
-                      if (nav.currentLevel === 1 || step.type === "given") {
-                        return <GivenStep key={step.id} step={step} />;
+                    <TutorStepRenderer
+                      displaySteps={displaySteps}
+                      currentLevel={nav.currentLevel}
+                      answers={steps.answers}
+                      hints={steps.hints}
+                      structuredStepComplete={steps.structuredStepComplete}
+                      hintLoading={steps.hintLoading}
+                      checkingAnswer={steps.checkingAnswer}
+                      handleValidateEquation={steps.handleValidateEquation}
+                      handleStructuredStepComplete={steps.handleStructuredStepComplete}
+                      handleRequestHint={steps.handleRequestHint}
+                      handleAnswerChange={steps.handleAnswerChange}
+                      handleCheckAnswer={(stepOrId) =>
+                        steps.handleCheckAnswer(
+                          typeof stepOrId === "string" ? stepOrId : stepOrId.id,
+                        )
                       }
-
-                      // Level 3 structured equation step: drag_drop
-                      if (nav.currentLevel === 3 && step.type === "drag_drop" && step.equation_parts) {
-                        return (
-                          <EquationBuilder
-                            key={step.id}
-                            step_number={step.step_number}
-                            label={step.label}
-                            instruction="Drag and drop to form the correct equation"
-                            availableParts={step.equation_parts}
-                            onValidate={(orderedParts) => steps.handleValidateEquation(orderedParts, step)}
-                            onComplete={(correct) =>
-                              steps.handleStructuredStepComplete(step.id, correct)
-                            }
-                            isComplete={!!steps.structuredStepComplete[step.id]}
-                            showHint={!!steps.hints[step.id]}
-                            hintText={steps.hints[step.id]}
-                            hintLoading={steps.hintLoading.has(step.id)}
-                            onRequestHint={() => steps.handleRequestHint(step.id)}
-                          />
-                        );
-                      }
-
-                      // Multi-value input step: variable_id (any level)
-                      if (step.type === "variable_id" && step.labeled_values) {
-                        return (
-                          <KnownsIdentifier
-                            key={step.id}
-                            step_number={step.step_number}
-                            label={step.label}
-                            instruction={step.instruction}
-                            variables={step.labeled_values}
-                            onComplete={(correct) =>
-                              steps.handleStructuredStepComplete(step.id, correct)
-                            }
-                            isComplete={!!steps.structuredStepComplete[step.id]}
-                            showHint={!!steps.hints[step.id]}
-                            hintText={steps.hints[step.id]}
-                            hintLoading={steps.hintLoading.has(step.id)}
-                            onRequestHint={() => steps.handleRequestHint(step.id)}
-                          />
-                        );
-                      }
-
-                      // Comparison step: pick <, >, or =
-                      // Both parts must be non-empty strings; falls through to InteractiveStep otherwise.
-                      if (step.type === "comparison" && step.comparison_parts?.length === 2 && step.comparison_parts[0]?.trim() && step.comparison_parts[1]?.trim()) {
-                        return (
-                          <ComparisonStep
-                            key={step.id}
-                            step_number={step.step_number}
-                            label={step.label}
-                            instruction={step.instruction}
-                            comparisonParts={step.comparison_parts as [string, string]}
-                            correctAnswer={step.correct_answer as "<" | ">" | "="}
-                            onComplete={(correct) =>
-                              steps.handleStructuredStepComplete(step.id, correct)
-                            }
-                            isComplete={!!steps.structuredStepComplete[step.id]}
-                            showHint={!!steps.hints[step.id]}
-                            hintText={steps.hints[step.id]}
-                            hintLoading={steps.hintLoading.has(step.id)}
-                            onRequestHint={() => steps.handleRequestHint(step.id)}
-                          />
-                        );
-                      }
-
-                      return (
-                        <InteractiveStep
-                          key={step.id}
-                          step={step}
-                          answer={steps.answers[step.id]}
-                          onAnswerChange={steps.handleAnswerChange}
-                          onCheckAnswer={steps.handleCheckAnswer}
-                          showHint={!!steps.hints[step.id]}
-                          hintText={steps.hints[step.id]}
-                          hintLoading={steps.hintLoading.has(step.id)}
-                          checkingAnswer={steps.checkingAnswer.has(step.id)}
-                          onRequestHint={steps.handleRequestHint}
-                        />
-                      );
-                    })}
+                    />
                   </div>
                 </div>
 
@@ -928,11 +528,11 @@ export function ChemistryTutor({
                           variant="outline"
                           className="gap-2"
                           onClick={nav.handleSeeAnother}
-                          disabled={nav.problemLoading || nav.isNavigating}
+                          disabled={nav.problemLoading || nav.isNavigating || nav.isBackgroundGenerating}
                         >
-                          <BookOpen className="w-4 h-4" />
-                          See Another Worked Example
-                          {nav.pagination && (
+                          <BookOpen className={cn("w-4 h-4", nav.isBackgroundGenerating && "animate-spin")} />
+                          {nav.isBackgroundGenerating ? "Generating…" : "See Another Worked Example"}
+                          {nav.pagination && !nav.isBackgroundGenerating && (
                             <span className="text-xs opacity-70">
                               ({nav.pagination.total}/{nav.pagination.max_problems})
                             </span>
@@ -942,7 +542,7 @@ export function ChemistryTutor({
                     </>
                   ) : (
                     <>
-                      <Button onClick={steps.handleReset} variant="outline" className="gap-2">
+                      <Button onClick={nav.handleResetProblem} variant="outline" className="gap-2">
                         <RotateCcw className="w-4 h-4" />
                         Reset
                       </Button>

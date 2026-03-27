@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { MAX_TIME, TIME_STEP } from "./content";
+import { firstOrderConcentration, firstOrderHalfLife } from "@/lib/kineticsMath";
 
 export interface DataPoint {
   t: number;
@@ -30,20 +31,20 @@ export function useFirstOrder(
   tCurrent: number,
 ): FirstOrderResult {
   return useMemo(() => {
-    const halfLife = Math.LN2 / k;
+    const halfLife = firstOrderHalfLife(k);
 
     const series: DataPoint[] = [];
     const steps = Math.round(MAX_TIME / TIME_STEP);
     for (let i = 0; i <= steps; i++) {
       const t        = parseFloat((i * TIME_STEP).toFixed(2));
-      const reactant = initialConc * Math.exp(-k * t);
+      const reactant = firstOrderConcentration(t, initialConc, k);
       const product  = initialConc - reactant;
       const lnA      = Math.log(reactant);  // natural log
       const rate     = k * reactant;
       series.push({ t, reactant, product, lnA, rate });
     }
 
-    const concAtT    = initialConc * Math.exp(-k * tCurrent);
+    const concAtT    = firstOrderConcentration(tCurrent, initialConc, k);
     const productAtT = initialConc - concAtT;
     const lnAatT     = Math.log(concAtT);
     const fractionA  = concAtT / initialConc;

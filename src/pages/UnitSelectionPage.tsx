@@ -10,8 +10,8 @@ import { Search, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import { cn } from "@/lib/utils";
-import { NavDropdown } from "@/components/tutor/NavDropdown";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
+import { NavDropdown } from "@/components/tutor/layout";
+import { BeakerMascot } from "@/components/tutor/widgets";
 import { UnitRow } from "@/components/landing/UnitRow";
 import { PhaseHeader } from "@/components/landing/PhaseHeader";
 

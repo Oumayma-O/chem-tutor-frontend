@@ -1,0 +1,228 @@
+import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
+import { apiCompleteAttempt, apiGetMastery, apiSetTopicStatus } from "@/lib/api";
+import type { ProgressionResult, SolutionStep, StudentAnswer } from "@/types/chemistry";
+import { buildStepLog, normalizeCategoryScores, overallMasteryPercent } from "@/lib/masteryTransforms";
+
+interface Params {
+  userId?: string;
+  unitId: string;
+  lessonIndex: number;
+  currentAttemptId: string | null;
+  setCurrentAttemptId: (id: string | null) => void;
+  recommendedDifficulty: "easy" | "medium" | "hard" | null;
+  setRecommendedDifficulty: (d: "easy" | "medium" | "hard" | null) => void;
+  onTopicComplete?: () => void;
+  setHasCompletedLevel2: React.Dispatch<React.SetStateAction<boolean>>;
+  setBackendCategoryScores: React.Dispatch<
+    React.SetStateAction<{ conceptual: number; procedural: number; computational: number; representation: number } | null>
+  >;
+  setMasteryScore: React.Dispatch<React.SetStateAction<number>>;
+  persistLevel3Unlock: () => Promise<void>;
+  checkProgression: () => ProgressionResult;
+  completeProblemAttempt: (problemId: string, hintsUsed: number, level: number, firstAttemptCorrect: boolean) => void;
+  interactiveStepIds: string[];
+  steps: {
+    hints: Record<string, string>;
+    answers: Record<string, StudentAnswer>;
+    interactiveSteps: SolutionStep[];
+    structuredStepComplete: Record<string, boolean>;
+  };
+  nav: {
+    currentProblem: { id: string } | null;
+    currentLevel: number;
+    completedProblemIds: string[];
+    setCompletedProblemIds: (ids: string[]) => void;
+    saveCurrentStateToCache: () => void;
+    setLevelSolved: React.Dispatch<React.SetStateAction<Record<1 | 2 | 3, number>>>;
+    resetProblemState: () => void;
+    levelCacheRef: React.MutableRefObject<Partial<Record<1 | 2 | 3, unknown>>>;
+    setCurrentLevel: (level: 1 | 2 | 3) => void;
+    loadNewProblem: (diff: "easy" | "medium" | "hard", exclude: string[], level: number) => Promise<unknown>;
+  };
+}
+
+export function useTutorProgression({
+  userId,
+  unitId,
+  lessonIndex,
+  currentAttemptId,
+  setCurrentAttemptId,
+  recommendedDifficulty,
+  setRecommendedDifficulty,
+  onTopicComplete,
+  setHasCompletedLevel2,
+  setBackendCategoryScores,
+  setMasteryScore,
+  persistLevel3Unlock,
+  checkProgression,
+  completeProblemAttempt,
+  interactiveStepIds,
+  steps,
+  nav,
+}: Params) {
+  const [showProgressionModal, setShowProgressionModal] = useState(false);
+  const [progressionResult, setProgressionResult] = useState<ProgressionResult | null>(null);
+  const completeAttemptPromiseRef = useRef<Promise<unknown> | null>(null);
+
+  const prepareNextProblemTransition = useCallback((nextExcludeIds: string[]) => {
+    nav.saveCurrentStateToCache();
+    nav.setLevelSolved((prev) => ({ ...prev, [nav.currentLevel as 1 | 2 | 3]: prev[nav.currentLevel as 1 | 2 | 3] + 1 }));
+    nav.setCompletedProblemIds(nextExcludeIds);
+    nav.resetProblemState();
+    setShowProgressionModal(false);
+  }, [nav]);
+
+  const handleCheckProgression = useCallback(() => {
+    if (!nav.currentProblem) return;
+    const result = checkProgression();
+    setProgressionResult(result);
+    setShowProgressionModal(true);
+
+    if (result.should_advance && result.next_level === 3 && nav.currentLevel === 2) {
+      setHasCompletedLevel2(true);
+    }
+
+    const allFirstAttempt = interactiveStepIds.every(
+      (id) => steps.answers[id]?.first_attempt_correct === true,
+    );
+    completeProblemAttempt(
+      nav.currentProblem.id,
+      Object.keys(steps.hints).length,
+      nav.currentLevel,
+      allFirstAttempt,
+    );
+
+    if (userId && currentAttemptId && steps.interactiveSteps.length > 0) {
+      const step_log = buildStepLog(
+        steps.interactiveSteps,
+        steps.answers,
+        steps.structuredStepComplete,
+      );
+      const correctCount = step_log.filter((e) => e.is_correct).length;
+      const score = correctCount / step_log.length;
+      const completePromise = apiCompleteAttempt({
+        attempt_id: currentAttemptId,
+        user_id: userId,
+        unit_id: unitId,
+        lesson_index: lessonIndex,
+        score,
+        step_log,
+        level: nav.currentLevel,
+      });
+      completeAttemptPromiseRef.current = completePromise;
+      completePromise
+        .then((decision) => {
+          if (decision.mastery) {
+            if (decision.mastery.level3_unlocked) setHasCompletedLevel2(true);
+            setBackendCategoryScores(normalizeCategoryScores(decision.mastery.category_scores));
+            setMasteryScore(overallMasteryPercent(decision.mastery.mastery_score, decision.mastery.category_scores));
+          }
+          if (decision.recommended_next_difficulty) {
+            setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
+          }
+          setCurrentAttemptId(null);
+        })
+        .catch(() => setCurrentAttemptId(null));
+    } else {
+      setCurrentAttemptId(null);
+    }
+  }, [
+    nav,
+    checkProgression,
+    setHasCompletedLevel2,
+    interactiveStepIds,
+    steps,
+    completeProblemAttempt,
+    userId,
+    currentAttemptId,
+    unitId,
+    lessonIndex,
+    setBackendCategoryScores,
+    setMasteryScore,
+    setRecommendedDifficulty,
+    setCurrentAttemptId,
+  ]);
+
+  const handleContinueAfterProgression = useCallback(async () => {
+    if (!progressionResult || !nav.currentProblem) return;
+    if (completeAttemptPromiseRef.current) {
+      try { await completeAttemptPromiseRef.current; } catch { /* non-blocking */ }
+      completeAttemptPromiseRef.current = null;
+    }
+
+    const nextExcludeIds = [...nav.completedProblemIds, nav.currentProblem.id];
+    prepareNextProblemTransition(nextExcludeIds);
+    const advancingToLevel3 = progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2;
+    if (!advancingToLevel3) delete nav.levelCacheRef.current[nav.currentLevel as 1 | 2 | 3];
+
+    const backendDiff = recommendedDifficulty;
+    setRecommendedDifficulty(null);
+
+    if (progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2) {
+      setHasCompletedLevel2(true);
+      persistLevel3Unlock();
+      nav.setCurrentLevel(3);
+      await nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
+      toast.success("Level 3 unlocked! Here's your first challenge…");
+      if (userId) {
+        apiGetMastery(userId, unitId, lessonIndex).then((state) => {
+          setBackendCategoryScores(normalizeCategoryScores(state.category_scores));
+          setMasteryScore(overallMasteryPercent(state.mastery_score, state.category_scores));
+        }).catch(() => {});
+      }
+      return;
+    }
+
+    if (nav.currentLevel === 3) {
+      onTopicComplete?.();
+      if (userId) apiSetTopicStatus(userId, unitId, lessonIndex, "completed").catch(() => {});
+      await nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
+      toast.success("Next challenge loaded!");
+      return;
+    }
+
+    nav.setCurrentLevel(2);
+    await nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 2);
+    toast.info("New faded example loaded!");
+  }, [
+    progressionResult,
+    nav,
+    prepareNextProblemTransition,
+    recommendedDifficulty,
+    setRecommendedDifficulty,
+    setHasCompletedLevel2,
+    persistLevel3Unlock,
+    userId,
+    unitId,
+    lessonIndex,
+    setBackendCategoryScores,
+    setMasteryScore,
+    onTopicComplete,
+  ]);
+
+  const handleStayAtLevel = useCallback(async () => {
+    if (!nav.currentProblem) return;
+    const nextExcludeIds = [...nav.completedProblemIds, nav.currentProblem.id];
+    prepareNextProblemTransition(nextExcludeIds);
+    delete nav.levelCacheRef.current[nav.currentLevel as 1 | 2 | 3];
+
+    if (nav.currentLevel === 2) {
+      await nav.loadNewProblem("medium", nextExcludeIds, 2);
+      toast.info("Great choice! Here's another Level 2 problem for extra practice.");
+    } else if (nav.currentLevel === 3) {
+      await nav.loadNewProblem("medium", nextExcludeIds, 3);
+      toast.success("Another Level 3 problem loaded!");
+    }
+  }, [nav, prepareNextProblemTransition]);
+
+  return {
+    showProgressionModal,
+    setShowProgressionModal,
+    progressionResult,
+    handleCheckProgression,
+    handleContinueAfterProgression,
+    handleStayAtLevel,
+  };
+}
+

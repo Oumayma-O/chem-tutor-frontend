@@ -1,10 +1,8 @@
 import { useParams, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useUnit } from "@/hooks/useUnit";
-import { CourseSidebar } from "@/components/tutor/CourseSidebar";
-import { NavDropdown } from "@/components/tutor/NavDropdown";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
-import { LessonOverview } from "@/components/tutor/LessonOverview";
+import { CourseSidebar, NavDropdown, LessonOverview } from "@/components/tutor/layout";
+import { BeakerMascot } from "@/components/tutor/widgets";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, ArrowLeft, ChevronRight, Menu, Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";

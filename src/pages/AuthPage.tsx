@@ -15,20 +15,12 @@ import {
 import { GraduationCap, User, AlertCircle, ArrowRight, ArrowLeft, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
-
-const GRADE_RANGE_OPTIONS = [
-  { value: "middle-school", label: "Middle School" },
-  { value: "9th", label: "9th Grade" },
-  { value: "10th", label: "10th Grade" },
-  { value: "11th", label: "11th Grade" },
-  { value: "12th", label: "12th Grade" },
-];
-
-const COURSE_TYPE_OPTIONS = [
-  { value: "standard", label: "Standard Chemistry" },
-  { value: "ap", label: "AP Chemistry" },
-];
+import { BeakerMascot } from "@/components/tutor/widgets";
+import {
+  PROFILE_GRADE_OPTIONS,
+  PROFILE_COURSE_OPTIONS,
+  PROFILE_INTEREST_OPTIONS,
+} from "@/lib/profileOptions";
 
 /** Map signup form values to backend Grade/Course names (used for profile). */
 function signupGradeToProfileName(value: string): string {
@@ -53,20 +45,6 @@ function capitalizeFirstInput(text: string): string {
   if (!text) return text;
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
-
-const INTEREST_OPTIONS = [
-  { value: "sports", label: "Sports", icon: "🏀" },
-  { value: "music", label: "Music", icon: "🎵" },
-  { value: "food", label: "Food & Cooking", icon: "🍕" },
-  { value: "technology", label: "Technology", icon: "💻" },
-  { value: "nature", label: "Nature", icon: "🌿" },
-  { value: "gaming", label: "Gaming", icon: "🎮" },
-  { value: "art", label: "Art & Design", icon: "🎨" },
-  { value: "health", label: "Health & Medicine", icon: "🏥" },
-  { value: "dance", label: "Dance", icon: "💃" },
-  { value: "movies", label: "Movies & TV", icon: "🎬" },
-  { value: "other", label: "Other", icon: "✨" },
-];
 
 export default function AuthPage() {
   const { signIn, signUp } = useAuth();
@@ -194,7 +172,7 @@ export default function AuthPage() {
 
           {/* Interest Cards Grid */}
           <div className="grid grid-cols-3 gap-2">
-            {INTEREST_OPTIONS.filter((i) => i.value !== "other").map((interest) => (
+            {PROFILE_INTEREST_OPTIONS.filter((i) => i.value !== "other").map((interest) => (
               <button
                 key={interest.value}
                 type="button"
@@ -397,7 +375,7 @@ export default function AuthPage() {
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
-                              {GRADE_RANGE_OPTIONS.map((opt) => (
+                              {PROFILE_GRADE_OPTIONS.map((opt) => (
                                 <SelectItem key={opt.value} value={opt.value}>
                                   {opt.label}
                                 </SelectItem>
@@ -414,7 +392,7 @@ export default function AuthPage() {
                               <SelectValue placeholder="Select" />
                             </SelectTrigger>
                             <SelectContent>
-                              {COURSE_TYPE_OPTIONS.map((opt) => (
+                              {PROFILE_COURSE_OPTIONS.map((opt) => (
                                 <SelectItem key={opt.value} value={opt.value}>
                                   {opt.label}
                                 </SelectItem>

@@ -5,8 +5,8 @@
  */
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { BeakerMascot } from "@/components/tutor/BeakerMascot";
-import type { MascotMood } from "@/components/tutor/BeakerMascot";
+import { BeakerMascot } from "@/components/tutor/widgets";
+import type { MascotMood } from "@/components/tutor/widgets";
 import { highlightChemVars } from "./chemHighlight";
 import { SimTutorialNavBar } from "./SimTutorialNavBar";
 
