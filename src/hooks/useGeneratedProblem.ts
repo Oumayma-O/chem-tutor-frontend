@@ -31,9 +31,14 @@ function fixCdot(s: string | null | undefined): string {
   return out;
 }
 
-/** Legacy API / cached payloads may still send `variable_id`; normalize to `multi_input`. */
+/**
+ * Normalize legacy step type strings from cached DB records.
+ * "variable_id" → "multi_input"  (old alias, still in older DB rows)
+ * "given"       → "interactive"  (is_given flag now controls scaffolding)
+ */
 function normalizeStepWidgetType(t: string): SolutionStep["type"] {
-  if (t === "variable_id" || t === "multi_input") return "multi_input";
+  if (t === "variable_id") return "multi_input";
+  if (t === "given") return "interactive";
   return t as SolutionStep["type"];
 }
 
@@ -57,6 +62,7 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
     id: s.id || `${pd.id}-step-${s.step_number}`,
     step_number: s.step_number,
     type: normalizeStepWidgetType(String(s.type)),
+    is_given: s.is_given === true || String(s.type) === "given",
     label: s.label,
     instruction: fixCdot(s.instruction),
     content: s.content != null ? fixCdot(s.content) : undefined,

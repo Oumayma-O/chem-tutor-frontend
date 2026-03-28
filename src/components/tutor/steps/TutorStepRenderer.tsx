@@ -1,13 +1,12 @@
 import { SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { GivenStep } from "./GivenStep";
 import { EquationBuilder } from "./EquationBuilder";
-import { KnownsIdentifier } from "./KnownsIdentifier";
+import { MultiInput } from "./MultiInput";
 import { ComparisonStep } from "./ComparisonStep";
 import { InteractiveStep } from "./InteractiveStep";
 
 interface TutorStepRendererProps {
   displaySteps: SolutionStep[];
-  currentLevel: number;
   answers: Record<string, StudentAnswer>;
   hints: Record<string, string>;
   structuredStepComplete: Record<string, boolean>;
@@ -22,7 +21,6 @@ interface TutorStepRendererProps {
 
 export function TutorStepRenderer({
   displaySteps,
-  currentLevel,
   answers,
   hints,
   structuredStepComplete,
@@ -41,11 +39,11 @@ export function TutorStepRenderer({
   return (
     <>
       {displaySteps.map((step) => {
-        if (currentLevel === 1 || step.type === "given") {
+        if (step.is_given) {
           return <GivenStep key={step.id} step={step} />;
         }
 
-        if (currentLevel === 3 && step.type === "drag_drop" && step.equation_parts) {
+        if (step.type === "drag_drop" && step.equation_parts) {
           return (
             <EquationBuilder
               key={step.id}
@@ -66,7 +64,7 @@ export function TutorStepRenderer({
 
         if (step.type === "multi_input" && step.input_fields?.length) {
           return (
-            <KnownsIdentifier
+            <MultiInput
               key={step.id}
               step_number={step.step_number}
               label={step.label}

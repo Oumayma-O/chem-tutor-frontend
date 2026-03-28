@@ -485,7 +485,6 @@ export function ChemistryTutor({
                   <div className="space-y-4">
                     <TutorStepRenderer
                       displaySteps={displaySteps}
-                      currentLevel={nav.currentLevel}
                       answers={steps.answers}
                       hints={steps.hints}
                       structuredStepComplete={steps.structuredStepComplete}

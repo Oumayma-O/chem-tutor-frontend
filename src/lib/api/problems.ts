@@ -9,7 +9,9 @@ export interface InputField {
 export interface ProblemStep {
   id: string;
   step_number: number;
-  type: "given" | "interactive" | "drag_drop" | "multi_input" | "comparison";
+  type: "interactive" | "drag_drop" | "multi_input" | "comparison";
+  /** Server-computed. True = pre-filled scaffolding step (read-only). */
+  is_given?: boolean;
   label: string;
   instruction: string;
   /** Show-your-work trace (≤20 words). Displayed in Level 1 and on wrong answers in L2/L3. */

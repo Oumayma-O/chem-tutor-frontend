@@ -1,5 +1,4 @@
 export type StepType =
-  | "given"
   | "interactive"
   | "drag_drop"
   | "multi_input"
@@ -16,6 +15,8 @@ export interface SolutionStep {
   id: string;
   step_number: number;
   type: StepType;
+  /** Server-computed. True = pre-filled scaffolding step (read-only). */
+  is_given?: boolean;
   label: string;
   instruction: string;
   placeholder?: string;

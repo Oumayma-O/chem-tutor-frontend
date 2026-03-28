@@ -104,7 +104,7 @@ export function GivenStep({ step }: GivenStepProps) {
   return (
     <div className="step-card bg-step-given border-l-4 border-step-given-border rounded-lg p-5 shadow-step">
       <div className="flex items-center gap-2 flex-wrap mb-3">
-        <StepBadge step_number={step.step_number} type="given" />
+        <StepBadge step_number={step.step_number} isGiven />
         <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
           {step.label}
         </span>

@@ -65,23 +65,11 @@ export function useStepHandlers({
 
   const hasClassifiedRef = useRef(false);
 
-  // Derive interactive steps: all steps that require student input (not purely given).
-  // Level 2: interactive or multi_input (knowns-style) steps.
-  // Level 3: include EquationBuilder/KnownsIdentifier steps even if type is "given".
+  // Derive interactive steps: all steps that require student input (is_given=false).
   const interactiveSteps = useMemo(() => {
     if (!currentProblem) return [];
-    return currentProblem.steps.filter((s) => {
-      if (currentLevel === 2) return s.type === "interactive" || s.type === "multi_input";
-      if (currentLevel === 3) {
-        return (
-          s.type !== "given" ||
-          !!s.equation_parts ||
-          !!s.input_fields
-        );
-      }
-      return s.type !== "given";
-    });
-  }, [currentProblem, currentLevel]);
+    return currentProblem.steps.filter((s) => !s.is_given);
+  }, [currentProblem]);
 
   // Reset classification guard when problem changes
   useEffect(() => {
