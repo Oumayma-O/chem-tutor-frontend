@@ -3,8 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Level, LEVEL_CONFIGS, StudentAnswer } from "@/types/chemistry";
 import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { getRandomProblem, getDifficultyForMastery } from "@/data/sampleProblems";
-import {
-} from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
 import {
   apiGetReferenceCard,

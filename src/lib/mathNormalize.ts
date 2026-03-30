@@ -158,7 +158,7 @@ function consumeLatexRun(s: string, start: number): number {
 const PROSE_WORD_AFTER_MATH =
   /^(and|or|for|are|is|the|of|in|to|use|each|before|after|what|which|with|from|that|this|these|those|when|where|how|why|will|has|have|had|was|were|not|can|may|must|should|could|would|using|given|find|calculate|compute|determine|express|show|write|solve|note|assume|consider|suppose|let|both|either|nearest|per|via|contains|sample|abundances|naturally|occurring|mass|decimal|calculating|percentage|answer|formula|convert|average|atomic|isotopes|copper|abundant|following|above|below|between|among|within|during|while|until|since|because|therefore|thus|such|same|other|another|different|similar|equal|greater|less|than|more|most|least|all|some|none|any|every|only|also|even|still|again|first|second|third|last|next|previous|approximately|about|around|roughly|exactly|nearly|almost|always|never|sometimes|often|usually|typically|normally|commonly|frequently|rarely|perhaps|possibly|probably|likely|unlikely|certainly|definitely|surely|indeed|actually|really|very|quite|rather|fairly|pretty|too|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|percent|percentage|problem|question|example|solution|reaction|equation|constant|temperature|pressure|volume|molecule|atoms|molar|acid|base|gas|liquid|solid|aqueous|equilibrium|stoichiometry|yield|limiting|excess|reactant|product|initial|final|change|ratio|proportion|mean|median|range|graph|data|table|figure|value|values|units|unit|state|standard|conditions)\b/i;
 
-function interleaveMathInSegment(s: string): string {
+export function interleaveMathInSegment(s: string): string {
   if (!s.trim()) return s;
   if (!/\\|[_^]/.test(s)) return s;
 
@@ -374,10 +374,20 @@ function scientificNotationToMath(text: string): string {
   out = out.replace(new RegExp(`\\^(${CARET_AS_BACKSLASH_COMMANDS})(?=[{\\s]|$)`, "g"), "\\$1");
   out = out.replace(/(\d+\.?\d*)e(\d+)/gi, (_, base, exp) => `${base} × $10^{${exp}}$`);
   out = out.replace(/10\^(\d+)/g, (_, exp) => `$10^{${exp}}$`);
+  // Wrap letter^{exp} / letter_{sub} (letter immediately before the ^ or _)
   out = applyOutsideMath(out, (seg) =>
     seg
       .replace(/([A-Za-z\]\)])\^\{([^}$]+)\}/g, (_, base, exp) => `$${base}^{${exp}}$`)
       .replace(/([A-Za-z\]\)])_\{([^}$]+)\}/g, (_, base, sub) => `$${base}_{${sub}}$`),
+  );
+  // Wrap bare ^{n} / _{n} NOT immediately after a letter — covers isotope / mass-number
+  // notation such as " ^{28}Si" or "^{29}Si".  Without this, the raw ^{ survives to
+  // autoWrapLatex which wraps the entire paragraph in $…$, causing KaTeX to strip every
+  // inter-word space (all words run together in the rendered output).
+  out = applyOutsideMath(out, (seg) =>
+    seg
+      .replace(/(?<![A-Za-z\]\)])\^\{([^}$]+)\}/g, (_, exp) => `$^{${exp}}$`)
+      .replace(/(?<![A-Za-z\]\)])_\{([^}$]+)\}/g,  (_, sub) => `$_{${sub}}$`),
   );
   out = applyOutsideMath(out, (seg) =>
     seg.replace(/\^(-?[a-zA-Z0-9]+)/g, (_, exp) => `$^{${exp}}$`),

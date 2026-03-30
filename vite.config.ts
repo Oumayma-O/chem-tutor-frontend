@@ -10,29 +10,29 @@ export default defineConfig(async ({ mode }) => {
     plugins.push(componentTagger());
   }
   return {
-  server: {
-    host: "::",
-    port: 8080,
-    hmr: {
-      overlay: false,
-    },
-    // Dev-only (`vite dev`). Ignored by `vite build` — not used on Vercel; production uses VITE_API_URL
-    // to your hosted API. Safe to commit; nothing here blocks pushing to the remote repo.
-    proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8000",
-        changeOrigin: true,
+    server: {
+      host: "::",
+      port: 8080,
+      hmr: {
+        overlay: false,
+      },
+      proxy: {
+        "/api": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+        },
       },
     },
-  },
-  plugins,
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    plugins,
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-  // Use Vite default chunking; custom manualChunks caused "createContext of undefined"
-  // in production (Radix UI and other libs need the same React instance as the app).
-  build: {},
-};
+    define: {
+      global: "globalThis",
+    },
+    optimizeDeps: {},
+    build: {},
+  };
 });

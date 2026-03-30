@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { XCircle, RotateCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -36,8 +36,12 @@ export function EquationBuilder({
   hintLoading,
   onRequestHint,
 }: EquationBuilderProps) {
-  const [slots, setSlots] = useState<string[]>([]);
+  const [slots, setSlots] = useState<string[]>(isComplete ? [...availableParts] : []);
   const [isIncorrect, setIsIncorrect] = useState(false);
+
+  useEffect(() => {
+    if (isComplete) setSlots([...availableParts]);
+  }, [isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
   const [isValidating, setIsValidating] = useState(false);
 
   const [shuffledParts] = useState(() => {

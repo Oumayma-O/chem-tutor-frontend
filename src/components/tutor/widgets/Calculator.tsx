@@ -25,7 +25,6 @@ export function Calculator({
   const [copied, setCopied] = useState(false);
   const [scientific, setScientific] = useState(false);
 
-  if (!enabled) return null;
   const handleInput = (val: string) => {
     if (hasResult && /\d|\./.test(val)) {
       setDisplay(val);
@@ -59,8 +58,9 @@ export function Calculator({
       setTimeout(() => setCopied(false), 1500);
     });
   };
+
   useEffect(() => {
-    if (!open) return;
+    if (!enabled || !open) return;
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -73,7 +73,9 @@ export function Calculator({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, display, hasResult]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, open, display, hasResult]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!enabled) return null;
 
   const basicButtons = [["7", "8", "9", "÷"], ["4", "5", "6", "×"], ["1", "2", "3", "−"], ["0", ".", "=", "+"]];
   const sciButtons: { label: string; action: () => void }[] = [

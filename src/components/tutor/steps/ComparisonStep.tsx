@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatMathContent } from "@/lib/mathDisplay";
@@ -46,8 +46,14 @@ export function ComparisonStep({
   hintLoading,
   onRequestHint,
 }: ComparisonStepProps) {
-  const [selected, setSelected] = useState<Operator | undefined>(undefined);
+  const [selected, setSelected] = useState<Operator | undefined>(
+    isComplete ? correctAnswer : undefined,
+  );
   const [isIncorrect, setIsIncorrect] = useState(false);
+
+  useEffect(() => {
+    if (isComplete) setSelected(correctAnswer);
+  }, [isComplete, correctAnswer]);
 
   const handleValueChange = (value: string) => {
     if (isComplete) return;

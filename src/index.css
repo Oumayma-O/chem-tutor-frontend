@@ -278,3 +278,93 @@
 .dot-pulse {
   animation: dot-pulse 1.5s ease-in-out infinite;
 }
+
+/* ── MathQuill: strip default border/outline, inherit app font ──────────────
+   The wrapper div owns all border/focus-ring styling via Tailwind classes.
+   MathQuill uses plain DOM (no Shadow DOM), so these rules are straightforward. */
+
+.mq-editable-field,
+.mq-math-mode {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  min-height: 40px;
+  width: 100% !important;
+  padding: 0.5rem 0.75rem;
+  box-sizing: border-box;
+  display: block;
+}
+
+.mq-editable-field.mq-focused {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Caret: match app primary blue */
+.mq-cursor {
+  border-left-color: rgb(59, 130, 246) !important;
+}
+
+/* Read-only static field (answered correctly) */
+.mq-static-answer {
+  font-size: 0.875rem;
+  font-family: inherit;
+  opacity: 0.7;
+  padding: 0.5rem 0.75rem;
+  display: block;
+}
+
+/* ── MathLive `<math-field>` (shadow DOM) — size to match tutor inputs ─────── */
+math-field.ml-field,
+math-field.ml-field-readonly {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  --contains-highlight: #3b82f6;
+}
+
+math-field.ml-field-readonly {
+  opacity: 0.85;
+  padding: 0.5rem 0.75rem;
+}
+
+/* ── TipTap answer editor (InteractiveStep) ─────────────────────────────── */
+.tiptap-answer-root .ProseMirror {
+  min-height: 40px;
+  outline: none;
+}
+
+.tiptap-answer-root .math-inline {
+  vertical-align: baseline !important;
+  margin: 0 0.1em;
+  cursor: pointer;
+  border-radius: 0.25rem;
+  padding: 0 0.1em;
+  font-size: inherit !important;
+}
+
+.tiptap-answer-root .math-inline:hover {
+  background: rgba(59, 130, 246, 0.1);
+  outline: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.tiptap-answer-editor sup, .tiptap-answer-editor sub {
+  font-size: 0.65em !important;
+  line-height: 0 !important;
+  vertical-align: baseline !important;
+  position: relative !important;
+}
+
+.tiptap-answer-editor sup {
+  top: -0.5em;
+}
+
+.tiptap-answer-editor sub {
+  bottom: -0.25em;
+}

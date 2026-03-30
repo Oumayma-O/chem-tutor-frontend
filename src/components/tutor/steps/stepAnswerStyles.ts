@@ -35,3 +35,8 @@ export const STEP_ANSWER_BOX_READ = cn(
 
 /** Interactive textarea: same shell; content top-aligned for multi-line typing. */
 export const STEP_ANSWER_BOX_TEXTAREA = cn(STEP_ANSWER_SHELL, "flex items-start");
+
+/** fx math-toolbar toggle button — active (toggled on) state. */
+export const FX_TOGGLE_ACTIVE = "bg-blue-100 text-blue-600 border border-blue-200";
+/** fx math-toolbar toggle button — idle (toggled off) state. */
+export const FX_TOGGLE_IDLE = "text-slate-400 hover:text-slate-600 hover:bg-slate-100";

@@ -6,7 +6,8 @@
       "Bash(node -e \":*)",
       "Bash(git add:*)",
       "Bash(xargs grep:*)",
-      "Bash(grep -E \"\\\\.ts$\")"
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(grep -n \"MasteryIndicator\" /c/Users/htc/.cursor/chem-guide-frontend/src/components/tutor/*.tsx)"
     ]
   }
 }

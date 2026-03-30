@@ -44,13 +44,6 @@ export function HintToggle({ showHint, hintText, hintLoading, onRequestHint }: H
         )}
       </Button>
 
-      {hintLoading && visible && (
-        <div className="flex items-center gap-2 text-muted-foreground fade-in">
-          <Loader2 className="w-4 h-4 animate-spin" />
-          <span className="text-sm">Generating hint...</span>
-        </div>
-      )}
-
       {visible && showHint && hintText && (
         <div className="bg-warning/20 border border-warning/40 rounded-md p-3 fade-in">
           <HintMarkdown>{hintText}</HintMarkdown>
