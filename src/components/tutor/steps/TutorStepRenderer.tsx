@@ -1,4 +1,5 @@
 import { SolutionStep, StudentAnswer } from "@/types/chemistry";
+import { shuffleEquationPartsSeeded } from "@/lib/equationDragDrop";
 import { GivenStep } from "./GivenStep";
 import { EquationBuilder } from "./EquationBuilder";
 import { MultiInput } from "./MultiInput";
@@ -6,6 +7,8 @@ import { ComparisonStep } from "./ComparisonStep";
 import { InteractiveStep } from "./InteractiveStep";
 
 interface TutorStepRendererProps {
+  /** Current problem id — stable keys for given/read-only steps within this problem. */
+  problemId: string;
   displaySteps: SolutionStep[];
   answers: Record<string, StudentAnswer>;
   hints: Record<string, string>;
@@ -20,6 +23,7 @@ interface TutorStepRendererProps {
 }
 
 export function TutorStepRenderer({
+  problemId,
   displaySteps,
   answers,
   hints,
@@ -40,17 +44,26 @@ export function TutorStepRenderer({
     <>
       {displaySteps.map((step) => {
         if (step.is_given) {
-          return <GivenStep key={step.id} step={step} />;
+          return <GivenStep key={`${problemId}-${step.id}`} step={step} />;
         }
 
         if (step.type === "drag_drop" && step.equation_parts) {
+          const display = step.equation_parts_display;
+          const hasStableDisplay =
+            Array.isArray(display) && display.length === step.equation_parts.length && display.length > 0;
+          const bank =
+            hasStableDisplay
+              ? display
+              : step.equation_parts.length > 1
+                ? shuffleEquationPartsSeeded(step.equation_parts, `${problemId}:${step.id}`)
+                : step.equation_parts;
           return (
             <EquationBuilder
               key={step.id}
               step_number={step.step_number}
               label={step.label}
               instruction="Drag and drop to form the correct equation"
-              availableParts={step.equation_parts}
+              availableParts={bank}
               onValidate={(orderedParts) => handleValidateEquation(orderedParts, step)}
               onComplete={(correct) => handleStructuredStepComplete(step.id, correct)}
               isComplete={!!structuredStepComplete[step.id]}
@@ -58,6 +71,8 @@ export function TutorStepRenderer({
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
               onRequestHint={() => handleRequestHint(step.id)}
+              draft={answers[step.id]?.answer}
+              onDraftChange={(d) => handleAnswerChange(step.id, d)}
             />
           );
         }
@@ -76,6 +91,8 @@ export function TutorStepRenderer({
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
               onRequestHint={() => handleRequestHint(step.id)}
+              draft={answers[step.id]?.answer}
+              onDraftChange={(d) => handleAnswerChange(step.id, d)}
             />
           );
         }
@@ -100,6 +117,8 @@ export function TutorStepRenderer({
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
               onRequestHint={() => handleRequestHint(step.id)}
+              draft={answers[step.id]?.answer}
+              onDraftChange={(d) => handleAnswerChange(step.id, d)}
             />
           );
         }

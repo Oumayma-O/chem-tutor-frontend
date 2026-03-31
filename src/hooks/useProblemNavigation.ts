@@ -54,6 +54,7 @@ export interface StepSetters {
   setHints: Dispatch<SetStateAction<Record<string, string>>>;
   setHintLoading: Dispatch<SetStateAction<Set<string>>>;
   setStructuredStepComplete: Dispatch<SetStateAction<Record<string, boolean>>>;
+  setCheckingAnswer: Dispatch<SetStateAction<Set<string>>>;
   resetTracking: () => void;
   setThinkingSteps: (steps: ThinkingStep[]) => void;
   setClassifiedErrors: (errors: ClassifiedError[]) => void;
@@ -180,6 +181,24 @@ export function useProblemNavigation({
   // Background generation state for Level 1 "See Another" — true while a bg fetch is in flight.
   const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
   const backgroundGenRef = useRef(false);
+  /** Bumped when step answers/drafts are cleared so widgets remount (local state matches parent). */
+  const [stepRemountKey, setStepRemountKey] = useState(0);
+
+  /** Clears answers/hints/structured completion and remounts step widgets (equation builder, multi-input, math fields). */
+  const clearAllStepState = useCallback(() => {
+    stepSettersRef.current.setAnswers({});
+    stepSettersRef.current.setHints({});
+    stepSettersRef.current.setHintLoading(new Set());
+    stepSettersRef.current.setStructuredStepComplete({});
+    stepSettersRef.current.setCheckingAnswer(new Set());
+    setStepRemountKey((k) => {
+      const next = k + 1;
+      if (import.meta.env.DEV) {
+        console.log("[tutor] step remount key ->", next);
+      }
+      return next;
+    });
+  }, []);
 
   // Snapshot of nav-owned state — always current (updated before effects fire).
   const stateSnapshot = useRef({
@@ -480,10 +499,7 @@ export function useProblemNavigation({
           }
           if (typeof parsed.masteryScore === "number") onRestoreMasteryScore?.(parsed.masteryScore);
           if (parsed.hasCompletedLevel2 === true) onRestoreHasCompletedLevel2?.();
-          stepSettersRef.current.setAnswers({});
-          stepSettersRef.current.setHints({});
-          stepSettersRef.current.setHintLoading(new Set());
-          stepSettersRef.current.setStructuredStepComplete({});
+          clearAllStepState();
           void loadNewProblem(entry.difficulty, [], lvl as number);
           return () => {
             persistOnUnmountRef.current();
@@ -526,7 +542,7 @@ export function useProblemNavigation({
     return () => {
       persistOnUnmountRef.current();
     };
-  }, [loadNewProblem, unitId, lessonIndex, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadNewProblem, unitId, lessonIndex, userId, clearAllStepState]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Cache & persistence ───────────────────────────────────────────────────
 
@@ -650,6 +666,49 @@ export function useProblemNavigation({
     stepSettersRef.current.setStructuredStepComplete(saved?.structuredStepComplete ?? {});
   }, []); // stepSettersRef is a stable ref
 
+  /**
+   * After clearing React step state, persist empty answers/drafts immediately.
+   * Otherwise saveCurrentStateToCache (or a tab-hide save) can run before stepStateRef catches up
+   * and re-write perProblemCache / localStorage with stale drafts — undoing the reset in the UI
+   * on the next restore/remount.
+   */
+  const syncStoredSnapshotAfterStepReset = useCallback(() => {
+    const p = stateSnapshot.current.currentProblem;
+    const lvl = stateSnapshot.current.currentLevel;
+    if (!p) return;
+
+    const empty: PerProblemState = { answers: {}, hints: {}, structuredStepComplete: {} };
+    perProblemCacheRef.current[p.id] = empty;
+
+    const entry = levelCacheRef.current[lvl];
+    if (entry?.problem?.id === p.id) {
+      levelCacheRef.current[lvl] = {
+        ...entry,
+        answers: {},
+        hints: {},
+        structuredStepComplete: {},
+        thinkingSteps: [],
+        classifiedErrors: [],
+      };
+    }
+
+    const storageKey = userId ? getTutorSessionStorageKey(userId, unitId, lessonIndex) : null;
+    if (!storageKey) return;
+
+    try {
+      writeTutorSessionSnapshot(storageKey, {
+        currentLevel: lvl,
+        levelCache: levelCacheRef.current,
+        perProblemCache: perProblemCacheRef.current,
+        completedProblemIds: stateSnapshot.current.completedProblemIds ?? [],
+        masteryScore: masteryScoreRef.current,
+        hasCompletedLevel2: hasCompletedLevel2Ref.current,
+      });
+    } catch {
+      /* quota / private mode */
+    }
+  }, [userId, unitId, lessonIndex, masteryScoreRef, hasCompletedLevel2Ref]);
+
   const resetProblemState = useCallback(
     (opts?: { clearPagination?: boolean; clearCurrentProblemCache?: boolean }) => {
       const clearPagination = opts?.clearPagination ?? true;
@@ -657,14 +716,12 @@ export function useProblemNavigation({
       if (clearCurrentProblemCache && stateSnapshot.current.currentProblem) {
         delete perProblemCacheRef.current[stateSnapshot.current.currentProblem.id];
       }
-      stepSettersRef.current.setAnswers({});
-      stepSettersRef.current.setHints({});
-      stepSettersRef.current.setHintLoading(new Set());
-      stepSettersRef.current.setStructuredStepComplete({});
-      if (clearPagination) setPagination(null);
+      clearAllStepState();
       stepSettersRef.current.resetTracking();
+      syncStoredSnapshotAfterStepReset();
+      if (clearPagination) setPagination(null);
     },
-    [],
+    [clearAllStepState, syncStoredSnapshotAfterStepReset],
   );
 
   const handleResetProblem = useCallback(() => {
@@ -896,6 +953,7 @@ export function useProblemNavigation({
     setLevelSolved,
     levelCacheRef,
     perProblemCacheRef,
+    stepRemountKey,
     loadNewProblem,
     saveCurrentStateToCache,
     resetProblemState,

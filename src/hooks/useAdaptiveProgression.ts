@@ -4,7 +4,7 @@ import {
   StudentAnswer,
   ProgressionResult,
 } from "@/types/chemistry";
-import { getDifficultyForMastery } from "@/data/sampleProblems";
+import { getDifficultyForMastery } from "@/lib/difficultyFromMastery";
 
 interface UseAdaptiveProgressionProps {
   currentLevel: Level;

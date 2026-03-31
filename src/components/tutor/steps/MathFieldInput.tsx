@@ -13,7 +13,7 @@
 import { memo, forwardRef, useImperativeHandle, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { MathText } from '@/lib/mathDisplay';
-import { interleaveMathInSegment } from '@/lib/mathNormalize';
+import { formatMathFieldPreview } from '@/lib/mathNormalize';
 
 // ── Toolbar CMD → LaTeX snippet map ─────────────────────────────────────────
 // For 'cmd' type buttons the cursor lands inside the first {} pair.
@@ -126,7 +126,7 @@ const MathFieldInputInner = forwardRef<MathFieldInputHandle, MathFieldInputProps
         {/* Live KaTeX preview — only when the value contains actual LaTeX */}
         {/\\[a-zA-Z]|[_^]\{/.test(value) && (
           <div className="px-3 pb-2 pt-0.5 border-t border-slate-100">
-            <MathText className="text-sm text-slate-700">{interleaveMathInSegment(value)}</MathText>
+            <MathText className="text-sm text-slate-700">{formatMathFieldPreview(value)}</MathText>
           </div>
         )}
       </div>

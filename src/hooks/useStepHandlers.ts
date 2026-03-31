@@ -7,7 +7,8 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Level, Problem, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { apiValidateStep, apiGetHint } from "@/lib/api";
-import { buildMathExpression } from "@/lib/equationDragDrop";
+import { buildMathExpression, canonicalDragDropFromParts } from "@/lib/equationDragDrop";
+import { formatStructuredAnswerForThinkingTracker } from "@/lib/thinkingTrackerFormat";
 import { evaluateExpression, isExpression } from "@/lib/mathEval";
 import { toast } from "sonner";
 import { PerProblemState } from "@/hooks/useProblemNavigation";
@@ -224,7 +225,10 @@ export function useStepHandlers({
           step_instruction: step.instruction,
           step_explanation: step.explanation,
           student_input: answers[stepId]?.answer || "",
-          correct_answer: step.correct_answer || "",
+          correct_answer:
+            step.type === "drag_drop"
+              ? canonicalDragDropFromParts(step.equation_parts)
+              : step.correct_answer || "",
           attempt_count: answers[stepId]?.attempts || 1,
           interests: interests || [],
           grade_level: gradeLevel,
@@ -260,6 +264,7 @@ export function useStepHandlers({
     setHints({});
     setHintLoading(new Set());
     setStructuredStepComplete({});
+    setCheckingAnswer(new Set());
     resetTracking();
     toast.info("Problem reset. Try again!");
   }, [currentProblem, resetTracking]); // perProblemCacheRef is a stable ref
@@ -281,15 +286,19 @@ export function useStepHandlers({
         };
       });
 
-      // Record into thinking tracker so ThinkingTracker populates for Level 3 structured steps
       const step = currentProblem?.steps.find((s) => s.id === stepId);
       if (step) {
+        const expected =
+          step.type === "drag_drop"
+            ? canonicalDragDropFromParts(step.equation_parts)
+            : (step.correct_answer ?? "").trim();
+        const rawAnswer = answers[stepId]?.answer ?? "";
         recordThinkingStep(
           stepId,
           step.skill_used ?? step.label,
-          step.correct_answer ?? "",
+          formatStructuredAnswerForThinkingTracker(step, rawAnswer),
           step.label,
-          step.correct_answer ?? undefined,
+          expected || undefined,
           isCorrect,
         );
       }
@@ -299,27 +308,22 @@ export function useStepHandlers({
         toast.success("Correct!");
       }
     },
-    [currentProblem, recordThinkingStep],
+    [answers, currentProblem, recordThinkingStep],
   );
 
   const handleValidateEquation = useCallback(
     async (orderedParts: string[], step: SolutionStep): Promise<boolean> => {
-      const isDragDrop =
-        step.type === "drag_drop" &&
-        Array.isArray(step.equation_parts) &&
-        step.equation_parts.length > 0;
-      const missingStringAnswer =
-        step.correct_answer == null || String(step.correct_answer).trim() === "";
+      if (step.type !== "drag_drop") return false;
 
-      // Backend often sends correct_answer: null for drag_drop; order must match equation_parts exactly.
-      if (isDragDrop && missingStringAnswer) {
-        return JSON.stringify(orderedParts) === JSON.stringify(step.equation_parts);
-      }
+      const canonicalAnswer = canonicalDragDropFromParts(step.equation_parts);
+      if (!canonicalAnswer) return false;
+
+      const studentAnswer = buildMathExpression(orderedParts);
 
       try {
         const result = await apiValidateStep({
-          student_answer: buildMathExpression(orderedParts),
-          correct_answer: step.correct_answer || "",
+          student_answer: studentAnswer,
+          correct_answer: canonicalAnswer,
           step_id: step.id,
           step_number: step.step_number,
           step_label: step.label,
@@ -343,6 +347,7 @@ export function useStepHandlers({
     hintLoading,
     setHintLoading,
     checkingAnswer,
+    setCheckingAnswer,
     structuredStepComplete,
     setStructuredStepComplete,
     interactiveSteps,

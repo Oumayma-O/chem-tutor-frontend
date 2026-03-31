@@ -118,9 +118,9 @@ export async function apiGenerateProblemV2(body: {
 
 // ── Reference card (fiche de cours) ───────────────────────────────────────
 
-/** React Query cache — reference card is static per lesson (not mastery-dependent).
- *  Treat as fresh for the whole tab session and do not GC while the app is open. */
+/** @deprecated Use staticQueryOptions from @/lib/api/queryOptions instead. */
 export const REF_CARD_STALE_MS = Number.POSITIVE_INFINITY;
+/** @deprecated Use staticQueryOptions from @/lib/api/queryOptions instead. */
 export const REF_CARD_GC_MS = Number.POSITIVE_INFINITY;
 
 /** Stable React Query key for the reference card.

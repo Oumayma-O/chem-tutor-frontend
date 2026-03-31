@@ -1,13 +1,20 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { XCircle, RotateCcw, Loader2 } from "lucide-react";
+import { RotateCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
-import { HintToggle } from "./HintToggle";
+import { StepErrorFeedback } from "./StepErrorFeedback";
 import { MathText } from "@/lib/mathDisplay";
 import { STEP_ANSWER_TEXT } from "./stepAnswerStyles";
+import { parseDraft, saveDraft } from "./draftPersistence";
+
+interface DraftPayload {
+  slots?: string[];
+  hasAttempted?: boolean;
+  isIncorrect?: boolean;
+}
 
 interface EquationBuilderProps {
   step_number: number;
@@ -21,6 +28,8 @@ interface EquationBuilderProps {
   hintText?: string;
   hintLoading?: boolean;
   onRequestHint: () => void;
+  draft?: string;
+  onDraftChange?: (draft: string) => void;
 }
 
 export function EquationBuilder({
@@ -35,26 +44,30 @@ export function EquationBuilder({
   hintText,
   hintLoading,
   onRequestHint,
+  draft,
+  onDraftChange,
 }: EquationBuilderProps) {
-  const [slots, setSlots] = useState<string[]>(isComplete ? [...availableParts] : []);
-  const [isIncorrect, setIsIncorrect] = useState(false);
+  const { slots: initSlots, isIncorrect: initIncorrect } = parseDraft<DraftPayload>(draft,
+    (raw) => Array.isArray(raw) ? { slots: raw as string[] } : null,
+  );
 
-  useEffect(() => {
-    if (isComplete) setSlots([...availableParts]);
-  }, [isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [slots, setSlots] = useState<string[]>(initSlots ?? []);
+  const [isIncorrect, setIsIncorrect] = useState(!isComplete && (initIncorrect ?? false));
   const [isValidating, setIsValidating] = useState(false);
 
-  const [shuffledParts] = useState(() => {
-    const arr = [...availableParts];
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
-  });
+  const persist = useCallback(
+    (nextSlots: string[], attempted: boolean, incorrect: boolean) =>
+      saveDraft<DraftPayload>({ slots: nextSlots, hasAttempted: attempted, isIncorrect: incorrect }, onDraftChange),
+    [onDraftChange],
+  );
+
+  const updateSlots = useCallback((next: string[]) => {
+    setSlots(next);
+    saveDraft<DraftPayload>({ slots: next }, onDraftChange);
+  }, [onDraftChange]);
 
   const usedParts = new Set(slots);
-  const remaining = shuffledParts.filter((p) => !usedParts.has(p));
+  const remaining = availableParts.filter((p) => !usedParts.has(p));
 
   const handleDragStart = (e: React.DragEvent, part: string) => {
     e.dataTransfer.setData("text/plain", part);
@@ -63,15 +76,28 @@ export function EquationBuilder({
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     const part = e.dataTransfer.getData("text/plain");
-    if (part && !slots.includes(part)) { setSlots((prev) => [...prev, part]); setIsIncorrect(false); }
-  }, [slots]);
+    if (part && !slots.includes(part)) {
+      updateSlots([...slots, part]);
+      setIsIncorrect(false);
+    }
+  }, [slots, updateSlots]);
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
+
   const handleClickAdd = (part: string) => {
-    if (!slots.includes(part)) { setSlots((prev) => [...prev, part]); setIsIncorrect(false); }
+    if (!slots.includes(part)) {
+      updateSlots([...slots, part]);
+      setIsIncorrect(false);
+    }
   };
+
   const handleRemoveSlot = (index: number) => {
-    setSlots((prev) => prev.filter((_, i) => i !== index));
+    updateSlots(slots.filter((_, i) => i !== index));
+    setIsIncorrect(false);
+  };
+
+  const handleReset = () => {
+    updateSlots([]);
     setIsIncorrect(false);
   };
 
@@ -79,15 +105,18 @@ export function EquationBuilder({
     if (slots.length === 0 || isValidating || isComplete) return;
     setIsValidating(true);
     try {
-      const isCorrect = await onValidate(slots);
-      if (isCorrect) { setIsIncorrect(false); onComplete(true); } else { setIsIncorrect(true); onComplete(false); }
+      const correct = await onValidate(slots);
+      setIsIncorrect(!correct);
+      persist(slots, true, !correct);
+      onComplete(correct);
     } catch {
       setIsIncorrect(true);
+      persist(slots, true, true);
       onComplete(false);
     } finally {
       setIsValidating(false);
     }
-  }, [slots, isValidating, isComplete, onValidate, onComplete]);
+  }, [slots, isValidating, isComplete, onValidate, onComplete, persist]);
 
   return (
     <StepCard isComplete={isComplete} isIncorrect={isIncorrect}>
@@ -123,7 +152,7 @@ export function EquationBuilder({
           className={cn(
             "min-h-[48px] rounded-lg border-2 border-dashed p-3 flex flex-wrap gap-2 items-center transition-all",
             slots.length === 0 && "border-muted-foreground/30",
-            slots.length > 0 && "border-primary/40 bg-primary/5",
+            slots.length > 0 && !isComplete && !isIncorrect && "border-primary/40 bg-primary/5",
             isComplete && "border-success bg-success/5",
             isIncorrect && "border-destructive bg-destructive/5",
           )}
@@ -155,7 +184,7 @@ export function EquationBuilder({
             <Button size="sm" onClick={handleCheck} disabled={slots.length === 0 || isValidating}>
               {isValidating ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Checking...</> : "Check"}
             </Button>
-            <Button size="sm" variant="outline" onClick={() => { setSlots([]); setIsIncorrect(false); }} disabled={slots.length === 0 || isValidating}>
+            <Button size="sm" variant="outline" onClick={handleReset} disabled={slots.length === 0 || isValidating}>
               <RotateCcw className="w-3 h-3 mr-1" />Reset
             </Button>
           </div>
@@ -164,16 +193,15 @@ export function EquationBuilder({
         {isComplete && <CorrectFeedback />}
 
         {isIncorrect && !isValidating && (
-          <div className="space-y-2 fade-in">
-            <div className="flex items-center gap-2 text-destructive">
-              <XCircle className="w-5 h-5" />
-              <span className="font-medium">Not quite right. Try rearranging!</span>
-            </div>
-            <HintToggle showHint={showHint} hintText={hintText} hintLoading={hintLoading} onRequestHint={onRequestHint} />
-          </div>
+          <StepErrorFeedback
+            message="Not quite right. Try rearranging!"
+            showHint={showHint}
+            hintText={hintText}
+            hintLoading={hintLoading}
+            onRequestHint={onRequestHint}
+          />
         )}
       </div>
     </StepCard>
   );
 }
-

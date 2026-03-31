@@ -99,6 +99,11 @@ export interface CurriculumResponse {
   phases: PhaseCurriculumGroup[];
 }
 
+// ── Query keys ───────────────────────────────────────────────────────────────
+export const unitsQueryKey        = () => ["units"] as const;
+export const unitQueryKey         = (id: string) => ["unit", id] as const;
+export const curriculumQueryKey   = (courseId?: number) => ["curriculum", courseId ?? "default"] as const;
+
 // ── API calls ───────────────────────────────────────────────
 
 export async function apiGetUnits(): Promise<UnitListItem[]> {

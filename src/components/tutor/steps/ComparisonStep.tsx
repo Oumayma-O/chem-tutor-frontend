@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { XCircle } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatMathContent } from "@/lib/mathDisplay";
 import {
@@ -13,8 +12,15 @@ import { cn } from "@/lib/utils";
 import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
-import { HintToggle } from "./HintToggle";
-import { STEP_ANSWER_TEXT } from "./stepAnswerStyles";
+import { StepErrorFeedback } from "./StepErrorFeedback";
+import { STEP_ANSWER_TEXT, STEP_ANSWER_OUTLINE_SUCCESS, STEP_ANSWER_OUTLINE_ERROR } from "./stepAnswerStyles";
+import { parseDraft, saveDraft } from "./draftPersistence";
+
+interface DraftPayload {
+  selected?: string;
+  hasAttempted?: boolean;
+  isIncorrect?: boolean;
+}
 
 interface ComparisonStepProps {
   step_number: number;
@@ -28,6 +34,8 @@ interface ComparisonStepProps {
   hintText?: string;
   hintLoading?: boolean;
   onRequestHint: () => void;
+  draft?: string;
+  onDraftChange?: (draft: string) => void;
 }
 
 const OPERATORS = ["<", "=", ">"] as const;
@@ -45,27 +53,42 @@ export function ComparisonStep({
   hintText,
   hintLoading,
   onRequestHint,
+  draft,
+  onDraftChange,
 }: ComparisonStepProps) {
-  const [selected, setSelected] = useState<Operator | undefined>(
-    isComplete ? correctAnswer : undefined,
-  );
-  const [isIncorrect, setIsIncorrect] = useState(false);
+  const { selected: initSelected, hasAttempted: initAttempted, isIncorrect: initIncorrect } =
+    parseDraft<DraftPayload>(draft, (raw) =>
+      // Legacy: raw operator string e.g. "<" stored as plain JSON string
+      typeof raw === "string" && ["<", ">", "="].includes(raw as string)
+        ? { selected: raw as string }
+        : null,
+    );
 
-  useEffect(() => {
-    if (isComplete) setSelected(correctAnswer);
-  }, [isComplete, correctAnswer]);
+  const [selected, setSelected] = useState<Operator | undefined>(
+    initSelected as Operator | undefined,
+  );
+  const [isIncorrect, setIsIncorrect] = useState(
+    !isComplete && (initIncorrect ?? false),
+  );
+
+  const persist = (sel: Operator | undefined, attempted: boolean, incorrect: boolean) =>
+    saveDraft<DraftPayload>({ selected: sel, hasAttempted: attempted, isIncorrect: incorrect }, onDraftChange);
 
   const handleValueChange = (value: string) => {
     if (isComplete) return;
-    setSelected(value as Operator);
+    const op = value as Operator;
+    setSelected(op);
     setIsIncorrect(false);
+    // Save selection; reset incorrect since user changed their answer
+    persist(op, initAttempted ?? false, false);
   };
 
   const handleCheck = () => {
     if (!selected || isComplete) return;
-    const isCorrect = selected === correctAnswer;
-    setIsIncorrect(!isCorrect);
-    onComplete(isCorrect);
+    const correct = selected === correctAnswer;
+    setIsIncorrect(!correct);
+    persist(selected, true, !correct);
+    onComplete(correct);
   };
 
   return (
@@ -90,8 +113,8 @@ export function ComparisonStep({
                   STEP_ANSWER_TEXT,
                   "w-14 h-10 shrink-0 rounded-lg border bg-background text-center font-semibold shadow-sm",
                   "focus:ring-2 focus:ring-ring focus:ring-offset-1",
-                  isComplete && selected === correctAnswer && "border-success bg-success/10 text-success",
-                  isIncorrect && "border-destructive bg-destructive/5",
+                  isComplete && selected === correctAnswer && cn(STEP_ANSWER_OUTLINE_SUCCESS, "text-success"),
+                  isIncorrect && STEP_ANSWER_OUTLINE_ERROR,
                 )}
               >
                 <SelectValue placeholder="?" />
@@ -127,16 +150,15 @@ export function ComparisonStep({
         {isComplete && <CorrectFeedback />}
 
         {isIncorrect && (
-          <div className="space-y-2 fade-in">
-            <div className="flex items-center gap-2 text-destructive">
-              <XCircle className="w-5 h-5" />
-              <span className="font-medium">Not quite. Try a different operator.</span>
-            </div>
-            <HintToggle showHint={showHint} hintText={hintText} hintLoading={hintLoading} onRequestHint={onRequestHint} />
-          </div>
+          <StepErrorFeedback
+            message="Not quite. Try a different operator."
+            showHint={showHint}
+            hintText={hintText}
+            hintLoading={hintLoading}
+            onRequestHint={onRequestHint}
+          />
         )}
       </div>
     </StepCard>
   );
 }
-

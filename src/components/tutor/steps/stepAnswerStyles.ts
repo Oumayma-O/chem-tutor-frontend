@@ -40,3 +40,12 @@ export const STEP_ANSWER_BOX_TEXTAREA = cn(STEP_ANSWER_SHELL, "flex items-start"
 export const FX_TOGGLE_ACTIVE = "bg-blue-100 text-blue-600 border border-blue-200";
 /** fx math-toolbar toggle button — idle (toggled off) state. */
 export const FX_TOGGLE_IDLE = "text-slate-400 hover:text-slate-600 hover:bg-slate-100";
+
+/** Shared focus ring for math-field wrappers and inputs. */
+export const STEP_ANSWER_FOCUS_RING =
+  "focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1";
+
+/** Border + background for answer fields (neutral / correct / incorrect). */
+export const STEP_ANSWER_OUTLINE_NEUTRAL = "border-gray-300";
+export const STEP_ANSWER_OUTLINE_SUCCESS = "border-success bg-success/10";
+export const STEP_ANSWER_OUTLINE_ERROR = "border-destructive bg-destructive/10";

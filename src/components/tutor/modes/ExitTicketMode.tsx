@@ -224,6 +224,19 @@ export function ExitTicketMode({ problem, timeLimit: propTimeLimit, onComplete, 
     );
   }
 
+  if (!configId && !problem) {
+    return (
+      <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-card border border-border rounded-lg p-6 max-w-md text-center space-y-4">
+          <p className="text-muted-foreground text-sm">
+            No practice problem is loaded. Return to the tutor, wait for a problem to appear, then open the exit ticket again.
+          </p>
+          <Button onClick={onCancel}>Close</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 overflow-y-auto">
       <div className="container mx-auto px-4 py-8 max-w-3xl">

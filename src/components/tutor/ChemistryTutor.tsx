@@ -2,15 +2,13 @@ import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Level, LEVEL_CONFIGS, StudentAnswer } from "@/types/chemistry";
 import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
-import { getRandomProblem, getDifficultyForMastery } from "@/data/sampleProblems";
 import { useQuery } from "@tanstack/react-query";
 import {
   apiGetReferenceCard,
   refCardQueryKey,
-  REF_CARD_STALE_MS,
-  REF_CARD_GC_MS,
   type ReferenceCardOutput,
 } from "@/lib/api/problems";
+import { staticQueryOptions } from "@/lib/api/queryOptions";
 import {
   useProblemNavigation,
   StepSetters,
@@ -123,6 +121,7 @@ export function ChemistryTutor({
     setHints: (_v) => {},
     setHintLoading: (_v) => {},
     setStructuredStepComplete: (_v) => {},
+    setCheckingAnswer: (_v) => {},
     resetTracking: () => {},
     setThinkingSteps: (_v) => {},
     setClassifiedErrors: (_v) => {},
@@ -177,11 +176,7 @@ export function ChemistryTutor({
   const { data: referenceCard = null, isLoading: referenceCardLoading } = useQuery({
     queryKey: refCardQueryKey(unitId, lessonIndex),
     queryFn: () => apiGetReferenceCard(unitId, lessonIndex, currentTopicName),
-    staleTime: REF_CARD_STALE_MS,
-    gcTime: REF_CARD_GC_MS,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
+    ...staticQueryOptions,
     enabled: nav.currentLevel !== 3,
   });
 
@@ -217,6 +212,7 @@ export function ChemistryTutor({
       setHints: steps.setHints,
       setHintLoading: steps.setHintLoading,
       setStructuredStepComplete: steps.setStructuredStepComplete,
+      setCheckingAnswer: steps.setCheckingAnswer,
       resetTracking,
       setThinkingSteps: restoreThinkingSteps,
       setClassifiedErrors: restoreClassifiedErrors,
@@ -349,7 +345,7 @@ export function ChemistryTutor({
   if (timed.showExitTicket) {
     return (
       <ExitTicketMode
-        problem={getRandomProblem(getDifficultyForMastery(masteryScore), nav.completedProblemIds)}
+        problem={nav.currentProblem ?? undefined}
         timeLimit={180}
         onComplete={handleExitTicketComplete}
         onCancel={() => timed.setShowExitTicket(false)}
@@ -407,7 +403,14 @@ export function ChemistryTutor({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => timed.setShowExitTicket(true)}
+              onClick={() => {
+                if (!nav.currentProblem) {
+                  toast.info("Wait for the problem to load, then try again.");
+                  return;
+                }
+                timed.setShowExitTicket(true);
+              }}
+              disabled={nav.problemLoading || !nav.currentProblem}
               className="gap-1.5"
             >
               <ClipboardCheck className="w-4 h-4" />
@@ -480,8 +483,9 @@ export function ChemistryTutor({
                 {/* ── Solution steps ────────────────────────────────────────── */}
                 <div>
                   <h3 className="text-lg font-semibold text-foreground mb-4">Solution Steps</h3>
-                  <div className="space-y-4">
+                  <div className="space-y-4" key={`${problem.id}-${nav.stepRemountKey}`}>
                     <TutorStepRenderer
+                      problemId={problem.id}
                       displaySteps={displaySteps}
                       answers={steps.answers}
                       hints={steps.hints}

@@ -1,16 +1,73 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InputField } from "@/types/chemistry";
 import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
-import { HintToggle } from "./HintToggle";
+import { StepErrorFeedback } from "./StepErrorFeedback";
 import { MathToolbar } from "./MathToolbar";
-import { STEP_ANSWER_FIELD_TEXT, FX_TOGGLE_ACTIVE, FX_TOGGLE_IDLE } from "./stepAnswerStyles";
+import {
+  STEP_ANSWER_FIELD_TEXT,
+  FX_TOGGLE_ACTIVE,
+  FX_TOGGLE_IDLE,
+  STEP_ANSWER_FOCUS_RING,
+  STEP_ANSWER_OUTLINE_NEUTRAL,
+  STEP_ANSWER_OUTLINE_SUCCESS,
+  STEP_ANSWER_OUTLINE_ERROR,
+} from "./stepAnswerStyles";
 import { MathFieldInput, type MathFieldInputHandle } from "./MathFieldInput";
+import { parseDraft, saveDraft } from "./draftPersistence";
+
+type FieldValues = Record<string, { value: string; unit: string }>;
+
+interface DraftPayload {
+  fields?: FieldValues;
+  hasAttempted?: boolean;
+  fieldErrors?: Record<string, boolean>;
+}
+
+function emptyFields(variables: InputField[]): FieldValues {
+  return Object.fromEntries(variables.map((v) => [v.label, { value: "", unit: "" }]));
+}
+
+function normalizeAnswer(s: string) {
+  return s.trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function fieldHasUnit(v: InputField) {
+  return Boolean(v.unit?.trim());
+}
+
+/** Pure validation for multi-field numeric / unit answers. */
+function validateMultiInputFields(
+  variables: InputField[],
+  values: FieldValues,
+): { errors: Record<string, boolean>; allCorrect: boolean } {
+  const errors: Record<string, boolean> = {};
+  let allCorrect = true;
+
+  variables.forEach((v) => {
+    const studentVal = normalizeAnswer(values[v.label]?.value || "");
+    const studentUnit = normalizeAnswer(values[v.label]?.unit || "");
+    const correctVal = normalizeAnswer(v.value);
+    const correctUnit = normalizeAnswer(v.unit);
+    const numStudent = parseFloat(studentVal);
+    const numCorrect = parseFloat(correctVal);
+    const valMatch =
+      !isNaN(numStudent) && !isNaN(numCorrect)
+        ? Math.abs(numStudent - numCorrect) < 0.001
+        : studentVal === correctVal;
+    const unitMatch = !fieldHasUnit(v) ? true : studentUnit === correctUnit;
+    if (!valMatch || !unitMatch) {
+      errors[v.label] = true;
+      allCorrect = false;
+    }
+  });
+
+  return { errors, allCorrect };
+}
 
 interface MultiInputProps {
   step_number: number;
@@ -23,6 +80,8 @@ interface MultiInputProps {
   hintText?: string;
   hintLoading?: boolean;
   onRequestHint: () => void;
+  draft?: string;
+  onDraftChange?: (draft: string) => void;
 }
 
 export function MultiInput({
@@ -36,43 +95,46 @@ export function MultiInput({
   hintText,
   hintLoading,
   onRequestHint,
+  draft,
+  onDraftChange,
 }: MultiInputProps) {
-  const [values, setValues] = useState<Record<string, { value: string; unit: string }>>(
-    // When restoring from cache (isComplete already true), populate with correct answers
-    // so the read-only view shows the values that were entered, not blank fields.
-    () => Object.fromEntries(variables.map((v) => [v.label, {
-      value: isComplete ? v.value : "",
-      unit:  isComplete ? v.unit  : "",
-    }])),
-  );
-  const [hasAttempted, setHasAttempted] = useState(false);
-  const [isIncorrect,  setIsIncorrect]  = useState(false);
-  const [fieldErrors,  setFieldErrors]  = useState<Record<string, boolean>>({});
+  const { fields: initialFields, hasAttempted: initAttempted, fieldErrors: initErrors } =
+    parseDraft<DraftPayload>(draft, (raw) =>
+      // Legacy: flat FieldValues stored directly
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? { fields: raw as FieldValues }
+        : null,
+    );
+
+  const [values, setValues] = useState<FieldValues>(initialFields ?? emptyFields(variables));
+  const [hasAttempted, setHasAttempted] = useState(initAttempted ?? false);
+  const [isIncorrect,  setIsIncorrect]  = useState(() => !isComplete && (initAttempted ?? false) && Object.keys(initErrors ?? {}).length > 0);
+  const [fieldErrors,  setFieldErrors]  = useState<Record<string, boolean>>(initErrors ?? {});
   const [focusedVar,   setFocusedVar]   = useState<string | null>(null);
   const [showToolbar,  setShowToolbar]  = useState(false);
 
-  // Imperative handles for each MathFieldInput
-  // If isComplete arrives after mount (restored from cache asynchronously), fill values.
-  useEffect(() => {
-    if (isComplete) {
-      setValues(Object.fromEntries(variables.map((v) => [v.label, { value: v.value, unit: v.unit }])));
-    }
-  }, [isComplete]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const mathRefs = useRef<Map<string, MathFieldInputHandle>>(new Map());
 
+  const persist = useCallback(
+    (fields: FieldValues, attempted: boolean, errors: Record<string, boolean>) =>
+      saveDraft<DraftPayload>({ fields, hasAttempted: attempted, fieldErrors: errors }, onDraftChange),
+    [onDraftChange],
+  );
+
   const handleChange = useCallback((name: string, field: "value" | "unit", val: string) => {
-    setValues((prev) => ({ ...prev, [name]: { ...prev[name], [field]: val } }));
-    setFieldErrors((prev) => {
-      if (!prev[name]) return prev;
-      const next = { ...prev };
-      delete next[name];
+    setValues((prev) => {
+      const next = { ...prev, [name]: { ...prev[name], [field]: val } };
+      setFieldErrors((prevErr) => {
+        const nextErr = { ...prevErr };
+        delete nextErr[name];
+        persist(next, hasAttempted, nextErr);
+        return nextErr;
+      });
       return next;
     });
     setIsIncorrect(false);
-  }, []);
+  }, [hasAttempted, persist]);
 
-  /** Insert LaTeX at the focused (or first) value field. */
   const insertAtCursor = useCallback(
     (type: 'cmd' | 'write', value: string) => {
       const key = focusedVar ?? variables[0]?.label;
@@ -85,30 +147,19 @@ export function MultiInput({
     [focusedVar, variables],
   );
 
-  const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
-  const hasUnit   = (v: InputField) => Boolean(v.unit?.trim());
-
   const handleCheck = () => {
+    const { errors, allCorrect } = validateMultiInputFields(variables, values);
+
     setHasAttempted(true);
-    const errors: Record<string, boolean> = {};
-    let allCorrect = true;
-
-    variables.forEach((v) => {
-      const studentVal  = normalize(values[v.label]?.value || "");
-      const studentUnit = normalize(values[v.label]?.unit  || "");
-      const correctVal  = normalize(v.value);
-      const correctUnit = normalize(v.unit);
-      const numStudent  = parseFloat(studentVal);
-      const numCorrect  = parseFloat(correctVal);
-      const valMatch    = !isNaN(numStudent) && !isNaN(numCorrect)
-        ? Math.abs(numStudent - numCorrect) < 0.001
-        : studentVal === correctVal;
-      const unitMatch   = !hasUnit(v) ? true : studentUnit === correctUnit;
-      if (!valMatch || !unitMatch) { errors[v.label] = true; allCorrect = false; }
-    });
-
     setFieldErrors(errors);
-    if (allCorrect) { onComplete(true); } else { setIsIncorrect(true); onComplete(false); }
+    persist(values, true, errors);
+
+    if (allCorrect) {
+      onComplete(true);
+    } else {
+      setIsIncorrect(true);
+      onComplete(false);
+    }
   };
 
   return (
@@ -117,7 +168,7 @@ export function MultiInput({
 
       <div className="w-full max-w-[400px] mx-auto flex flex-col gap-3 py-2">
         {variables.map((v) => {
-          const showUnitField = hasUnit(v);
+          const showUnitField = fieldHasUnit(v);
           const hasError      = !!fieldErrors[v.label];
           const isGreen       = isComplete || (hasAttempted && !hasError);
 
@@ -127,17 +178,13 @@ export function MultiInput({
                 {v.label}:
               </div>
               <div className="flex-1 flex gap-2">
-                {/*
-                 * Wrapper div captures focus/blur bubbling from <math-field>
-                 * so we know which variable's toolbar insert should target.
-                 */}
                 <div
                   className={cn(
                     "relative flex-1 min-w-0 border rounded-md bg-white transition-all cursor-text",
-                    "focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1",
-                    !isGreen && !hasError && "border-gray-300",
-                    isGreen  && "border-success bg-success/10",
-                    hasError && "border-destructive bg-destructive/10",
+                    STEP_ANSWER_FOCUS_RING,
+                    !isGreen && !hasError && STEP_ANSWER_OUTLINE_NEUTRAL,
+                    isGreen && STEP_ANSWER_OUTLINE_SUCCESS,
+                    hasError && STEP_ANSWER_OUTLINE_ERROR,
                   )}
                   onFocus={() => setFocusedVar(v.label)}
                   onBlur={() => setFocusedVar((prev) => (prev === v.label ? null : prev))}
@@ -178,8 +225,8 @@ export function MultiInput({
                     className={cn(
                       STEP_ANSWER_FIELD_TEXT,
                       "w-20 shrink-0",
-                      isGreen  && "border-success bg-success/10",
-                      hasError && "border-destructive bg-destructive/10",
+                      isGreen && STEP_ANSWER_OUTLINE_SUCCESS,
+                      hasError && STEP_ANSWER_OUTLINE_ERROR,
                     )}
                   />
                 )}
@@ -213,13 +260,13 @@ export function MultiInput({
         {isComplete && <CorrectFeedback />}
 
         {isIncorrect && (
-          <div className="space-y-2 fade-in">
-            <div className="flex items-center gap-2 text-destructive">
-              <XCircle className="w-5 h-5" />
-              <span className="font-medium">Some values are incorrect. Check the highlighted fields.</span>
-            </div>
-            <HintToggle showHint={showHint} hintText={hintText} hintLoading={hintLoading} onRequestHint={onRequestHint} />
-          </div>
+          <StepErrorFeedback
+            message="Some values are incorrect. Check the highlighted fields."
+            showHint={showHint}
+            hintText={hintText}
+            hintLoading={hintLoading}
+            onRequestHint={onRequestHint}
+          />
         )}
       </div>
     </StepCard>

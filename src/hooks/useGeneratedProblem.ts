@@ -7,6 +7,7 @@ import {
   setPrefetchPromise,
 } from "@/lib/problemPrefetchCache";
 import { fixCorruptedUnitMiddleDots } from "@/lib/mathNormalize";
+import { canonicalDragDropFromParts, shuffleEquationPartsForDisplay } from "@/lib/equationDragDrop";
 
 interface UseGeneratedProblemOptions {
   unitId: string;
@@ -58,30 +59,42 @@ function wireInputRows(s: unknown): WireInputRow[] | undefined {
 
 export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResult {
   const pd = data.problem;
-  const steps: SolutionStep[] = pd.steps.map((s) => ({
-    id: s.id || `${pd.id}-step-${s.step_number}`,
-    step_number: s.step_number,
-    type: normalizeStepWidgetType(String(s.type)),
-    is_given: s.is_given === true || String(s.type) === "given",
-    label: s.label,
-    instruction: fixCdot(s.instruction),
-    content: s.content != null ? fixCdot(s.content) : undefined,
-    placeholder: s.placeholder ?? undefined,
-    explanation: fixCdot(s.explanation) || undefined,
-    key_rule: fixCdot(s.key_rule) || undefined,
-    skill_used: s.skill_used?.trim() || undefined,
-    equation_parts: s.equation_parts?.map((p) => fixCdot(p)) ?? undefined,
-    // correct_equation stores the answer for drag_drop steps
-    correct_equation: s.type === "drag_drop" ? (s.correct_answer ?? undefined) : undefined,
-    input_fields: wireInputRows(s)?.map((f) => ({
-      label: fixCdot(f.label),
-      value: fixCdot(f.value),
-      unit: fixCdot(f.unit),
-    })) ?? undefined,
-    comparison_parts: s.comparison_parts?.map((p) => fixCdot(p)) ?? undefined,
-    correct_answer: fixCdot(s.correct_answer) || undefined,
-    hint: s.hint != null ? fixCdot(s.hint) : undefined,
-  }));
+  const steps: SolutionStep[] = pd.steps.map((s) => {
+    const stepType = normalizeStepWidgetType(String(s.type));
+    const equationParts = s.equation_parts?.map((p) => fixCdot(p)) ?? undefined;
+    const equationPartsDisplay =
+      stepType === "drag_drop" && equationParts && equationParts.length > 1
+        ? shuffleEquationPartsForDisplay(equationParts)
+        : undefined;
+    return {
+      id: s.id || `${pd.id}-step-${s.step_number}`,
+      step_number: s.step_number,
+      type: stepType,
+      is_given: s.is_given === true || String(s.type) === "given",
+      label: s.label,
+      instruction: fixCdot(s.instruction),
+      content: s.content != null ? fixCdot(s.content) : undefined,
+      placeholder: s.placeholder ?? undefined,
+      explanation: fixCdot(s.explanation) || undefined,
+      key_rule: fixCdot(s.key_rule) || undefined,
+      skill_used: s.skill_used?.trim() || undefined,
+      equation_parts: equationParts,
+      equation_parts_display: equationPartsDisplay,
+      correct_equation:
+        stepType === "drag_drop"
+          ? canonicalDragDropFromParts(equationParts) || undefined
+          : undefined,
+      input_fields:
+        wireInputRows(s)?.map((f) => ({
+          label: fixCdot(f.label),
+          value: fixCdot(f.value),
+          unit: fixCdot(f.unit),
+        })) ?? undefined,
+      comparison_parts: s.comparison_parts?.map((p) => fixCdot(p)) ?? undefined,
+      correct_answer: fixCdot(s.correct_answer) || undefined,
+      hint: s.hint != null ? fixCdot(s.hint) : undefined,
+    };
+  });
 
   const problem: Problem = {
     id: pd.id,

@@ -9,6 +9,7 @@ export { StepBadge } from "./StepBadge";
 export { CorrectFeedback } from "./CorrectFeedback";
 export { ExplanationToggle } from "./ExplanationToggle";
 export { HintToggle } from "./HintToggle";
+export { StepErrorFeedback } from "./StepErrorFeedback";
 export { TutorStepRenderer } from "./TutorStepRenderer";
 export { MathToolbar } from "./MathToolbar";
 

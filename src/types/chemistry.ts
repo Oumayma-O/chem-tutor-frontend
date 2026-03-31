@@ -28,7 +28,11 @@ export interface SolutionStep {
   skill_used?: string | null;
   correct_answer?: string;
   hint?: string;
+  /** Canonical token order for drag_drop validation / hints (do not shuffle). */
   equation_parts?: string[];
+  /** Shuffled copy for the equation bank UI only; set once when the problem is parsed. */
+  equation_parts_display?: string[];
+  /** Derived for drag_drop: same as joining `equation_parts` (API `correctAnswer` is null). */
   correct_equation?: string;
   /** When type is multi_input, rows render from here. */
   input_fields?: InputField[];

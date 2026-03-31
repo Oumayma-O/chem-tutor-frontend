@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { apiGetUnits, type UnitListItem } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { apiGetUnits, unitsQueryKey, type UnitListItem } from "@/lib/api/units";
+import { staticQueryOptions } from "@/lib/api/queryOptions";
 
 interface UseUnitsResult {
   units: UnitListItem[];
@@ -8,20 +9,15 @@ interface UseUnitsResult {
 }
 
 export function useUnits(): UseUnitsResult {
-  const [units, setUnits] = useState<UnitListItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, error } = useQuery({
+    queryKey: unitsQueryKey(),
+    queryFn: apiGetUnits,
+    ...staticQueryOptions,
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    setError(null);
-    apiGetUnits()
-      .then(setUnits)
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : "Failed to load units"),
-      )
-      .finally(() => setLoading(false));
-  }, []);
-
-  return { units, loading, error };
+  return {
+    units: data ?? [],
+    loading: isLoading,
+    error: error ? (error instanceof Error ? error.message : "Failed to load units") : null,
+  };
 }

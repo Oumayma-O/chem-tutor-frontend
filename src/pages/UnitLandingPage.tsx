@@ -9,7 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useLessonCompletion } from "@/hooks/useLessonCompletion";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiGenerateProblemV2 } from "@/lib/api";
-import { apiGetReferenceCard, refCardQueryKey, REF_CARD_STALE_MS, REF_CARD_GC_MS } from "@/lib/api/problems";
+import { apiGetReferenceCard, refCardQueryKey } from "@/lib/api/problems";
+import { staticFetchOptions } from "@/lib/api/queryOptions";
 import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
 import { enqueuePrefetch } from "@/lib/problemPrefetchCache";
 import { getSimEntry } from "@/components/simulations/registry";
@@ -62,11 +63,7 @@ export default function UnitLandingPage() {
       queryClient.prefetchQuery({
         queryKey: refCardQueryKey(uid, lidx),
         queryFn: () => apiGetReferenceCard(uid, lidx, lname),
-        staleTime: REF_CARD_STALE_MS,
-        gcTime: REF_CARD_GC_MS,
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
+        ...staticFetchOptions,
       });
 
       // Level-1 problem — queued so at most MAX_CONCURRENT LLM calls run at once.

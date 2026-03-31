@@ -8,6 +8,12 @@ import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { HintToggle } from "./HintToggle";
 import { MathToolbar } from "./MathToolbar";
+import {
+  STEP_ANSWER_FOCUS_RING,
+  STEP_ANSWER_OUTLINE_NEUTRAL,
+  STEP_ANSWER_OUTLINE_SUCCESS,
+  STEP_ANSWER_OUTLINE_ERROR,
+} from "./stepAnswerStyles";
 import { MathFieldInput, type MathFieldInputHandle } from "./MathFieldInput";
 
 interface InteractiveStepProps {
@@ -39,13 +45,18 @@ export function InteractiveStep({
 
   const [dismissed, setDismissed] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
+  // Once the student gets a wrong answer, keep showing the hint area even while
+  // they revise — typing resets is_correct to undefined which would otherwise
+  // unmount HintToggle and clear its visible state.
+  const [hasBeenIncorrect, setHasBeenIncorrect] = useState(false);
 
   const mathRef = useRef<MathFieldInputHandle>(null);
 
   useEffect(() => setDismissed(false), [answer?.answer]);
   useEffect(() => {
-    if (isCorrect) setShowToolbar(false);
-  }, [isCorrect]);
+    if (isIncorrect) setHasBeenIncorrect(true);
+    if (isCorrect) { setShowToolbar(false); setHasBeenIncorrect(false); }
+  }, [isIncorrect, isCorrect]);
 
   const insertAtCursor = useCallback((type: "cmd" | "write", value: string) => {
     if (type === "cmd") mathRef.current?.cmd(value);
@@ -73,10 +84,10 @@ export function InteractiveStep({
             <div
               className={cn(
                 "relative border rounded-md bg-white transition-all cursor-text min-h-[40px]",
-                "focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-1",
-                !isCorrect && !isIncorrect && "border-gray-300",
-                isCorrect && "border-success bg-success/10",
-                isIncorrect && "border-destructive bg-destructive/10",
+                STEP_ANSWER_FOCUS_RING,
+                !isCorrect && !isIncorrect && STEP_ANSWER_OUTLINE_NEUTRAL,
+                isCorrect && STEP_ANSWER_OUTLINE_SUCCESS,
+                isIncorrect && STEP_ANSWER_OUTLINE_ERROR,
                 !isCorrect && "pr-8",
               )}
               onClick={() => {
@@ -162,7 +173,7 @@ export function InteractiveStep({
           </div>
         )}
 
-        {isIncorrect && (
+        {hasBeenIncorrect && (
           <HintToggle
             showHint={showHint}
             hintText={displayHint}

@@ -197,6 +197,32 @@ export function interleaveMathInSegment(s: string): string {
   return out;
 }
 
+/**
+ * KaTeX math mode ignores normal spaces, so "M/s is the best" inside `$...$` collapses visually.
+ * Turn each space that separates a letter-run (prose/units after math) into TeX `\ ` (visible space).
+ * Skips spaces already preceded by `\` (e.g. `\ `, `\times`).
+ */
+function preserveSpacesInInlineMathDelimiters(text: string): string {
+  return text.replace(/\$([^$]*)\$/g, (_, inner: string) => {
+    if (!/ (?=[A-Za-z])/.test(inner)) return `$${inner}$`;
+    const fixed = inner.replace(/(?<!\\) (?=[A-Za-z])/g, "\\ ");
+    return `$${fixed}$`;
+  });
+}
+
+/**
+ * Live preview for MathFieldInput: fix common `\\times` typos, interleave prose, then keep spaces in math.
+ */
+export function formatMathFieldPreview(raw: string): string {
+  if (!raw.trim()) return raw;
+  // Double backslash before a command name → single `\` (students / paste often produce `\\times`)
+  let s = raw.replace(/\\\\([a-zA-Z]+)/g, "\\$1");
+  if (!/\\|[_^]/.test(s)) return s;
+  s = interleaveMathInSegment(s);
+  s = preserveSpacesInInlineMathDelimiters(s);
+  return s;
+}
+
 function fixGloballyWrappedStatement(text: string): string {
   const t = text.trim();
   if (!t.startsWith("$") || !t.endsWith("$") || t.startsWith("$$")) return text;

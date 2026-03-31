@@ -1,7 +1,7 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import katex from 'katex';
-import { MathNodeView } from './MathNodeView';
+import { MathNodeView } from './MathNodeView.tsx';
 
 export const MathExtension = Node.create({
   name: 'inlineMath',
