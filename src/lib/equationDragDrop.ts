@@ -21,18 +21,22 @@ export function canonicalDragDropFromParts(parts: string[] | null | undefined): 
   return buildMathExpression(parts);
 }
 
+function fisherYatesShuffle<T>(items: T[], random: () => number): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 /**
  * Fisher–Yates shuffle of a copy. Run once when ingesting a problem (e.g. parseProblemOutput)
  * so the bank order stays stable across Reset remounts; never shuffle `equation_parts` itself
  * — that array defines the canonical correct order for validation.
  */
 export function shuffleEquationPartsForDisplay(parts: string[]): string[] {
-  const arr = [...parts];
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+  return fisherYatesShuffle(parts, Math.random);
 }
 
 function mulberry32(seed: number) {
@@ -58,11 +62,6 @@ function hashStringToSeed(key: string): number {
  * shuffled and stays identical across Reset remounts.
  */
 export function shuffleEquationPartsSeeded(parts: string[], seedKey: string): string[] {
-  const arr = [...parts];
   const rnd = mulberry32(hashStringToSeed(seedKey));
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(rnd() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+  return fisherYatesShuffle(parts, rnd);
 }

@@ -5,6 +5,7 @@ import {
   ProgressionResult,
 } from "@/types/chemistry";
 import { getDifficultyForMastery } from "@/lib/difficultyFromMastery";
+import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
 
 interface UseAdaptiveProgressionProps {
   currentLevel: Level;
@@ -23,8 +24,8 @@ export function useAdaptiveProgression({
 }: UseAdaptiveProgressionProps) {
   const checkProgression = useCallback((): ProgressionResult => {
     // Check if all interactive steps are complete
-    const allComplete = interactiveStepIds.every(
-      (id) => answers[id]?.is_correct === true || structuredStepComplete[id] === true
+    const allComplete = interactiveStepIds.every((id) =>
+      isStepAnswerCorrect(answers, structuredStepComplete, id),
     );
 
     if (!allComplete) {

@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiCompleteAttempt, apiGetMastery, apiSetTopicStatus } from "@/lib/api";
 import type { ProgressionResult, SolutionStep, StudentAnswer } from "@/types/chemistry";
-import { buildStepLog, normalizeCategoryScores, overallMasteryPercent } from "@/lib/masteryTransforms";
+import { buildStepLog, scoresFromMasterySnapshot } from "@/lib/masteryTransforms";
 
 interface Params {
   userId?: string;
@@ -166,10 +166,13 @@ export function useTutorProgression({
       await nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
       toast.success("Level 3 unlocked! Here's your first challenge…");
       if (userId) {
-        apiGetMastery(userId, unitId, lessonIndex).then((state) => {
-          setBackendCategoryScores(normalizeCategoryScores(state.category_scores));
-          setMasteryScore(overallMasteryPercent(state.mastery_score, state.category_scores));
-        }).catch(() => {});
+        apiGetMastery(userId, unitId, lessonIndex)
+          .then((state) => {
+            const m = scoresFromMasterySnapshot(state);
+            setBackendCategoryScores(m.backendCategoryScores);
+            setMasteryScore(m.masteryPercent);
+          })
+          .catch(() => {});
       }
       return;
     }

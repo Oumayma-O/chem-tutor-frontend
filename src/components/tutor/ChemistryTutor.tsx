@@ -26,6 +26,7 @@ import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
 import { useTutorMasterySync } from "@/hooks/useTutorMasterySync";
 import { useTutorProgression } from "@/hooks/useTutorProgression";
 import { useTutorTimedMode } from "@/hooks/useTutorTimedMode";
+import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -225,13 +226,13 @@ export function ChemistryTutor({
   const interactiveStepIds = steps.interactiveSteps.map((s) => s.id);
   const isLevel3Locked = !hasCompletedLevel2;
 
-  const completedSteps = steps.interactiveSteps.filter(
-    (s) => steps.answers[s.id]?.is_correct === true || steps.structuredStepComplete[s.id],
+  const completedSteps = steps.interactiveSteps.filter((s) =>
+    isStepAnswerCorrect(steps.answers, steps.structuredStepComplete, s.id),
   );
   const allComplete =
     steps.interactiveSteps.length > 0 &&
-    steps.interactiveSteps.every(
-      (s) => steps.answers[s.id]?.is_correct === true || steps.structuredStepComplete[s.id],
+    steps.interactiveSteps.every((s) =>
+      isStepAnswerCorrect(steps.answers, steps.structuredStepComplete, s.id),
     );
 
   const levelConfig = LEVEL_CONFIGS.find((c) => c.level === nav.currentLevel) ?? LEVEL_CONFIGS[0];

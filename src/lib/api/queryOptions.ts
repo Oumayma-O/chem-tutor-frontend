@@ -37,3 +37,8 @@ export const staticFetchOptions = {
   staleTime: SESSION_CACHE_MS,
   gcTime: SESSION_CACHE_MS,
 } as const;
+
+/** Shared React Query error → user-facing string (static data hooks). */
+export function queryErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}

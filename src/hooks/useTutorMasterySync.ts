@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { apiGetMastery, apiSaveStep, apiUnlockLevel3, apiSetTopicStatus } from "@/lib/api";
 import type { SolutionStep, StudentAnswer } from "@/types/chemistry";
-import { buildStepLog, normalizeCategoryScores, overallMasteryPercent } from "@/lib/masteryTransforms";
+import { buildStepLog, isStepAnswerAttempted, scoresFromMasterySnapshot } from "@/lib/masteryTransforms";
 
 interface Params {
   userId?: string;
@@ -39,14 +39,11 @@ export function useTutorMasterySync({
   const lastSavedStepLogKeyRef = useRef<string>("");
 
   const applyMasterySnapshot = useCallback(
-    (state: {
-      mastery_score?: number | null;
-      level3_unlocked?: boolean;
-      category_scores?: { conceptual?: number; procedural?: number; computational?: number; representation?: number } | null;
-    }) => {
-      setHasCompletedLevel2((prev) => prev || !!state.level3_unlocked);
-      setBackendCategoryScores(normalizeCategoryScores(state.category_scores));
-      setMasteryScore(overallMasteryPercent(state.mastery_score, state.category_scores));
+    (state: MasteryApiSnapshot) => {
+      const { backendCategoryScores, masteryPercent, level3Unlocked } = scoresFromMasterySnapshot(state);
+      setHasCompletedLevel2((prev) => prev || level3Unlocked);
+      setBackendCategoryScores(backendCategoryScores);
+      setMasteryScore(masteryPercent);
     },
     [setHasCompletedLevel2, setBackendCategoryScores, setMasteryScore],
   );
@@ -70,14 +67,7 @@ export function useTutorMasterySync({
     if (!userId || !currentAttemptId || currentLevel === 1 || interactiveSteps.length === 0) return;
 
     const attempted = buildStepLog(interactiveSteps, answers, structuredStepComplete).filter(
-      (entry, idx) => {
-        const step = interactiveSteps[idx];
-        const answerState = answers[step.id];
-        return (
-          typeof answerState?.is_correct === "boolean" ||
-          structuredStepComplete[step.id] === true
-        );
-      },
+      (_, idx) => isStepAnswerAttempted(answers, structuredStepComplete, interactiveSteps[idx].id),
     );
 
     if (attempted.length === 0) return;

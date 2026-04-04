@@ -93,6 +93,44 @@ export function normalizeCategoryScores(categoryScores?: MasteryCategoryScores):
   };
 }
 
+/** Partial mastery payload from apiGetMastery / apiCompleteAttempt / apiSaveStep responses. */
+export type MasteryApiSnapshot = {
+  mastery_score?: number | null;
+  level3_unlocked?: boolean;
+  category_scores?: MasteryCategoryScores;
+};
+
+/** Derive UI state from a mastery snapshot (single place for normalize + percent). */
+export function scoresFromMasterySnapshot(state: MasteryApiSnapshot): {
+  backendCategoryScores: ReturnType<typeof normalizeCategoryScores>;
+  masteryPercent: number;
+  level3Unlocked: boolean;
+} {
+  return {
+    backendCategoryScores: normalizeCategoryScores(state.category_scores),
+    masteryPercent: overallMasteryPercent(state.mastery_score, state.category_scores),
+    level3Unlocked: !!state.level3_unlocked,
+  };
+}
+
+/** True when the student has a definitive result (correct or structured complete). */
+export function isStepAnswerCorrect(
+  answers: Record<string, StudentAnswer>,
+  structuredStepComplete: Record<string, boolean>,
+  stepId: string,
+): boolean {
+  return answers[stepId]?.is_correct === true || structuredStepComplete[stepId] === true;
+}
+
+/** True once the step was checked or marked complete (includes incorrect attempts). */
+export function isStepAnswerAttempted(
+  answers: Record<string, StudentAnswer>,
+  structuredStepComplete: Record<string, boolean>,
+  stepId: string,
+): boolean {
+  return answers[stepId]?.is_correct !== undefined || !!structuredStepComplete[stepId];
+}
+
 /**
  * Build the step_log payload sent to the backend on attempt completion.
  *
@@ -108,8 +146,7 @@ export function buildStepLog(
   structuredStepComplete: Record<string, boolean>,
 ): StepLogEntry[] {
   return interactiveSteps.map((s) => {
-    const isCorrect =
-      answers[s.id]?.is_correct === true || structuredStepComplete[s.id] === true;
+    const isCorrect = isStepAnswerCorrect(answers, structuredStepComplete, s.id);
     return {
       is_correct: isCorrect,
       reasoning_pattern: s.skill_used?.trim() || s.label,

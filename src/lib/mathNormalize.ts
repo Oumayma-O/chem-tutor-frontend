@@ -55,7 +55,8 @@ function removeStrayUnescapedDollars(inner: string): string {
   return inner.replace(/(?<!\\)\$/g, "");
 }
 
-function stripOuterMathDelimiters(s: string): string {
+/** Strip one layer of `$...$` or `$$...$$` (API often wraps value/unit separately). */
+export function stripOuterDollarDelimiters(s: string): string {
   let t = s.trim();
   for (let n = 0; n < 8; n++) {
     if (t.startsWith("$$") && t.endsWith("$$") && t.length >= 4) { t = t.slice(2, -2).trim(); continue; }
@@ -70,9 +71,23 @@ function trimTripleDollarNoise(s: string): string {
 }
 
 export function preferDisplayMathBody(text: string): string {
-  let inner = stripOuterMathDelimiters(text.trim());
+  let inner = stripOuterDollarDelimiters(text.trim());
   inner = removeStrayUnescapedDollars(inner);
   return `$$${inner}$$`;
+}
+
+/**
+ * Merge multi_input value + unit into a single `$...$` block.
+ * Joining pre-wrapped `$v$` with plain unit text breaks remark-math/KaTeX (raw `\\times`, stray `$`).
+ */
+export function combineMultiInputFieldLatex(value: string, unit: string): string {
+  const v = stripOuterDollarDelimiters(value?.trim() ?? "");
+  let u = stripOuterDollarDelimiters(unit?.trim() ?? "");
+  u = u.replace(/·/g, "\\cdot");
+  if (!v && !u) return "";
+  if (!u) return `$${v}$`;
+  if (!v) return `$${u}$`;
+  return `$${v}\\ ${u}$`;
 }
 
 // ─── cdot / unit fixes ────────────────────────────────────────────────────────

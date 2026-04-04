@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGetUnit, unitQueryKey, type UnitOut } from "@/lib/api/units";
-import { staticQueryOptions } from "@/lib/api/queryOptions";
+import { queryErrorMessage, staticQueryOptions } from "@/lib/api/queryOptions";
 
 interface UseUnitResult {
   unit: UnitOut | null;
@@ -28,6 +28,6 @@ export function useUnit(unitId: string | undefined): UseUnitResult {
     unit: data ?? null,
     lessonTitles,
     loading: isLoading,
-    error: error ? (error instanceof Error ? error.message : "Unit not found") : null,
+    error: error ? queryErrorMessage(error, "Unit not found") : null,
   };
 }

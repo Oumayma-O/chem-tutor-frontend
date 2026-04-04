@@ -40,6 +40,22 @@ export interface SolutionStep {
   content?: string;
 }
 
+/**
+ * Step as returned by POST /problems/generate and /problems/navigate before
+ * parseProblemOutput adds equation_parts_display and correct_equation.
+ * Optional fields may be null in JSON.
+ */
+export type ApiProblemStep = Omit<SolutionStep, "equation_parts_display" | "correct_equation"> & {
+  explanation?: string | null;
+  placeholder?: string | null;
+  correct_answer?: string | null;
+  equation_parts?: string[] | null;
+  input_fields?: InputField[] | null;
+  comparison_parts?: string[] | null;
+  hint?: string | null;
+  content?: string | null;
+};
+
 /** Cognitive blueprint from problem generation — determines badge and tooltip in UI. */
 export type CognitiveBlueprint = "solver" | "recipe" | "architect" | "detective" | "lawyer";
 

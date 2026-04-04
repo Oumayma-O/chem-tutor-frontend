@@ -1,36 +1,8 @@
 import { get, post } from "./core";
+import type { ApiProblemStep } from "@/types/chemistry";
 
-export interface InputField {
-  label: string;
-  value: string;
-  unit: string;
-}
-
-export interface ProblemStep {
-  id: string;
-  step_number: number;
-  type: "interactive" | "drag_drop" | "multi_input" | "comparison";
-  /** Server-computed. True = pre-filled scaffolding step (read-only). */
-  is_given?: boolean;
-  label: string;
-  instruction: string;
-  /** Show-your-work trace (≤20 words). Displayed in Level 1 and on wrong answers in L2/L3. */
-  explanation?: string | null;
-  /** Single rule/formula for this step; same field as backend ``ProblemStep.key_rule``. */
-  key_rule?: string | null;
-  /** Human-readable skill exercised in this step, from backend. Used for cognitive tracking. */
-  skill_used?: string | null;
-  /** Pre-filled content shown in given/worked steps. */
-  content?: string | null;
-  /** Input placeholder text for interactive steps. */
-  placeholder?: string | null;
-  correct_answer?: string | null;
-  equation_parts?: string[] | null;
-  /** Multi-input rows; JSON may use `inputFields` instead — see `parseProblemOutput`. */
-  input_fields?: InputField[] | null;
-  comparison_parts?: string[] | null;
-  hint?: string | null;
-}
+/** Wire-format step in ProblemOutput; alias of ApiProblemStep for existing imports from @/lib/api. */
+export type ProblemStep = ApiProblemStep;
 
 export interface ProblemPagination {
   current_index: number;

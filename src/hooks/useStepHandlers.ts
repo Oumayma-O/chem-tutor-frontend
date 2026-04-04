@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Level, Problem, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { apiValidateStep, apiGetHint } from "@/lib/api";
+import { isStepAnswerAttempted } from "@/lib/masteryTransforms";
 import { buildMathExpression, canonicalDragDropFromParts } from "@/lib/equationDragDrop";
 import { formatStructuredAnswerForThinkingTracker } from "@/lib/thinkingTrackerFormat";
 import { evaluateExpression, isExpression } from "@/lib/mathEval";
@@ -80,8 +81,8 @@ export function useStepHandlers({
   // Classify errors once all interactive steps have been attempted
   useEffect(() => {
     if (hasClassifiedRef.current) return;
-    const allAttempted = interactiveSteps.every(
-      (s) => answers[s.id]?.is_correct !== undefined || structuredStepComplete[s.id],
+    const allAttempted = interactiveSteps.every((s) =>
+      isStepAnswerAttempted(answers, structuredStepComplete, s.id),
     );
     if (allAttempted && thinkingSteps.length > 0) {
       hasClassifiedRef.current = true;
@@ -178,7 +179,7 @@ export function useStepHandlers({
           is_correct: isCorrect,
           attempts: (prev[stepId]?.attempts || 0) + 1,
           first_attempt_correct: prev[stepId]?.first_attempt_correct ?? (isFirstAttempt && isCorrect),
-          validation_feedback: isCorrect ? undefined : apiFeedback,
+          validation_feedback: apiFeedback,
         },
       }));
 

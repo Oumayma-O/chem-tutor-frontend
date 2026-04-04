@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGetCurriculum, curriculumQueryKey, type PhaseCurriculumGroup } from "@/lib/api/units";
-import { staticQueryOptions } from "@/lib/api/queryOptions";
+import { queryErrorMessage, staticQueryOptions } from "@/lib/api/queryOptions";
 
 interface UseCurriculumResult {
   phases: PhaseCurriculumGroup[];
@@ -18,6 +18,6 @@ export function useCurriculum(courseId?: number): UseCurriculumResult {
   return {
     phases: data?.phases ?? [],
     loading: isLoading,
-    error: error ? (error instanceof Error ? error.message : "Failed to load curriculum") : null,
+    error: error ? queryErrorMessage(error, "Failed to load curriculum") : null,
   };
 }

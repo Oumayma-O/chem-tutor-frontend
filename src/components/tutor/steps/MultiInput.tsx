@@ -1,8 +1,18 @@
 import { useCallback, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { ChevronsUpDown, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { InputField } from "@/types/chemistry";
+import { CHEMISTRY_UNITS } from "@/data/chemistryUnits";
 import { StepCard } from "./StepCard";
 import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
@@ -126,6 +136,7 @@ export function MultiInput({
   const [isChecking,   setIsChecking]   = useState(false);
   const [focusedVar,   setFocusedVar]   = useState<string | null>(null);
   const [showToolbar,  setShowToolbar]  = useState(false);
+  const [openUnit,     setOpenUnit]     = useState<string | null>(null);
 
   const mathRefs = useRef<Map<string, MathFieldInputHandle>>(new Map());
 
@@ -205,18 +216,21 @@ export function MultiInput({
     <StepCard isComplete={isComplete} isIncorrect={isIncorrect} isLocked={isLocked}>
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
-      <div className="w-full max-w-[400px] mx-auto flex flex-col gap-3 py-2">
+      <div className="w-full max-w-xl mx-auto flex flex-col gap-4 py-2 px-1">
         {variables.map((v) => {
           const showUnitField = fieldHasUnit(v);
           const hasError      = !!fieldErrors[v.label];
           const isGreen       = isComplete || (hasAttempted && !hasError);
 
           return (
-            <div key={v.label} className="flex flex-row items-center w-full">
-              <div className="text-sm font-medium text-slate-600 w-[45%] text-right pr-4 leading-snug font-sans shrink-0">
+            <div
+              key={v.label}
+              className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-4"
+            >
+              <div className="text-sm font-medium text-slate-600 text-center leading-snug font-sans shrink-0 sm:min-w-[6.5rem] sm:text-right sm:pr-1">
                 {v.label}:
               </div>
-              <div className="flex-1 flex gap-2">
+              <div className="flex w-full max-w-md flex-row items-center justify-center gap-2 sm:w-auto sm:max-w-none sm:flex-initial">
                 <div
                   className={cn(
                     "relative flex-1 min-w-0 border rounded-md bg-white transition-all cursor-text",
@@ -256,18 +270,62 @@ export function MultiInput({
                 </div>
 
                 {showUnitField && (
-                  <Input
-                    value={values[v.label]?.unit || ""}
-                    onChange={(e) => handleChange(v.label, "unit", e.target.value)}
-                    disabled={isComplete}
-                    placeholder="Unit"
-                    className={cn(
-                      STEP_ANSWER_FIELD_TEXT,
-                      "w-20 shrink-0",
-                      isGreen && STEP_ANSWER_OUTLINE_SUCCESS,
-                      hasError && STEP_ANSWER_OUTLINE_ERROR,
-                    )}
-                  />
+                  <Popover
+                    open={openUnit === v.label}
+                    onOpenChange={(o) => !isComplete && setOpenUnit(o ? v.label : null)}
+                  >
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={isComplete}
+                        className={cn(
+                          "h-10 w-28 shrink-0 flex items-center justify-between gap-1 px-3",
+                          "rounded-md border bg-white text-sm transition-all",
+                          "disabled:opacity-50 disabled:cursor-not-allowed",
+                          STEP_ANSWER_FOCUS_RING,
+                          !isGreen && !hasError && STEP_ANSWER_OUTLINE_NEUTRAL,
+                          isGreen && STEP_ANSWER_OUTLINE_SUCCESS,
+                          hasError && STEP_ANSWER_OUTLINE_ERROR,
+                        )}
+                      >
+                        <span className={cn("truncate", !values[v.label]?.unit && "text-gray-400")}>
+                          {values[v.label]?.unit || "Unit"}
+                        </span>
+                        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-48 p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Search units…" className="h-9" />
+                        <CommandList className="max-h-[300px]">
+                          <CommandEmpty>No unit found.</CommandEmpty>
+                          {CHEMISTRY_UNITS.map((group) => (
+                            <CommandGroup key={group.group} heading={group.group}>
+                              {group.units.map((unit) => (
+                                <CommandItem
+                                  key={unit.value}
+                                  value={unit.value}
+                                  onSelect={(val) => {
+                                    handleChange(v.label, "unit", val);
+                                    setOpenUnit(null);
+                                    mathRefs.current.get(v.label)?.focus();
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-3.5 w-3.5",
+                                      values[v.label]?.unit === unit.value ? "opacity-100" : "opacity-0",
+                                    )}
+                                  />
+                                  {unit.label}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 )}
               </div>
             </div>
@@ -275,9 +333,9 @@ export function MultiInput({
         })}
       </div>
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-2 max-w-xl mx-auto w-full flex flex-col items-stretch">
         {!isComplete && (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center justify-start gap-2 flex-wrap">
             <Button size="sm" onClick={handleCheck} disabled={isChecking}>
               {isChecking ? "Checking…" : "Check"}
             </Button>
@@ -297,17 +355,23 @@ export function MultiInput({
             </button>
           </div>
         )}
-        {showToolbar && !isComplete && <MathToolbar onInsert={insertAtCursor} />}
+        {showToolbar && !isComplete && (
+          <div className="w-full flex justify-start">
+            <MathToolbar onInsert={insertAtCursor} />
+          </div>
+        )}
         {isComplete && <CorrectFeedback />}
 
         {isIncorrect && (
-          <StepErrorFeedback
-            message="Some values are incorrect. Check the highlighted fields."
-            showHint={showHint}
-            hintText={hintText}
-            hintLoading={hintLoading}
-            onRequestHint={onRequestHint}
-          />
+          <div className="w-full">
+            <StepErrorFeedback
+              message="Some values are incorrect. Check the highlighted fields."
+              showHint={showHint}
+              hintText={hintText}
+              hintLoading={hintLoading}
+              onRequestHint={onRequestHint}
+            />
+          </div>
         )}
       </div>
     </StepCard>

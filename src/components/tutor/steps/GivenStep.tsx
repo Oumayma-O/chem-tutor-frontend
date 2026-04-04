@@ -2,6 +2,7 @@ import React from "react";
 import { InputField, SolutionStep } from "@/types/chemistry";
 import { StepBadge } from "./StepBadge";
 import { formatMathContent, MathText } from "@/lib/mathDisplay";
+import { combineMultiInputFieldLatex } from "@/lib/mathNormalize";
 import { ExplanationToggle } from "./ExplanationToggle";
 
 interface GivenStepProps {
@@ -22,14 +23,16 @@ function formatInputFields(fields: InputField[]): React.ReactNode {
   return (
     <div className="flex flex-col gap-2 text-foreground">
       {fields.map((field, idx) => {
-        const valueAndUnit = [field.value?.trim() || "", field.unit?.trim() || ""].filter(Boolean).join(" ");
+        const combined = combineMultiInputFieldLatex(field.value ?? "", field.unit ?? "");
         return (
           <div key={`${field.label}-${idx}`} className="leading-relaxed">
             <span className="font-medium text-muted-foreground">
               {capitalizeFirst((field.label ?? "").trim())}:
             </span>{" "}
             <span className="equation">
-              {formatMathContent(valueAndUnit || "—", { mode: "equation" })}
+              {combined
+                ? formatMathContent(combined, { mode: "equation" })
+                : "—"}
             </span>
           </div>
         );

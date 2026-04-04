@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGetUnits, unitsQueryKey, type UnitListItem } from "@/lib/api/units";
-import { staticQueryOptions } from "@/lib/api/queryOptions";
+import { queryErrorMessage, staticQueryOptions } from "@/lib/api/queryOptions";
 
 interface UseUnitsResult {
   units: UnitListItem[];
@@ -18,6 +18,6 @@ export function useUnits(): UseUnitsResult {
   return {
     units: data ?? [],
     loading: isLoading,
-    error: error ? (error instanceof Error ? error.message : "Failed to load units") : null,
+    error: error ? queryErrorMessage(error, "Failed to load units") : null,
   };
 }
