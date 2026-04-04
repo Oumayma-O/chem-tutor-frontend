@@ -25,6 +25,7 @@ interface InteractiveStepProps {
   hintText?: string;
   hintLoading?: boolean;
   checkingAnswer?: boolean;
+  isLocked?: boolean;
   onRequestHint: (stepId: string) => void;
 }
 
@@ -37,6 +38,7 @@ export function InteractiveStep({
   hintText,
   hintLoading,
   checkingAnswer,
+  isLocked,
   onRequestHint,
 }: InteractiveStepProps) {
   const isCorrect = answer?.is_correct === true;
@@ -70,7 +72,7 @@ export function InteractiveStep({
   }, [checkingAnswer, isCorrect, answer?.answer, onCheckAnswer, step.id]);
 
   return (
-    <StepCard isComplete={isCorrect} isIncorrect={isIncorrect}>
+    <StepCard isComplete={isCorrect} isIncorrect={isIncorrect} isLocked={isLocked}>
       <StepHeader
         step_number={step.step_number}
         label={step.label}
@@ -153,7 +155,7 @@ export function InteractiveStep({
           )}
         </div>
 
-        {isCorrect && <CorrectFeedback />}
+        {isCorrect && <CorrectFeedback message={answer?.validation_feedback} />}
 
         {isIncorrect && !dismissed && (
           <div className="flex items-center justify-between fade-in">

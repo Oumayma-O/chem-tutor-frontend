@@ -24,6 +24,7 @@ interface EquationBuilderProps {
   onValidate: (orderedParts: string[]) => Promise<boolean>;
   onComplete: (isCorrect: boolean) => void;
   isComplete: boolean;
+  isLocked?: boolean;
   showHint: boolean;
   hintText?: string;
   hintLoading?: boolean;
@@ -40,6 +41,7 @@ export function EquationBuilder({
   onValidate,
   onComplete,
   isComplete,
+  isLocked,
   showHint,
   hintText,
   hintLoading,
@@ -119,7 +121,7 @@ export function EquationBuilder({
   }, [slots, isValidating, isComplete, onValidate, onComplete, persist]);
 
   return (
-    <StepCard isComplete={isComplete} isIncorrect={isIncorrect}>
+    <StepCard isComplete={isComplete} isIncorrect={isIncorrect} isLocked={isLocked}>
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="ml-16 space-y-3">

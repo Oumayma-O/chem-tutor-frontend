@@ -32,41 +32,49 @@ function emptyFields(variables: InputField[]): FieldValues {
   return Object.fromEntries(variables.map((v) => [v.label, { value: "", unit: "" }]));
 }
 
-function normalizeAnswer(s: string) {
-  return s.trim().toLowerCase().replace(/\s+/g, "");
-}
-
 function fieldHasUnit(v: InputField) {
   return Boolean(v.unit?.trim());
 }
 
-/** Pure validation for multi-field numeric / unit answers. */
-function validateMultiInputFields(
-  variables: InputField[],
-  values: FieldValues,
-): { errors: Record<string, boolean>; allCorrect: boolean } {
-  const errors: Record<string, boolean> = {};
-  let allCorrect = true;
+/** Strip LaTeX wrappers so the backend receives a plain numeric expression or clean unit string.
+ *  "$3.60 \\times 10^{-4}$" → "3.60e-4",  "J/(mol \\cdot K)" → "J/(mol K)" */
+function stripLatex(raw: string): string {
+  return raw
+    .replace(/\u2212/g, "-")                                             // unicode minus → ASCII hyphen
+    .replace(/^\$+|\$+$/g, "")                                           // strip $...$
+    .replace(/\s*\\times\s*10\s*\^\{?\s*([+-]?\d+)\s*\}?/gi, "e$1")    // \times 10^{n} → eN
+    .replace(/\s*\\cdot\s*10\s*\^\{?\s*([+-]?\d+)\s*\}?/gi, "e$1")     // \cdot 10^{n} → eN
+    .replace(/\\(?:text|mathrm)\{([^{}]*)\}/g, "$1")                    // \text{x} → x (keep content)
+    .replace(/\\[a-zA-Z]+/g, "")                                         // remove remaining LaTeX cmds
+    .replace(/[{}]/g, "")                                                 // stray braces
+    .replace(/\s+/g, " ")                                                 // collapse multiple spaces
+    .trim();
+}
 
-  variables.forEach((v) => {
-    const studentVal = normalizeAnswer(values[v.label]?.value || "");
-    const studentUnit = normalizeAnswer(values[v.label]?.unit || "");
-    const correctVal = normalizeAnswer(v.value);
-    const correctUnit = normalizeAnswer(v.unit);
-    const numStudent = parseFloat(studentVal);
-    const numCorrect = parseFloat(correctVal);
-    const valMatch =
-      !isNaN(numStudent) && !isNaN(numCorrect)
-        ? Math.abs(numStudent - numCorrect) < 0.001
-        : studentVal === correctVal;
-    const unitMatch = !fieldHasUnit(v) ? true : studentUnit === correctUnit;
-    if (!valMatch || !unitMatch) {
-      errors[v.label] = true;
-      allCorrect = false;
-    }
-  });
+/** Serialize student field values as JSON for backend check_multi_input.
+ *  Format: {"Label": {"value": "...", "unit": "..."}, ...} */
+function serializeFields(variables: InputField[], fieldValues: FieldValues): string {
+  const obj: Record<string, { value: string; unit: string }> = {};
+  for (const v of variables) {
+    obj[v.label] = {
+      value: fieldValues[v.label]?.value?.trim() ?? "",
+      unit: fieldValues[v.label]?.unit?.trim() ?? "",
+    };
+  }
+  return JSON.stringify(obj);
+}
 
-  return { errors, allCorrect };
+/** Serialize correct answers as JSON for backend check_multi_input.
+ *  LaTeX is stripped from both values and units (e.g. "s^{-1}" → "s^-1"). */
+function serializeCorrect(variables: InputField[]): string {
+  const obj: Record<string, { value: string; unit: string }> = {};
+  for (const v of variables) {
+    obj[v.label] = {
+      value: stripLatex(v.value),
+      unit: stripLatex(v.unit ?? ""),
+    };
+  }
+  return JSON.stringify(obj);
 }
 
 interface MultiInputProps {
@@ -74,8 +82,11 @@ interface MultiInputProps {
   label: string;
   instruction: string;
   variables: InputField[];
+  /** Called with (studentAnswer, correctAnswer) strings — must call backend and return per-field errors. */
+  onValidate: (studentAnswer: string, correctAnswer: string) => Promise<{ isCorrect: boolean; feedback?: string }>;
   onComplete: (isCorrect: boolean) => void;
   isComplete: boolean;
+  isLocked?: boolean;
   showHint: boolean;
   hintText?: string;
   hintLoading?: boolean;
@@ -89,8 +100,10 @@ export function MultiInput({
   label,
   instruction,
   variables,
+  onValidate,
   onComplete,
   isComplete,
+  isLocked,
   showHint,
   hintText,
   hintLoading,
@@ -110,6 +123,7 @@ export function MultiInput({
   const [hasAttempted, setHasAttempted] = useState(initAttempted ?? false);
   const [isIncorrect,  setIsIncorrect]  = useState(() => !isComplete && (initAttempted ?? false) && Object.keys(initErrors ?? {}).length > 0);
   const [fieldErrors,  setFieldErrors]  = useState<Record<string, boolean>>(initErrors ?? {});
+  const [isChecking,   setIsChecking]   = useState(false);
   const [focusedVar,   setFocusedVar]   = useState<string | null>(null);
   const [showToolbar,  setShowToolbar]  = useState(false);
 
@@ -147,23 +161,48 @@ export function MultiInput({
     [focusedVar, variables],
   );
 
-  const handleCheck = () => {
-    const { errors, allCorrect } = validateMultiInputFields(variables, values);
+  const handleCheck = async () => {
+    if (isChecking) return;
+    setIsChecking(true);
+    try {
+      const studentAnswer = serializeFields(variables, values);
+      const correctAnswer = serializeCorrect(variables);
+      const { isCorrect, feedback } = await onValidate(studentAnswer, correctAnswer);
 
-    setHasAttempted(true);
-    setFieldErrors(errors);
-    persist(values, true, errors);
+      // Mark all fields as errors when backend says incorrect; clear all on correct.
+      // Granular per-field highlighting would require backend changes — keep it simple.
+      const errors: Record<string, boolean> = isCorrect
+        ? {}
+        : Object.fromEntries(variables.map((v) => [v.label, true]));
 
-    if (allCorrect) {
-      onComplete(true);
-    } else {
-      setIsIncorrect(true);
-      onComplete(false);
+      // If backend provides per-field feedback (e.g. "Field 'k1' is missing."), narrow to that field.
+      if (!isCorrect && feedback) {
+        const match = feedback.match(/Field '([^']+)'/);
+        if (match) {
+          const specific = Object.fromEntries([[match[1], true]]);
+          Object.assign(errors, specific);
+          // clear the rest
+          variables.forEach((v) => { if (v.label !== match[1]) delete errors[v.label]; });
+        }
+      }
+
+      setHasAttempted(true);
+      setFieldErrors(errors);
+      persist(values, true, errors);
+
+      if (isCorrect) {
+        onComplete(true);
+      } else {
+        setIsIncorrect(true);
+        onComplete(false);
+      }
+    } finally {
+      setIsChecking(false);
     }
   };
 
   return (
-    <StepCard isComplete={isComplete} isIncorrect={isIncorrect}>
+    <StepCard isComplete={isComplete} isIncorrect={isIncorrect} isLocked={isLocked}>
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="w-full max-w-[400px] mx-auto flex flex-col gap-3 py-2">
@@ -239,7 +278,9 @@ export function MultiInput({
       <div className="mt-3 space-y-2">
         {!isComplete && (
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handleCheck}>Check</Button>
+            <Button size="sm" onClick={handleCheck} disabled={isChecking}>
+              {isChecking ? "Checking…" : "Check"}
+            </Button>
             <button
               type="button"
               title="Toggle math toolbar"

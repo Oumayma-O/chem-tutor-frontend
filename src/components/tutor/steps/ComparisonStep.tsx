@@ -30,6 +30,7 @@ interface ComparisonStepProps {
   correctAnswer: "<" | ">" | "=";
   onComplete: (isCorrect: boolean) => void;
   isComplete: boolean;
+  isLocked?: boolean;
   showHint: boolean;
   hintText?: string;
   hintLoading?: boolean;
@@ -49,6 +50,7 @@ export function ComparisonStep({
   correctAnswer,
   onComplete,
   isComplete,
+  isLocked,
   showHint,
   hintText,
   hintLoading,
@@ -92,7 +94,7 @@ export function ComparisonStep({
   };
 
   return (
-    <StepCard isComplete={isComplete} isIncorrect={isIncorrect}>
+    <StepCard isComplete={isComplete} isIncorrect={isIncorrect} isLocked={isLocked}>
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
       <div className="ml-0 sm:ml-16 space-y-3">

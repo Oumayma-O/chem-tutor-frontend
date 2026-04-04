@@ -1,5 +1,7 @@
 import { SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { shuffleEquationPartsSeeded } from "@/lib/equationDragDrop";
+import { apiValidateStep } from "@/lib/api";
+import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
 import { GivenStep } from "./GivenStep";
 import { EquationBuilder } from "./EquationBuilder";
 import { MultiInput } from "./MultiInput";
@@ -42,7 +44,13 @@ export function TutorStepRenderer({
 
   return (
     <>
-      {displaySteps.map((step) => {
+      {displaySteps.map((step, index) => {
+        // Find the closest preceding interactive (non-given) step to check for completion.
+        // Given steps are read-only and have no completion state, so skipping them prevents
+        // interactive steps that follow given steps from being permanently locked.
+        const prevInteractiveStep = displaySteps.slice(0, index).reverse().find((s) => !s.is_given) ?? null;
+        const isLocked = prevInteractiveStep !== null && !isStepAnswerCorrect(answers, structuredStepComplete, prevInteractiveStep.id);
+
         if (step.is_given) {
           return <GivenStep key={`${problemId}-${step.id}`} step={step} />;
         }
@@ -67,6 +75,7 @@ export function TutorStepRenderer({
               onValidate={(orderedParts) => handleValidateEquation(orderedParts, step)}
               onComplete={(correct) => handleStructuredStepComplete(step.id, correct)}
               isComplete={!!structuredStepComplete[step.id]}
+              isLocked={isLocked}
               showHint={!!hints[step.id]}
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
@@ -85,8 +94,21 @@ export function TutorStepRenderer({
               label={step.label}
               instruction={step.instruction}
               variables={step.input_fields}
+              onValidate={async (studentAnswer, correctAnswer) => {
+                const data = await apiValidateStep({
+                  student_answer: studentAnswer,
+                  correct_answer: correctAnswer,
+                  step_id: step.id,
+                  step_number: step.step_number,
+                  step_label: step.label,
+                  step_type: "multi_input",
+                  step_instruction: step.instruction,
+                });
+                return { isCorrect: data.is_correct, feedback: data.feedback ?? undefined };
+              }}
               onComplete={(correct) => handleStructuredStepComplete(step.id, correct)}
               isComplete={!!structuredStepComplete[step.id]}
+              isLocked={isLocked}
               showHint={!!hints[step.id]}
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
@@ -113,6 +135,7 @@ export function TutorStepRenderer({
               correctAnswer={step.correct_answer as "<" | ">" | "="}
               onComplete={(correct) => handleStructuredStepComplete(step.id, correct)}
               isComplete={!!structuredStepComplete[step.id]}
+              isLocked={isLocked}
               showHint={!!hints[step.id]}
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
@@ -134,6 +157,7 @@ export function TutorStepRenderer({
             hintText={hints[step.id]}
             hintLoading={hintLoading.has(step.id)}
             checkingAnswer={checkingAnswer.has(step.id)}
+            isLocked={isLocked}
             onRequestHint={handleRequestHint}
           />
         );
