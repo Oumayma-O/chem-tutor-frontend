@@ -27,6 +27,8 @@ export interface TutorSessionSnapshot {
   completedProblemIds?: string[];
   masteryScore?: number;
   hasCompletedLevel2?: boolean;
+  /** Completed problem counts per level (session + reload via localStorage). */
+  levelSolved?: Partial<Record<Level, number>>;
 }
 
 export function getTutorSessionStorageKey(

@@ -6,6 +6,11 @@ export interface MasteryState {
   consecutive_correct: number;
   current_difficulty: string;
   level3_unlocked: boolean;
+  /**
+   * Optional server count of completed Level 2 problems for this lesson.
+   * When present, the tutor merges this with local session storage for L2→L3 gating.
+   */
+  level_2_completions?: number;
   category_scores?: {
     conceptual: number;
     procedural: number;

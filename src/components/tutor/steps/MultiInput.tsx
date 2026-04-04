@@ -216,7 +216,8 @@ export function MultiInput({
     <StepCard isComplete={isComplete} isIncorrect={isIncorrect} isLocked={isLocked}>
       <StepHeader step_number={step_number} label={label} instruction={instruction} isComplete={isComplete} />
 
-      <div className="w-full max-w-xl mx-auto flex flex-col gap-4 py-2 px-1">
+      {/* Compact form (max-width); left-aligned in the step card — matches label column edge */}
+      <div className="w-full max-w-xl space-y-4 px-1 py-2">
         {variables.map((v) => {
           const showUnitField = fieldHasUnit(v);
           const hasError      = !!fieldErrors[v.label];
@@ -225,12 +226,16 @@ export function MultiInput({
           return (
             <div
               key={v.label}
-              className="flex w-full flex-col items-center gap-2 sm:flex-row sm:justify-center sm:gap-4"
+              className={cn(
+                "grid w-full min-w-0 items-center gap-4",
+                "grid-cols-1",
+                "sm:grid-cols-[180px_1fr]",
+              )}
             >
-              <div className="text-sm font-medium text-slate-600 text-center leading-snug font-sans shrink-0 sm:min-w-[6.5rem] sm:text-right sm:pr-1">
+              <div className="min-w-0 break-words text-left text-sm font-medium leading-snug text-gray-700 font-sans">
                 {v.label}:
               </div>
-              <div className="flex w-full max-w-md flex-row items-center justify-center gap-2 sm:w-auto sm:max-w-none sm:flex-initial">
+              <div className="flex min-w-0 w-full flex-row items-center gap-2">
                 <div
                   className={cn(
                     "relative flex-1 min-w-0 border rounded-md bg-white transition-all cursor-text",
@@ -331,48 +336,48 @@ export function MultiInput({
             </div>
           );
         })}
-      </div>
 
-      <div className="mt-3 space-y-2 max-w-xl mx-auto w-full flex flex-col items-stretch">
-        {!isComplete && (
-          <div className="flex items-center justify-start gap-2 flex-wrap">
-            <Button size="sm" onClick={handleCheck} disabled={isChecking}>
-              {isChecking ? "Checking…" : "Check"}
-            </Button>
-            <button
-              type="button"
-              title="Toggle math toolbar"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                setShowToolbar((s) => !s);
-              }}
-              className={cn(
-                "text-xs font-mono px-1 py-0.5 rounded leading-none transition-colors",
-                showToolbar ? FX_TOGGLE_ACTIVE : FX_TOGGLE_IDLE,
-              )}
-            >
-              fx
-            </button>
-          </div>
-        )}
-        {showToolbar && !isComplete && (
-          <div className="w-full flex justify-start">
-            <MathToolbar onInsert={insertAtCursor} />
-          </div>
-        )}
-        {isComplete && <CorrectFeedback />}
+        <div className="space-y-2">
+          {!isComplete && (
+            <div className="flex flex-wrap items-center justify-start gap-3">
+              <Button size="sm" onClick={handleCheck} disabled={isChecking}>
+                {isChecking ? "Checking…" : "Check"}
+              </Button>
+              <button
+                type="button"
+                title="Toggle math toolbar"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setShowToolbar((s) => !s);
+                }}
+                className={cn(
+                  "text-xs font-mono px-1 py-0.5 rounded leading-none transition-colors",
+                  showToolbar ? FX_TOGGLE_ACTIVE : FX_TOGGLE_IDLE,
+                )}
+              >
+                fx
+              </button>
+            </div>
+          )}
+          {showToolbar && !isComplete && (
+            <div className="flex w-full min-w-0 justify-start">
+              <MathToolbar onInsert={insertAtCursor} />
+            </div>
+          )}
+          {isComplete && <CorrectFeedback />}
 
-        {isIncorrect && (
-          <div className="w-full">
-            <StepErrorFeedback
-              message="Some values are incorrect. Check the highlighted fields."
-              showHint={showHint}
-              hintText={hintText}
-              hintLoading={hintLoading}
-              onRequestHint={onRequestHint}
-            />
-          </div>
-        )}
+          {isIncorrect && (
+            <div className="w-full">
+              <StepErrorFeedback
+                message="Some values are incorrect. Check the highlighted fields."
+                showHint={showHint}
+                hintText={hintText}
+                hintLoading={hintLoading}
+                onRequestHint={onRequestHint}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </StepCard>
   );

@@ -1,11 +1,8 @@
 import type { SolutionStep } from "@/types/chemistry";
 import { buildMathExpression } from "@/lib/equationDragDrop";
+import { stripOuterMathDelimiters } from "@/utils/mathUtils";
 
 const META_KEYS = new Set(["hasAttempted", "fieldErrors", "isIncorrect"]);
-
-function stripMathDelimiters(s: string): string {
-  return s.replace(/^\$+/, "").replace(/\$+$/, "").trim();
-}
 
 /**
  * Turn persisted draft JSON (or legacy shapes) into a short human-readable line for Thinking Tracker.
@@ -19,7 +16,9 @@ export function formatStructuredAnswerForThinkingTracker(step: SolutionStep, raw
 
     if (step.type === "drag_drop") {
       if (parsed && typeof parsed === "object" && Array.isArray((parsed as { slots?: unknown }).slots)) {
-        const slots = (parsed as { slots: string[] }).slots.map((x) => stripMathDelimiters(String(x)));
+        const slots = (parsed as { slots: string[] }).slots.map((x) =>
+          stripOuterMathDelimiters(String(x)),
+        );
         return buildMathExpression(slots);
       }
       return t;

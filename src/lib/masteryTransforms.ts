@@ -98,6 +98,8 @@ export type MasteryApiSnapshot = {
   mastery_score?: number | null;
   level3_unlocked?: boolean;
   category_scores?: MasteryCategoryScores;
+  /** Backend-reported L2 completions for this lesson (optional). */
+  level_2_completions?: number | null;
 };
 
 /** Derive UI state from a mastery snapshot (single place for normalize + percent). */
@@ -105,11 +107,16 @@ export function scoresFromMasterySnapshot(state: MasteryApiSnapshot): {
   backendCategoryScores: ReturnType<typeof normalizeCategoryScores>;
   masteryPercent: number;
   level3Unlocked: boolean;
+  level2Completions: number | undefined;
 } {
   return {
     backendCategoryScores: normalizeCategoryScores(state.category_scores),
     masteryPercent: overallMasteryPercent(state.mastery_score, state.category_scores),
     level3Unlocked: !!state.level3_unlocked,
+    level2Completions:
+      typeof state.level_2_completions === "number" && Number.isFinite(state.level_2_completions)
+        ? state.level_2_completions
+        : undefined,
   };
 }
 

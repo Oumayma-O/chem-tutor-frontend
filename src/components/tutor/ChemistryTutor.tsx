@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Level, LEVEL_CONFIGS, StudentAnswer } from "@/types/chemistry";
 import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
@@ -27,6 +27,7 @@ import { useTutorMasterySync } from "@/hooks/useTutorMasterySync";
 import { useTutorProgression } from "@/hooks/useTutorProgression";
 import { useTutorTimedMode } from "@/hooks/useTutorTimedMode";
 import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
+import { effectiveLevel2CompletedCountIncludingCurrent } from "@/lib/progressionUtils";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -98,6 +99,12 @@ export function ChemistryTutor({
   const [recommendedDifficulty, setRecommendedDifficulty] = useState<
     "easy" | "medium" | "hard" | null
   >(null);
+  /** Optional backend `level_2_completions` from mastery API; merged with session `levelSolved[2]`. */
+  const [masteryLevel2Completions, setMasteryLevel2Completions] = useState<number | null>(null);
+
+  const mergeLevel2CompletionsFromMastery = useCallback((n: number) => {
+    setMasteryLevel2Completions((prev) => Math.max(prev ?? 0, n));
+  }, []);
 
   // ── UI / modal state ──────────────────────────────────────────────────────
   const [exitTicketResults, setExitTicketResults] = useState<ExitTicketResult[]>([]);
@@ -260,6 +267,7 @@ export function ChemistryTutor({
     setHasCompletedLevel2,
     setBackendCategoryScores,
     setMasteryScore,
+    onMasteryLevel2Completions: mergeLevel2CompletionsFromMastery,
   });
 
   // ── Side effects ──────────────────────────────────────────────────────────
@@ -292,6 +300,7 @@ export function ChemistryTutor({
     setBackendCategoryScores,
     setMasteryScore,
     persistLevel3Unlock,
+    onMasteryLevel2Completions: mergeLevel2CompletionsFromMastery,
     checkProgression,
     completeProblemAttempt,
     interactiveStepIds,
@@ -317,6 +326,17 @@ export function ChemistryTutor({
 
   const timed = useTutorTimedMode();
 
+  useEffect(() => {
+    setMasteryLevel2Completions(null);
+  }, [unitId, lessonIndex]);
+
+  const level2CompletedCountForModal = useMemo(() => {
+    if (nav.currentLevel !== 2) return undefined;
+    return effectiveLevel2CompletedCountIncludingCurrent({
+      levelSolvedAtLevel2: nav.levelSolved[2],
+      masteryLevel2Completions,
+    });
+  }, [nav.currentLevel, nav.levelSolved[2], masteryLevel2Completions]);
 
   const handleExitTicketComplete = (result: ExitTicketResult) => {
     setExitTicketResults((prev) => [result, ...prev]);
@@ -672,6 +692,7 @@ export function ChemistryTutor({
           onContinue={handleContinueAfterProgression}
           onStayAtLevel={handleStayAtLevel}
           currentLevel={nav.currentLevel}
+          level2CompletedCount={level2CompletedCountForModal}
         />
       )}
     </div>

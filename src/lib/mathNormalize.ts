@@ -19,6 +19,8 @@
  *              handled by the calling component (HintMarkdown).
  */
 
+import { stripOuterMathDelimiters } from "@/utils/mathUtils";
+
 export type RenderMode = "equation" | "mixed" | "hint";
 
 // ─── Low-level helpers ────────────────────────────────────────────────────────
@@ -55,23 +57,15 @@ function removeStrayUnescapedDollars(inner: string): string {
   return inner.replace(/(?<!\\)\$/g, "");
 }
 
-/** Strip one layer of `$...$` or `$$...$$` (API often wraps value/unit separately). */
-export function stripOuterDollarDelimiters(s: string): string {
-  let t = s.trim();
-  for (let n = 0; n < 8; n++) {
-    if (t.startsWith("$$") && t.endsWith("$$") && t.length >= 4) { t = t.slice(2, -2).trim(); continue; }
-    if (t.startsWith("$") && t.endsWith("$") && t.length >= 2 && !t.startsWith("$$")) { t = t.slice(1, -1).trim(); continue; }
-    break;
-  }
-  return t;
-}
+/** @deprecated Use stripOuterMathDelimiters from @/utils/mathUtils */
+export const stripOuterDollarDelimiters = stripOuterMathDelimiters;
 
 function trimTripleDollarNoise(s: string): string {
   return s.replace(/^\s*\$\$\$/g, "$$").replace(/\$\$\$\s*$/g, "$$");
 }
 
 export function preferDisplayMathBody(text: string): string {
-  let inner = stripOuterDollarDelimiters(text.trim());
+  let inner = stripOuterMathDelimiters(text.trim());
   inner = removeStrayUnescapedDollars(inner);
   return `$$${inner}$$`;
 }
@@ -81,8 +75,8 @@ export function preferDisplayMathBody(text: string): string {
  * Joining pre-wrapped `$v$` with plain unit text breaks remark-math/KaTeX (raw `\\times`, stray `$`).
  */
 export function combineMultiInputFieldLatex(value: string, unit: string): string {
-  const v = stripOuterDollarDelimiters(value?.trim() ?? "");
-  let u = stripOuterDollarDelimiters(unit?.trim() ?? "");
+  const v = stripOuterMathDelimiters(value?.trim() ?? "");
+  let u = stripOuterMathDelimiters(unit?.trim() ?? "");
   u = u.replace(/·/g, "\\cdot");
   if (!v && !u) return "";
   if (!u) return `$${v}$`;

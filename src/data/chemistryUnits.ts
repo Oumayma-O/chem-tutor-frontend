@@ -73,7 +73,7 @@ export const CHEMISTRY_UNITS: UnitGroup[] = [
   },
   {
     group: "Thermodynamics",
-    units: [u("J/(g·°C)"), u("J/(mol·K)"), u("kJ/mol")],
+    units: [u("J/(g·°C)"), u("J/(mol·K)"), u("J/mol"), u("kJ/mol")],
   },
   {
     group: "Electrochemistry",

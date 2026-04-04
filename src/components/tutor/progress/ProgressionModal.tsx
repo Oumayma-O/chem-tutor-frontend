@@ -11,6 +11,8 @@ import {
 import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BeakerMascot } from "@/components/tutor/widgets";
+import { LEVEL_2_MAX } from "./progressionConstants";
+import { isLevel2To3Advance } from "@/lib/progressionUtils";
 
 interface ProgressionModalProps {
   isOpen: boolean;
@@ -20,6 +22,11 @@ interface ProgressionModalProps {
   onContinue: () => void;
   onStayAtLevel?: () => void;
   currentLevel?: 1 | 2 | 3;
+  /**
+   * Effective L2 completions for gating (session + optional mastery API). If omitted, both CTAs
+   * are shown when advancing from L2.
+   */
+  level2CompletedCount?: number;
 }
 
 export function ProgressionModal({
@@ -30,11 +37,19 @@ export function ProgressionModal({
   onContinue,
   onStayAtLevel,
   currentLevel = 2,
+  level2CompletedCount,
 }: ProgressionModalProps) {
   if (!result) return null;
 
-  const isAdvancingToLevel3 = result.should_advance && result.next_level === 3 && currentLevel === 2;
+  const isAdvancingToLevel3 = isLevel2To3Advance(result, currentLevel);
   const isLevel3Complete = currentLevel === 3;
+
+  const hideL2PracticeCta =
+    isAdvancingToLevel3 &&
+    level2CompletedCount !== undefined &&
+    level2CompletedCount >= LEVEL_2_MAX;
+  const showL2PracticePrimary =
+    isAdvancingToLevel3 && !!onStayAtLevel && !hideL2PracticeCta;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -109,34 +124,46 @@ export function ProgressionModal({
         </div>
 
         <DialogFooter className="flex flex-col gap-2 sm:flex-col">
-          <Button onClick={onContinue} className="w-full gap-2">
-            <ArrowRight className="w-4 h-4" />
-            {isAdvancingToLevel3
-              ? "Advance to Level 3"
-              : isLevel3Complete
-                ? "Solve Another Problem"
-                : "Try New Problem"}
-          </Button>
+          {isAdvancingToLevel3 ? (
+            <>
+              {showL2PracticePrimary && (
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={onStayAtLevel}
+                  className="w-full gap-2 transition-colors"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Practice Another Level 2 First
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant={showL2PracticePrimary ? "outline" : "default"}
+                onClick={onContinue}
+                className="w-full gap-2 transition-colors"
+              >
+                <ArrowRight className="w-4 h-4" />
+                Advance to Level 3
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button onClick={onContinue} className="w-full gap-2 transition-colors">
+                <ArrowRight className="w-4 h-4" />
+                {isLevel3Complete ? "Solve Another Problem" : "Try New Problem"}
+              </Button>
 
-          {isAdvancingToLevel3 && onStayAtLevel && (
-            <Button
-              variant="outline"
-              onClick={onStayAtLevel}
-              className="w-full gap-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Practice Another Level 2 First
-            </Button>
-          )}
-
-          {isLevel3Complete && onStayAtLevel && (
-            <Button
-              variant="ghost"
-              onClick={onClose}
-              className="w-full text-muted-foreground"
-            >
-              I'm done for now
-            </Button>
+              {isLevel3Complete && onStayAtLevel && (
+                <Button
+                  variant="ghost"
+                  onClick={onClose}
+                  className="w-full text-muted-foreground"
+                >
+                  I'm done for now
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>

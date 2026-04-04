@@ -158,6 +158,10 @@ export function useProblemNavigation({
   const [problemLoading, setProblemLoading] = useState(true);
   const [completedProblemIds, setCompletedProblemIds] = useState<string[]>([]);
   const [levelSolved, setLevelSolved] = useState<Record<Level, number>>({ 1: 0, 2: 0, 3: 0 });
+  const levelSolvedRef = useRef(levelSolved);
+  useLayoutEffect(() => {
+    levelSolvedRef.current = levelSolved;
+  });
 
   const levelCacheRef = useRef<Partial<Record<Level, LevelCacheEntry>>>({});
   const perProblemCacheRef = useRef<Record<string, PerProblemState>>({});
@@ -465,6 +469,7 @@ export function useProblemNavigation({
         completedProblemIds?: string[];
         masteryScore?: number;
         hasCompletedLevel2?: boolean;
+        levelSolved?: Partial<Record<Level, number>>;
       } | null;
       const lvl = parsed?.currentLevel;
       const cache = parsed?.levelCache;
@@ -478,6 +483,13 @@ export function useProblemNavigation({
           if (parsed.perProblemCache) perProblemCacheRef.current = parsed.perProblemCache;
           setCompletedProblemIds(parsed.completedProblemIds ?? []);
           setCurrentLevel(lvl as Level);
+          if (parsed.levelSolved) {
+            setLevelSolved({
+              1: parsed.levelSolved[1] ?? 0,
+              2: parsed.levelSolved[2] ?? 0,
+              3: parsed.levelSolved[3] ?? 0,
+            });
+          }
         };
 
         // Shared: compute and apply Level-1 client-side pagination from a cache entry.
@@ -585,6 +597,7 @@ export function useProblemNavigation({
             completedProblemIds: cpi ?? [],
             masteryScore: masteryScoreRef.current,
             hasCompletedLevel2: hasCompletedLevel2Ref.current,
+            levelSolved: levelSolvedRef.current,
           },
         );
       } catch {
@@ -703,6 +716,7 @@ export function useProblemNavigation({
         completedProblemIds: stateSnapshot.current.completedProblemIds ?? [],
         masteryScore: masteryScoreRef.current,
         hasCompletedLevel2: hasCompletedLevel2Ref.current,
+        levelSolved: levelSolvedRef.current,
       });
     } catch {
       /* quota / private mode */

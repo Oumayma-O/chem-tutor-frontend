@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef } from "react";
 import { apiGetMastery, apiSaveStep, apiUnlockLevel3, apiSetTopicStatus } from "@/lib/api";
 import type { SolutionStep, StudentAnswer } from "@/types/chemistry";
-import { buildStepLog, isStepAnswerAttempted, scoresFromMasterySnapshot } from "@/lib/masteryTransforms";
+import {
+  buildStepLog,
+  isStepAnswerAttempted,
+  scoresFromMasterySnapshot,
+  type MasteryApiSnapshot,
+} from "@/lib/masteryTransforms";
 
 interface Params {
   userId?: string;
@@ -19,6 +24,8 @@ interface Params {
     React.SetStateAction<{ conceptual: number; procedural: number; computational: number; representation: number } | null>
   >;
   setMasteryScore: React.Dispatch<React.SetStateAction<number>>;
+  /** Fired when mastery snapshot includes optional backend `level_2_completions`. */
+  onMasteryLevel2Completions?: (count: number) => void;
 }
 
 export function useTutorMasterySync({
@@ -35,17 +42,20 @@ export function useTutorMasterySync({
   setHasCompletedLevel2,
   setBackendCategoryScores,
   setMasteryScore,
+  onMasteryLevel2Completions,
 }: Params) {
   const lastSavedStepLogKeyRef = useRef<string>("");
 
   const applyMasterySnapshot = useCallback(
     (state: MasteryApiSnapshot) => {
-      const { backendCategoryScores, masteryPercent, level3Unlocked } = scoresFromMasterySnapshot(state);
+      const { backendCategoryScores, masteryPercent, level3Unlocked, level2Completions } =
+        scoresFromMasterySnapshot(state);
       setHasCompletedLevel2((prev) => prev || level3Unlocked);
       setBackendCategoryScores(backendCategoryScores);
       setMasteryScore(masteryPercent);
+      if (level2Completions != null) onMasteryLevel2Completions?.(level2Completions);
     },
-    [setHasCompletedLevel2, setBackendCategoryScores, setMasteryScore],
+    [setHasCompletedLevel2, setBackendCategoryScores, setMasteryScore, onMasteryLevel2Completions],
   );
 
   useEffect(() => {

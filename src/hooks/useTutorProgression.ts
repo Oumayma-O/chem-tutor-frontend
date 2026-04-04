@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { apiCompleteAttempt, apiGetMastery, apiSetTopicStatus } from "@/lib/api";
 import type { ProgressionResult, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { buildStepLog, scoresFromMasterySnapshot } from "@/lib/masteryTransforms";
+import { isLevel2To3Advance } from "@/lib/progressionUtils";
 
 interface Params {
   userId?: string;
@@ -18,6 +19,7 @@ interface Params {
     React.SetStateAction<{ conceptual: number; procedural: number; computational: number; representation: number } | null>
   >;
   setMasteryScore: React.Dispatch<React.SetStateAction<number>>;
+  onMasteryLevel2Completions?: (count: number) => void;
   persistLevel3Unlock: () => Promise<void>;
   checkProgression: () => ProgressionResult;
   completeProblemAttempt: (problemId: string, hintsUsed: number, level: number, firstAttemptCorrect: boolean) => void;
@@ -54,6 +56,7 @@ export function useTutorProgression({
   setHasCompletedLevel2,
   setBackendCategoryScores,
   setMasteryScore,
+  onMasteryLevel2Completions,
   persistLevel3Unlock,
   checkProgression,
   completeProblemAttempt,
@@ -79,7 +82,7 @@ export function useTutorProgression({
     setProgressionResult(result);
     setShowProgressionModal(true);
 
-    if (result.should_advance && result.next_level === 3 && nav.currentLevel === 2) {
+    if (isLevel2To3Advance(result, nav.currentLevel)) {
       setHasCompletedLevel2(true);
     }
 
@@ -115,8 +118,10 @@ export function useTutorProgression({
         .then((decision) => {
           if (decision.mastery) {
             if (decision.mastery.level3_unlocked) setHasCompletedLevel2(true);
-            setBackendCategoryScores(normalizeCategoryScores(decision.mastery.category_scores));
-            setMasteryScore(overallMasteryPercent(decision.mastery.mastery_score, decision.mastery.category_scores));
+            const m = scoresFromMasterySnapshot(decision.mastery);
+            setBackendCategoryScores(m.backendCategoryScores);
+            setMasteryScore(m.masteryPercent);
+            if (m.level2Completions != null) onMasteryLevel2Completions?.(m.level2Completions);
           }
           if (decision.recommended_next_difficulty) {
             setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
@@ -142,6 +147,7 @@ export function useTutorProgression({
     setMasteryScore,
     setRecommendedDifficulty,
     setCurrentAttemptId,
+    onMasteryLevel2Completions,
   ]);
 
   const handleContinueAfterProgression = useCallback(async () => {
@@ -153,13 +159,13 @@ export function useTutorProgression({
 
     const nextExcludeIds = [...nav.completedProblemIds, nav.currentProblem.id];
     prepareNextProblemTransition(nextExcludeIds);
-    const advancingToLevel3 = progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2;
+    const advancingToLevel3 = isLevel2To3Advance(progressionResult, nav.currentLevel);
     if (!advancingToLevel3) delete nav.levelCacheRef.current[nav.currentLevel as 1 | 2 | 3];
 
     const backendDiff = recommendedDifficulty;
     setRecommendedDifficulty(null);
 
-    if (progressionResult.should_advance && progressionResult.next_level === 3 && nav.currentLevel === 2) {
+    if (isLevel2To3Advance(progressionResult, nav.currentLevel)) {
       setHasCompletedLevel2(true);
       persistLevel3Unlock();
       nav.setCurrentLevel(3);
@@ -171,6 +177,7 @@ export function useTutorProgression({
             const m = scoresFromMasterySnapshot(state);
             setBackendCategoryScores(m.backendCategoryScores);
             setMasteryScore(m.masteryPercent);
+            if (m.level2Completions != null) onMasteryLevel2Completions?.(m.level2Completions);
           })
           .catch(() => {});
       }
@@ -201,6 +208,7 @@ export function useTutorProgression({
     lessonIndex,
     setBackendCategoryScores,
     setMasteryScore,
+    onMasteryLevel2Completions,
     onTopicComplete,
   ]);
 
