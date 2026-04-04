@@ -12,8 +12,8 @@ interface ThinkingTrackerProps {
 
 const CATEGORY_CONFIG: Record<ThinkingCategory, { icon: typeof Brain; label: string; color: string }> = {
   conceptual: { icon: Brain, label: "Conceptual", color: "text-purple-500 bg-purple-500/10 border-purple-500/30" },
-  procedural: { icon: Calculator, label: "Procedural", color: "text-blue-500 bg-blue-500/10 border-blue-500/30" },
-  units: { icon: Ruler, label: "Units", color: "text-amber-500 bg-amber-500/10 border-amber-500/30" },
+  procedural: { icon: Ruler, label: "Procedural", color: "text-blue-500 bg-blue-500/10 border-blue-500/30" },
+  computational: { icon: Calculator, label: "Computational", color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/30" },
 };
 
 const SEVERITY_STYLES = {

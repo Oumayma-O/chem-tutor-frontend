@@ -2,7 +2,11 @@ import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiCompleteAttempt, apiGetMastery, apiSetTopicStatus } from "@/lib/api";
 import type { ProgressionResult, SolutionStep, StudentAnswer } from "@/types/chemistry";
-import { buildStepLog, scoresFromMasterySnapshot } from "@/lib/masteryTransforms";
+import {
+  applyMasterySnapshotToLessonUi,
+  interactiveStepsFromProblem,
+  stepLogForAttemptComplete,
+} from "@/lib/masteryTransforms";
 import { isLevel2To3Advance } from "@/lib/progressionUtils";
 
 interface Params {
@@ -16,7 +20,7 @@ interface Params {
   onTopicComplete?: () => void;
   setHasCompletedLevel2: React.Dispatch<React.SetStateAction<boolean>>;
   setBackendCategoryScores: React.Dispatch<
-    React.SetStateAction<{ conceptual: number; procedural: number; computational: number; representation: number } | null>
+    React.SetStateAction<{ conceptual: number; procedural: number; computational: number } | null>
   >;
   setMasteryScore: React.Dispatch<React.SetStateAction<number>>;
   onMasteryLevel2Completions?: (count: number) => void;
@@ -27,7 +31,8 @@ interface Params {
   steps: {
     hints: Record<string, string>;
     answers: Record<string, StudentAnswer>;
-    interactiveSteps: SolutionStep[];
+    /** Full ordered steps (including given); interactive steps are derived in-hook. */
+    problemSteps: SolutionStep[];
     structuredStepComplete: Record<string, boolean>;
   };
   nav: {
@@ -96,14 +101,15 @@ export function useTutorProgression({
       allFirstAttempt,
     );
 
-    if (userId && currentAttemptId && steps.interactiveSteps.length > 0) {
-      const step_log = buildStepLog(
-        steps.interactiveSteps,
+    const interactiveForAttempt = interactiveStepsFromProblem(steps.problemSteps);
+    if (userId && currentAttemptId && interactiveForAttempt.length > 0) {
+      const step_log = stepLogForAttemptComplete(
+        steps.problemSteps,
         steps.answers,
         steps.structuredStepComplete,
       );
       const correctCount = step_log.filter((e) => e.is_correct).length;
-      const score = correctCount / step_log.length;
+      const score = step_log.length > 0 ? correctCount / step_log.length : 0;
       const completePromise = apiCompleteAttempt({
         attempt_id: currentAttemptId,
         user_id: userId,
@@ -117,11 +123,12 @@ export function useTutorProgression({
       completePromise
         .then((decision) => {
           if (decision.mastery) {
-            if (decision.mastery.level3_unlocked) setHasCompletedLevel2(true);
-            const m = scoresFromMasterySnapshot(decision.mastery);
-            setBackendCategoryScores(m.backendCategoryScores);
-            setMasteryScore(m.masteryPercent);
-            if (m.level2Completions != null) onMasteryLevel2Completions?.(m.level2Completions);
+            applyMasterySnapshotToLessonUi(decision.mastery, {
+              setBackendCategoryScores,
+              setMasteryScore,
+              setHasCompletedLevel2,
+              onMasteryLevel2Completions,
+            });
           }
           if (decision.recommended_next_difficulty) {
             setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
@@ -174,10 +181,11 @@ export function useTutorProgression({
       if (userId) {
         apiGetMastery(userId, unitId, lessonIndex)
           .then((state) => {
-            const m = scoresFromMasterySnapshot(state);
-            setBackendCategoryScores(m.backendCategoryScores);
-            setMasteryScore(m.masteryPercent);
-            if (m.level2Completions != null) onMasteryLevel2Completions?.(m.level2Completions);
+            applyMasterySnapshotToLessonUi(state, {
+              setBackendCategoryScores,
+              setMasteryScore,
+              onMasteryLevel2Completions,
+            });
           })
           .catch(() => {});
       }

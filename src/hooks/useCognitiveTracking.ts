@@ -9,7 +9,7 @@ import {
 } from "@/types/cognitive";
 import { supabase } from "@/integrations/supabase/client";
 import { apiClassifyErrors, useBackendApi } from "@/lib/api";
-import { getCategoryFromLabel } from "@/lib/masteryTransforms";
+import { STEP_LABEL_TO_MASTERY_CATEGORY } from "@/lib/stepLabelToMasteryCategory";
 
 const INITIAL_SKILLS: SkillMastery[] = [
   { skillId: "reaction_concepts", skillName: "Reaction Concepts", category: "reaction_concepts", score: 0, status: "developing", lastUpdated: Date.now(), problemCount: 0 },
@@ -57,7 +57,7 @@ export function useCognitiveTracking() {
     const step: ThinkingStep = {
       id: stepId,
       skill_used: skillUsed,
-      category: getCategoryFromLabel(stepLabel ?? ""),
+      category: STEP_LABEL_TO_MASTERY_CATEGORY[stepLabel ?? ""] ?? "procedural",
       label: stepLabel || skillUsed || stepId,
       studentInput,
       expectedValue,

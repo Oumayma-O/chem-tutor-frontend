@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { formatMathContent } from "@/lib/mathDisplay";
 import {
@@ -74,6 +74,15 @@ export function ComparisonStep({
   const [isIncorrect, setIsIncorrect] = useState(
     !isComplete && (initIncorrect ?? false),
   );
+  const [hintPanelOpen, setHintPanelOpen] = useState(false);
+
+  useEffect(() => {
+    if (!showHint && !hintLoading) setHintPanelOpen(false);
+  }, [showHint, hintLoading]);
+
+  useEffect(() => {
+    if (isComplete) setHintPanelOpen(false);
+  }, [isComplete]);
 
   const persist = (sel: Operator | undefined, attempted: boolean, incorrect: boolean) =>
     saveDraft<DraftPayload>({ selected: sel, hasAttempted: attempted, isIncorrect: incorrect }, onDraftChange);
@@ -89,6 +98,7 @@ export function ComparisonStep({
 
   const handleCheck = () => {
     if (!selected || isComplete) return;
+    setHintPanelOpen(false);
     onCheckStart?.();
     const correct = selected === correctAnswer;
     setIsIncorrect(!correct);
@@ -161,6 +171,8 @@ export function ComparisonStep({
             hintText={hintText}
             hintLoading={hintLoading}
             onRequestHint={onRequestHint}
+            hintPanelOpen={hintPanelOpen}
+            onHintPanelOpenChange={setHintPanelOpen}
           />
         )}
       </div>

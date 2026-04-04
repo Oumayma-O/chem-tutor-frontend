@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowRight, RotateCcw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getMasteryColor } from "@/lib/masteryTransforms";
 import { BeakerMascot } from "@/components/tutor/widgets";
 import { LEVEL_2_MAX } from "./progressionConstants";
 import { isLevel2To3Advance } from "@/lib/progressionUtils";
@@ -51,6 +52,8 @@ export function ProgressionModal({
   const showL2PracticePrimary =
     isAdvancingToLevel3 && !!onStayAtLevel && !hideL2PracticeCta;
 
+  const masteryColors = getMasteryColor(masteryScore);
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
@@ -79,18 +82,13 @@ export function ProgressionModal({
               <span className="text-sm font-medium text-muted-foreground">
                 Current Mastery
               </span>
-              <span className="text-lg font-bold text-foreground">
+              <span className={cn("text-lg font-bold tabular-nums transition-colors duration-500", masteryColors.text)}>
                 {masteryScore}%
               </span>
             </div>
             <div className="w-full h-2 bg-background rounded-full overflow-hidden">
               <div
-                className={cn(
-                  "h-full rounded-full transition-all",
-                  masteryScore >= 80 && "bg-mastery-high",
-                  masteryScore >= 50 && masteryScore < 80 && "bg-mastery-medium",
-                  masteryScore < 50 && "bg-mastery-low",
-                )}
+                className={cn("h-full rounded-full transition-all duration-500 ease-out", masteryColors.bg)}
                 style={{ width: `${masteryScore}%` }}
               />
             </div>

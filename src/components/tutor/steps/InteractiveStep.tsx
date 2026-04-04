@@ -48,16 +48,29 @@ export function InteractiveStep({
   const [showToolbar, setShowToolbar] = useState(false);
   // Once the student gets a wrong answer, keep showing the hint area even while
   // they revise — typing resets is_correct to undefined which would otherwise
-  // unmount HintToggle and clear its visible state.
+  // unmount HintToggle; hint panel open/closed is owned below.
   const [hasBeenIncorrect, setHasBeenIncorrect] = useState(false);
+  const [hintPanelOpen, setHintPanelOpen] = useState(false);
 
   const mathRef = useRef<MathFieldInputHandle>(null);
 
   useEffect(() => setDismissed(false), [answer?.answer]);
   useEffect(() => {
     if (isIncorrect) setHasBeenIncorrect(true);
-    if (isCorrect) { setShowToolbar(false); setHasBeenIncorrect(false); }
+    if (isCorrect) {
+      setShowToolbar(false);
+      setHasBeenIncorrect(false);
+      setHintPanelOpen(false);
+    }
   }, [isIncorrect, isCorrect]);
+
+  useEffect(() => {
+    if (!showHint && !hintLoading) setHintPanelOpen(false);
+  }, [showHint, hintLoading]);
+
+  useEffect(() => {
+    setHintPanelOpen(false);
+  }, [answer?.attempts]);
 
   const insertAtCursor = useCallback((type: "cmd" | "write", value: string) => {
     if (type === "cmd") mathRef.current?.cmd(value);
@@ -180,6 +193,8 @@ export function InteractiveStep({
             hintText={hintText}
             hintLoading={hintLoading}
             onRequestHint={() => onRequestHint(step.id)}
+            hintPanelOpen={hintPanelOpen}
+            onHintPanelOpenChange={setHintPanelOpen}
           />
         )}
       </div>

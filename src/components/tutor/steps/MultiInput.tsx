@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -140,8 +140,17 @@ export function MultiInput({
   const [focusedVar,   setFocusedVar]   = useState<string | null>(null);
   const [showToolbar,  setShowToolbar]  = useState(false);
   const [openUnit,     setOpenUnit]     = useState<string | null>(null);
+  const [hintPanelOpen, setHintPanelOpen] = useState(false);
 
   const mathRefs = useRef<Map<string, MathFieldInputHandle>>(new Map());
+
+  useEffect(() => {
+    if (!showHint && !hintLoading) setHintPanelOpen(false);
+  }, [showHint, hintLoading]);
+
+  useEffect(() => {
+    if (isComplete) setHintPanelOpen(false);
+  }, [isComplete]);
 
   const persist = useCallback(
     (fields: FieldValues, attempted: boolean, errors: Record<string, boolean>) =>
@@ -177,6 +186,7 @@ export function MultiInput({
 
   const handleCheck = async () => {
     if (isChecking) return;
+    setHintPanelOpen(false);
     onCheckStart?.();
     setIsChecking(true);
     try {
@@ -378,6 +388,8 @@ export function MultiInput({
                 hintText={hintText}
                 hintLoading={hintLoading}
                 onRequestHint={onRequestHint}
+                hintPanelOpen={hintPanelOpen}
+                onHintPanelOpenChange={setHintPanelOpen}
               />
             </div>
           )}

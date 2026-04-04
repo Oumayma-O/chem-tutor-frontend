@@ -92,7 +92,6 @@ export function ChemistryTutor({
     conceptual: number;
     procedural: number;
     computational: number;
-    representation: number;
   } | null>(null);
   const [hasCompletedLevel2, setHasCompletedLevel2] = useState(false);
   const [currentAttemptId, setCurrentAttemptId] = useState<string | null>(null);
@@ -143,9 +142,6 @@ export function ChemistryTutor({
   const {
     thinkingSteps,
     classifiedErrors,
-    skillMap,
-    recentAttempts,
-    learningInsight,
     isAnalyzing,
     startStepTimer,
     recordThinkingStep,
@@ -261,7 +257,7 @@ export function ChemistryTutor({
     currentAttemptId,
     currentLevel: nav.currentLevel,
     currentProblemId: nav.currentProblem?.id,
-    interactiveSteps: steps.interactiveSteps,
+    problemSteps: displaySteps,
     answers: steps.answers,
     structuredStepComplete: steps.structuredStepComplete,
     setHasCompletedLevel2,
@@ -307,7 +303,7 @@ export function ChemistryTutor({
     steps: {
       hints: steps.hints,
       answers: steps.answers,
-      interactiveSteps: steps.interactiveSteps,
+      problemSteps: displaySteps,
       structuredStepComplete: steps.structuredStepComplete,
     },
     nav: {
@@ -514,6 +510,7 @@ export function ChemistryTutor({
                       hintLoading={steps.hintLoading}
                       checkingAnswer={steps.checkingAnswer}
                       clearStaleHintForStep={steps.clearStaleHintForStep}
+                      validateMultiInputStep={steps.validateMultiInputStep}
                       handleValidateEquation={steps.handleValidateEquation}
                       handleStructuredStepComplete={steps.handleStructuredStepComplete}
                       handleRequestHint={steps.handleRequestHint}
@@ -594,7 +591,6 @@ export function ChemistryTutor({
           <aside className="space-y-6">
             <MasteryBreakdown
               score={masteryScore}
-              skillMap={skillMap}
               errors={classifiedErrors}
               categoryScores={backendCategoryScores ?? undefined}
               level3Unlocked={hasCompletedLevel2}

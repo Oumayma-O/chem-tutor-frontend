@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { SkillMastery, ClassifiedError } from "@/types/cognitive";
-import { Brain, Calculator, FlaskConical, Layers, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight } from "lucide-react";
+import { ClassifiedError } from "@/types/cognitive";
+import { Brain, Calculator, FlaskConical, Layers, ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
+import { getMasteryColor } from "@/lib/masteryTransforms";
 import {
   Tooltip,
   TooltipContent,
@@ -16,25 +17,23 @@ import {
 
 interface MasteryBreakdownProps {
   score: number;
-  skillMap: SkillMastery[];
   errors: ClassifiedError[];
   categoryScores?: {
     conceptual: number;
     procedural: number;
     computational: number;
-    representation?: number;
   };
   level3Unlocked?: boolean;
 }
 
+type CategoryId = "conceptual" | "procedural" | "computational";
+
 interface BreakdownCategory {
-  id: string;
+  id: CategoryId;
   label: string;
   shortLabel: string;
-  description: string;
   tooltip: string;
-  icon: React.ReactNode;
-  skills: string[];
+  Icon: LucideIcon;
   errorExamples: string[];
 }
 
@@ -43,102 +42,69 @@ const BREAKDOWN_CATEGORIES: BreakdownCategory[] = [
     id: "conceptual",
     label: "Conceptual Understanding",
     shortLabel: "Conceptual",
-    description: "Formula selection, reaction concepts",
     tooltip: "Measures whether the student selects the correct formula and understands the underlying chemistry principles.",
-    icon: <Brain className="w-4 h-4" />,
-    skills: ["reaction_concepts", "rate_laws"],
+    Icon: Brain,
     errorExamples: ["Wrong formula selected", "Incorrect reaction order", "Wrong approach"],
   },
   {
     id: "procedural",
     label: "Problem Setup",
-    shortLabel: "Setup",
-    description: "Variable identification, substitution",
+    shortLabel: "Procedural",
     tooltip: "Measures whether the student correctly identifies knowns vs. unknowns and sets up the problem properly.",
-    icon: <Layers className="w-4 h-4" />,
-    skills: ["variable_isolation"],
+    Icon: Layers,
     errorExamples: ["Misidentified knowns", "Wrong variable isolated", "Incorrect substitution"],
   },
   {
     id: "computational",
     label: "Calculation & Units",
-    shortLabel: "Calculation",
-    description: "Arithmetic, unit handling",
+    shortLabel: "Computational",
     tooltip: "Measures arithmetic accuracy, significant figures, and correct unit conversions.",
-    icon: <Calculator className="w-4 h-4" />,
-    skills: ["unit_conversion"],
+    Icon: Calculator,
     errorExamples: ["Arithmetic error", "Missing units", "Wrong conversion"],
   },
 ];
 
-function getStatus(score: number) {
-  if (score >= 75) return { label: "Strong", bgColor: "bg-success", textColor: "text-success" };
-  if (score >= 20) return { label: "Developing", bgColor: "bg-warning", textColor: "text-warning" };
-  return { label: "Needs Support", bgColor: "bg-destructive", textColor: "text-destructive" };
-}
+const colorTransition = "transition-colors duration-500";
 
-function getStatusEmoji(score: number): string {
-  if (score >= 75) return "🟢";
-  if (score >= 20) return "🟡";
-  return "🔴";
-}
-
-function getTrendIcon(score: number, problemCount: number) {
-  if (problemCount < 2) return <Minus className="w-3 h-3 text-muted-foreground" />;
-  if (score >= 70) return <TrendingUp className="w-3 h-3 text-success" />;
-  if (score <= 25) return <TrendingDown className="w-3 h-3 text-destructive" />;
-  return <Minus className="w-3 h-3 text-muted-foreground" />;
-}
-
-export function MasteryBreakdown({ score, skillMap, errors, categoryScores, level3Unlocked }: MasteryBreakdownProps) {
+export function MasteryBreakdown({ score, errors, categoryScores, level3Unlocked }: MasteryBreakdownProps) {
   const [isOpen, setIsOpen] = useState(false);
+
   const getCategoryScore = (category: BreakdownCategory): number => {
-    if (categoryScores) {
-      const raw = categoryScores[category.id as keyof typeof categoryScores];
-      if (typeof raw === "number") return Math.round(raw * 100);
-    }
-    const relevantSkills = skillMap.filter((s) => category.skills.includes(s.skillId));
-    if (relevantSkills.length === 0) return 0;
-    const total = relevantSkills.reduce((acc, s) => acc + s.score, 0);
-    return Math.round(total / relevantSkills.length);
+    if (!categoryScores) return 0;
+    const raw = categoryScores[category.id];
+    return typeof raw === "number" ? Math.round(raw * 100) : 0;
   };
-  const getCategoryProblemCount = (category: BreakdownCategory): number => {
-    const relevantSkills = skillMap.filter((s) => category.skills.includes(s.skillId));
-    return relevantSkills.reduce((acc, s) => acc + s.problemCount, 0);
-  };
-  const getCategoryNotes = (categoryId: string): string[] => {
+
+  const getCategoryNotes = (categoryId: string, categoryScore: number): string[] => {
     const notes: string[] = [];
     const categoryErrors = errors.filter((e) => e.category === categoryId);
-    categoryErrors.forEach((err) => { if (err.description) notes.push(err.description); });
-    if (notes.length === 0) {
-      if (categoryId === "conceptual") {
-        const conceptSkills = skillMap.filter((s) => ["reaction_concepts", "rate_laws"].includes(s.skillId));
-        if (conceptSkills.some((s) => s.status === "at_risk")) notes.push("May need review of formula selection and reaction concepts");
-        else if (conceptSkills.some((s) => s.status === "developing")) notes.push("Building understanding — continue practice");
-      } else if (categoryId === "procedural") {
-        const procSkills = skillMap.filter((s) => s.skillId === "variable_isolation");
-        if (procSkills.some((s) => s.status === "at_risk")) notes.push("Often misidentifies knowns vs. unknowns");
-        else if (procSkills.some((s) => s.status === "developing")) notes.push("Variable identification improving with practice");
-      } else if (categoryId === "computational") {
-        const compSkills = skillMap.filter((s) => s.skillId === "unit_conversion");
-        if (compSkills.some((s) => s.status === "at_risk")) notes.push("Check for arithmetic errors or wrong conversions");
-        else if (compSkills.some((s) => s.status === "developing")) notes.push("Calculation accuracy building");
-      }
+    categoryErrors.forEach((err) => {
+      if (err.description) notes.push(err.description);
+    });
+    if (notes.length === 0 && categoryScore < 60) {
+      if (categoryId === "conceptual") notes.push("Building understanding — continue practice");
+      else if (categoryId === "procedural") notes.push("Variable identification improving with practice");
+      else if (categoryId === "computational") notes.push("Calculation accuracy building");
     }
     return notes;
   };
+
   const level3BarPercent = Math.min(score, 100);
+  const headlineColor = getMasteryColor(score);
+
   return (
     <div className="bg-card border border-border rounded-lg p-4">
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger className="w-full">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-              <FlaskConical className="w-4 h-4 text-primary" />
+              <FlaskConical className={cn("w-4 h-4", headlineColor.text, colorTransition)} />
               Mastery Score
             </h4>
             <div className="flex items-center gap-2">
-              <span className={cn("text-2xl font-bold", score >= 75 ? "text-success" : score >= 20 ? "text-warning" : "text-destructive")}>{score}%</span>
+              <span className={cn("text-2xl font-bold tabular-nums", headlineColor.text, colorTransition)}>
+                {score}%
+              </span>
               {isOpen ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
             </div>
           </div>
@@ -148,10 +114,15 @@ export function MasteryBreakdown({ score, skillMap, errors, categoryScores, leve
               <span>{Math.round(score)}/100%</span>
             </div>
             <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-              <div className={cn("h-full rounded-full transition-all duration-500 ease-out", level3Unlocked ? "bg-success" : "bg-primary")} style={{ width: `${level3BarPercent}%` }} />
+              <div
+                className={cn("h-full rounded-full ease-out transition-all duration-500", headlineColor.bg, colorTransition)}
+                style={{ width: `${level3BarPercent}%` }}
+              />
             </div>
             {level3Unlocked ? (
-              <p className="text-[10px] text-success mt-1 font-medium text-left">✓ Level 3 unlocked!</p>
+              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium text-left transition-colors duration-500">
+                ✓ Level 3 unlocked!
+              </p>
             ) : (
               <p className="text-[10px] text-muted-foreground mt-1 font-medium text-left">Complete all steps correctly in Level 2 to unlock Level 3.</p>
             )}
@@ -163,31 +134,35 @@ export function MasteryBreakdown({ score, skillMap, errors, categoryScores, leve
               <div className="space-y-2.5">
                 {BREAKDOWN_CATEGORIES.map((category) => {
                   const categoryScore = getCategoryScore(category);
-                  const status = getStatus(categoryScore);
-                  const notes = getCategoryNotes(category.id);
-                  const problemCount = getCategoryProblemCount(category);
+                  const colors = getMasteryColor(categoryScore);
+                  const notes = getCategoryNotes(category.id, categoryScore);
+                  const { Icon } = category;
                   return (
                     <Tooltip key={category.id}>
                       <TooltipTrigger asChild>
                         <div className="p-3 bg-secondary/40 rounded-lg cursor-help hover:bg-secondary/60 transition-colors">
                           <div className="flex items-center justify-between mb-1.5">
                             <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">{category.icon}</span>
+                              <Icon className={cn("w-4 h-4 shrink-0", colors.text, colorTransition)} />
                               <span className="text-xs font-medium text-foreground">{category.shortLabel}</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              {getTrendIcon(categoryScore, problemCount)}
-                              <span className="text-sm">{getStatusEmoji(categoryScore)}</span>
-                              <span className={cn("text-xs font-bold tabular-nums", status.textColor)}>{categoryScore}%</span>
+                              <span
+                                className={cn("h-2 w-2 shrink-0 rounded-full", colors.bg, colorTransition)}
+                                aria-hidden
+                              />
+                              <span className={cn("text-xs font-bold tabular-nums", colors.text, colorTransition)}>
+                                {categoryScore}%
+                              </span>
                             </div>
                           </div>
                           <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                            <div className={cn("h-full rounded-full transition-all duration-500", status.bgColor)} style={{ width: `${categoryScore}%` }} />
+                            <div
+                              className={cn("h-full rounded-full ease-out transition-all duration-500", colors.bg, colorTransition)}
+                              style={{ width: `${categoryScore}%` }}
+                            />
                           </div>
-                          {problemCount === 0 && category.id === "conceptual" && (
-                            <p className="text-[10px] text-primary/70 mt-1.5 italic leading-tight">ℹ️ Advance to Level 3 to assess this skill</p>
-                          )}
-                          {problemCount > 0 && notes.length > 0 && (
+                          {notes.length > 0 && (
                             <p className="text-[10px] text-muted-foreground mt-1.5 italic leading-tight">{notes[0]}</p>
                           )}
                         </div>
@@ -198,7 +173,9 @@ export function MasteryBreakdown({ score, skillMap, errors, categoryScores, leve
                         <div className="border-t border-border pt-2">
                           <p className="text-[10px] font-medium mb-1">Common error indicators:</p>
                           <ul className="text-[10px] text-muted-foreground space-y-0.5">
-                            {category.errorExamples.map((ex, i) => (<li key={i}>• {ex}</li>))}
+                            {category.errorExamples.map((ex, i) => (
+                              <li key={i}>• {ex}</li>
+                            ))}
                           </ul>
                         </div>
                       </TooltipContent>
@@ -214,4 +191,3 @@ export function MasteryBreakdown({ score, skillMap, errors, categoryScores, leve
     </div>
   );
 }
-

@@ -7,6 +7,8 @@ interface StepErrorFeedbackProps {
   hintText?: string;
   hintLoading?: boolean;
   onRequestHint: () => void;
+  hintPanelOpen: boolean;
+  onHintPanelOpenChange: (open: boolean) => void;
 }
 
 export function StepErrorFeedback({
@@ -15,6 +17,8 @@ export function StepErrorFeedback({
   hintText,
   hintLoading,
   onRequestHint,
+  hintPanelOpen,
+  onHintPanelOpenChange,
 }: StepErrorFeedbackProps) {
   return (
     <div className="space-y-2 fade-in">
@@ -27,6 +31,8 @@ export function StepErrorFeedback({
         hintText={hintText}
         hintLoading={hintLoading}
         onRequestHint={onRequestHint}
+        hintPanelOpen={hintPanelOpen}
+        onHintPanelOpenChange={onHintPanelOpenChange}
       />
     </div>
   );

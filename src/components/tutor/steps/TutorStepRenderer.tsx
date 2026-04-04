@@ -1,7 +1,7 @@
 import { SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { shuffleEquationPartsSeeded } from "@/lib/equationDragDrop";
-import { apiValidateStep } from "@/lib/api";
 import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
+import { buildStepHintBundle } from "./stepHintProps";
 import { GivenStep } from "./GivenStep";
 import { EquationBuilder } from "./EquationBuilder";
 import { MultiInput } from "./MultiInput";
@@ -18,6 +18,11 @@ interface TutorStepRendererProps {
   hintLoading: Set<string>;
   checkingAnswer: Set<string>;
   clearStaleHintForStep: (stepId: string) => void;
+  validateMultiInputStep: (
+    step: SolutionStep,
+    studentAnswer: string,
+    correctAnswer: string,
+  ) => Promise<{ isCorrect: boolean; feedback?: string }>;
   handleValidateEquation: (orderedParts: string[], step: SolutionStep) => Promise<boolean>;
   handleStructuredStepComplete: (stepId: string, correct: boolean) => void;
   handleRequestHint: (stepId: string) => void;
@@ -34,16 +39,13 @@ export function TutorStepRenderer({
   hintLoading,
   checkingAnswer,
   clearStaleHintForStep,
+  validateMultiInputStep,
   handleValidateEquation,
   handleStructuredStepComplete,
   handleRequestHint,
   handleAnswerChange,
   handleCheckAnswer,
 }: TutorStepRendererProps) {
-  const callHandleCheckAnswer = (stepId: string) => {
-    return handleCheckAnswer(stepId);
-  };
-
   return (
     <>
       {displaySteps.map((step, index) => {
@@ -56,6 +58,8 @@ export function TutorStepRenderer({
         if (step.is_given) {
           return <GivenStep key={`${problemId}-${step.id}`} step={step} />;
         }
+
+        const hint = buildStepHintBundle(step.id, hints, hintLoading, handleRequestHint);
 
         if (step.type === "drag_drop" && step.equation_parts) {
           const display = step.equation_parts_display;
@@ -79,10 +83,7 @@ export function TutorStepRenderer({
               isComplete={!!structuredStepComplete[step.id]}
               isLocked={isLocked}
               onCheckStart={() => clearStaleHintForStep(step.id)}
-              showHint={!!hints[step.id]}
-              hintText={hints[step.id]}
-              hintLoading={hintLoading.has(step.id)}
-              onRequestHint={() => handleRequestHint(step.id)}
+              {...hint}
               draft={answers[step.id]?.answer}
               onDraftChange={(d) => handleAnswerChange(step.id, d)}
             />
@@ -98,25 +99,13 @@ export function TutorStepRenderer({
               instruction={step.instruction}
               variables={step.input_fields}
               onCheckStart={() => clearStaleHintForStep(step.id)}
-              onValidate={async (studentAnswer, correctAnswer) => {
-                const data = await apiValidateStep({
-                  student_answer: studentAnswer,
-                  correct_answer: correctAnswer,
-                  step_id: step.id,
-                  step_number: step.step_number,
-                  step_label: step.label,
-                  step_type: "multi_input",
-                  step_instruction: step.instruction,
-                });
-                return { isCorrect: data.is_correct, feedback: data.feedback ?? undefined };
-              }}
+              onValidate={(studentAnswer, correctAnswer) =>
+                validateMultiInputStep(step, studentAnswer, correctAnswer)
+              }
               onComplete={(correct) => handleStructuredStepComplete(step.id, correct)}
               isComplete={!!structuredStepComplete[step.id]}
               isLocked={isLocked}
-              showHint={!!hints[step.id]}
-              hintText={hints[step.id]}
-              hintLoading={hintLoading.has(step.id)}
-              onRequestHint={() => handleRequestHint(step.id)}
+              {...hint}
               draft={answers[step.id]?.answer}
               onDraftChange={(d) => handleAnswerChange(step.id, d)}
             />
@@ -141,10 +130,7 @@ export function TutorStepRenderer({
               isComplete={!!structuredStepComplete[step.id]}
               isLocked={isLocked}
               onCheckStart={() => clearStaleHintForStep(step.id)}
-              showHint={!!hints[step.id]}
-              hintText={hints[step.id]}
-              hintLoading={hintLoading.has(step.id)}
-              onRequestHint={() => handleRequestHint(step.id)}
+              {...hint}
               draft={answers[step.id]?.answer}
               onDraftChange={(d) => handleAnswerChange(step.id, d)}
             />
@@ -157,10 +143,12 @@ export function TutorStepRenderer({
             step={step}
             answer={answers[step.id]}
             onAnswerChange={handleAnswerChange}
-            onCheckAnswer={callHandleCheckAnswer}
-            showHint={!!hints[step.id]}
-            hintText={hints[step.id]}
-            hintLoading={hintLoading.has(step.id)}
+            onCheckAnswer={(id) => {
+              void handleCheckAnswer(id);
+            }}
+            showHint={hint.showHint}
+            hintText={hint.hintText}
+            hintLoading={hint.hintLoading}
             checkingAnswer={checkingAnswer.has(step.id)}
             isLocked={isLocked}
             onRequestHint={handleRequestHint}

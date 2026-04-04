@@ -1,30 +1,31 @@
-import { useState, useEffect } from "react";
 import { Lightbulb, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HintMarkdown } from "@/lib/mathDisplay";
 
-interface HintToggleProps {
+export interface HintToggleProps {
   showHint: boolean;
   hintText?: string;
   hintLoading?: boolean;
   onRequestHint: () => void;
+  /** Parent-owned: whether the hint markdown panel is expanded. */
+  hintPanelOpen: boolean;
+  onHintPanelOpenChange: (open: boolean) => void;
 }
 
-export function HintToggle({ showHint, hintText, hintLoading, onRequestHint }: HintToggleProps) {
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (!hintLoading && !showHint) {
-      setVisible(false);
-    }
-  }, [hintLoading, showHint]);
-
+export function HintToggle({
+  showHint,
+  hintText,
+  hintLoading,
+  onRequestHint,
+  hintPanelOpen,
+  onHintPanelOpenChange,
+}: HintToggleProps) {
   const handleToggle = () => {
-    if (!visible) {
+    if (!hintPanelOpen) {
       if (!showHint && !hintLoading) onRequestHint();
-      setVisible(true);
+      onHintPanelOpenChange(true);
     } else {
-      setVisible(false);
+      onHintPanelOpenChange(false);
     }
   };
 
@@ -34,7 +35,7 @@ export function HintToggle({ showHint, hintText, hintLoading, onRequestHint }: H
         variant="outline"
         size="sm"
         onClick={handleToggle}
-        disabled={hintLoading && !visible}
+        disabled={hintLoading && !hintPanelOpen}
         className="text-muted-foreground"
       >
         {hintLoading ? (
@@ -45,12 +46,12 @@ export function HintToggle({ showHint, hintText, hintLoading, onRequestHint }: H
         ) : (
           <>
             <Lightbulb className="w-4 h-4 mr-2" />
-            {visible ? "Hide Hint" : "Show Hint"}
+            {hintPanelOpen ? "Hide Hint" : "Show Hint"}
           </>
         )}
       </Button>
 
-      {visible && showHint && hintText && (
+      {hintPanelOpen && showHint && hintText && (
         <div className="bg-warning/20 border border-warning/40 rounded-md p-3 fade-in">
           <HintMarkdown>{hintText}</HintMarkdown>
         </div>
@@ -58,4 +59,3 @@ export function HintToggle({ showHint, hintText, hintLoading, onRequestHint }: H
     </div>
   );
 }
-

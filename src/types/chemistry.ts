@@ -26,6 +26,8 @@ export interface SolutionStep {
   key_rule?: string | null;
   /** Human-readable skill exercised in this step (e.g. "Write rate law expressions from experimental data"). */
   skill_used?: string | null;
+  /** Cognitive demand classification set by the LLM and guaranteed by the server guardrail. */
+  category?: "conceptual" | "procedural" | "computational" | null;
   correct_answer?: string;
   hint?: string;
   /** Canonical token order for drag_drop validation / hints (do not shuffle). */
@@ -54,6 +56,7 @@ export type ApiProblemStep = Omit<SolutionStep, "equation_parts_display" | "corr
   comparison_parts?: string[] | null;
   hint?: string | null;
   content?: string | null;
+  category?: "conceptual" | "procedural" | "computational" | null;
 };
 
 /** Cognitive blueprint from problem generation — determines badge and tooltip in UI. */

@@ -10,7 +10,7 @@ import {
   normalizeAsciiCalculatorEquation,
   fixCorruptedUnitMiddleDots,
   preprocessStatementMath,
-} from "./mathNormalize";
+} from "@/lib/mathNormalize";
 
 // ─── normalizeLatexEscapes ────────────────────────────────────────────────────
 

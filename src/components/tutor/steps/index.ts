@@ -8,8 +8,9 @@ export { StepHeader } from "./StepHeader";
 export { StepBadge } from "./StepBadge";
 export { CorrectFeedback } from "./CorrectFeedback";
 export { ExplanationToggle } from "./ExplanationToggle";
-export { HintToggle } from "./HintToggle";
+export { HintToggle, type HintToggleProps } from "./HintToggle";
 export { StepErrorFeedback } from "./StepErrorFeedback";
 export { TutorStepRenderer } from "./TutorStepRenderer";
+export { buildStepHintBundle, type StepHintBundle } from "./stepHintProps";
 export { MathToolbar } from "./MathToolbar";
 

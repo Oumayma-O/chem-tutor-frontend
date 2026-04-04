@@ -2,9 +2,9 @@ import { useCallback, useEffect, useRef } from "react";
 import { apiGetMastery, apiSaveStep, apiUnlockLevel3, apiSetTopicStatus } from "@/lib/api";
 import type { SolutionStep, StudentAnswer } from "@/types/chemistry";
 import {
-  buildStepLog,
-  isStepAnswerAttempted,
-  scoresFromMasterySnapshot,
+  applyMasterySnapshotToLessonUi,
+  interactiveStepsFromProblem,
+  stepLogForIncrementalSave,
   type MasteryApiSnapshot,
 } from "@/lib/masteryTransforms";
 
@@ -16,12 +16,13 @@ interface Params {
   currentAttemptId: string | null;
   currentLevel: number;
   currentProblemId?: string;
-  interactiveSteps: SolutionStep[];
+  /** Full ordered steps (including `is_given`); must align with `buildStepLog` indices. */
+  problemSteps: SolutionStep[];
   answers: Record<string, StudentAnswer>;
   structuredStepComplete: Record<string, boolean>;
   setHasCompletedLevel2: React.Dispatch<React.SetStateAction<boolean>>;
   setBackendCategoryScores: React.Dispatch<
-    React.SetStateAction<{ conceptual: number; procedural: number; computational: number; representation: number } | null>
+    React.SetStateAction<{ conceptual: number; procedural: number; computational: number } | null>
   >;
   setMasteryScore: React.Dispatch<React.SetStateAction<number>>;
   /** Fired when mastery snapshot includes optional backend `level_2_completions`. */
@@ -36,7 +37,7 @@ export function useTutorMasterySync({
   currentAttemptId,
   currentLevel,
   currentProblemId,
-  interactiveSteps,
+  problemSteps,
   answers,
   structuredStepComplete,
   setHasCompletedLevel2,
@@ -48,12 +49,12 @@ export function useTutorMasterySync({
 
   const applyMasterySnapshot = useCallback(
     (state: MasteryApiSnapshot) => {
-      const { backendCategoryScores, masteryPercent, level3Unlocked, level2Completions } =
-        scoresFromMasterySnapshot(state);
-      setHasCompletedLevel2((prev) => prev || level3Unlocked);
-      setBackendCategoryScores(backendCategoryScores);
-      setMasteryScore(masteryPercent);
-      if (level2Completions != null) onMasteryLevel2Completions?.(level2Completions);
+      applyMasterySnapshotToLessonUi(state, {
+        setBackendCategoryScores,
+        setMasteryScore,
+        setHasCompletedLevel2,
+        onMasteryLevel2Completions,
+      });
     },
     [setHasCompletedLevel2, setBackendCategoryScores, setMasteryScore, onMasteryLevel2Completions],
   );
@@ -74,16 +75,22 @@ export function useTutorMasterySync({
   }, [currentAttemptId, currentProblemId]);
 
   useEffect(() => {
-    if (!userId || !currentAttemptId || currentLevel === 1 || interactiveSteps.length === 0) return;
+    const interactive = interactiveStepsFromProblem(problemSteps);
+    if (!userId || !currentAttemptId || currentLevel === 1 || interactive.length === 0) return;
 
-    const attempted = buildStepLog(interactiveSteps, answers, structuredStepComplete).filter(
-      (_, idx) => isStepAnswerAttempted(answers, structuredStepComplete, interactiveSteps[idx].id),
-    );
+    const attempted = stepLogForIncrementalSave(problemSteps, answers, structuredStepComplete);
 
     if (attempted.length === 0) return;
     const payloadKey = JSON.stringify(attempted);
     if (payloadKey === lastSavedStepLogKeyRef.current) return;
     lastSavedStepLogKeyRef.current = payloadKey;
+
+    if (import.meta.env.DEV) {
+      console.debug("[useTutorMasterySync] apiSaveStep payload", {
+        currentProblemId,
+        step_log: attempted,
+      });
+    }
 
     apiSaveStep({ attempt_id: currentAttemptId, step_log: attempted })
       .then((res) => applyMasterySnapshot(res.mastery ?? {}))
@@ -92,7 +99,8 @@ export function useTutorMasterySync({
     userId,
     currentAttemptId,
     currentLevel,
-    interactiveSteps,
+    currentProblemId,
+    problemSteps,
     answers,
     structuredStepComplete,
     applyMasterySnapshot,
@@ -110,4 +118,3 @@ export function useTutorMasterySync({
 
   return { persistLevel3Unlock, applyMasterySnapshot };
 }
-

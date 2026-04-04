@@ -1,6 +1,6 @@
 // Cognitive modeling types for tracking student thinking process
 
-export type ThinkingCategory = "conceptual" | "procedural";
+export type ThinkingCategory = "conceptual" | "procedural" | "computational";
 
 export type ErrorCategory = 
   | "conceptual"      // Wrong formula, wrong chemical principle, misunderstanding reaction order

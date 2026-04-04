@@ -15,7 +15,6 @@ export interface MasteryState {
     conceptual: number;
     procedural: number;
     computational: number;
-    representation: number;
   };
   error_counts?: Record<string, number>;
   recent_scores?: number[];

@@ -1,18 +1,21 @@
 /**
- * useStepHandlers — owns answer/hint state and step interaction logic:
- * validation, hints, reset, structured steps, and error classification.
+ * useStepHandlers — owns answer state and step interaction logic:
+ * validation, structured steps, error classification. Hints live in useStepHints.
  */
 
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Level, Problem, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { ThinkingStep, ClassifiedError } from "@/types/cognitive";
-import { apiValidateStep, apiGetHint } from "@/lib/api";
+import { apiValidateStep } from "@/lib/api";
+import { compareStudentAnswerFallback } from "@/lib/stepValidationFallback";
+import { validateMultiInputStep as validateMultiInputStepApi } from "@/lib/validateMultiInputStep";
 import { isStepAnswerAttempted } from "@/lib/masteryTransforms";
 import { buildMathExpression, canonicalDragDropFromParts } from "@/lib/equationDragDrop";
 import { formatStructuredAnswerForThinkingTracker } from "@/lib/thinkingTrackerFormat";
 import { evaluateExpression, isExpression } from "@/lib/mathEval";
 import { toast } from "sonner";
 import { PerProblemState } from "@/hooks/useProblemNavigation";
+import { useStepHints } from "@/hooks/useStepHints";
 import { MutableRefObject } from "react";
 
 interface UseStepHandlersOptions {
@@ -60,25 +63,29 @@ export function useStepHandlers({
   onMarkInProgress,
 }: UseStepHandlersOptions) {
   const [answers, setAnswers] = useState<Record<string, StudentAnswer>>({});
-  const [hints, setHints] = useState<Record<string, string>>({});
-  const [hintLoading, setHintLoading] = useState<Set<string>>(new Set());
   const [checkingAnswer, setCheckingAnswer] = useState<Set<string>>(new Set());
   const [structuredStepComplete, setStructuredStepComplete] = useState<Record<string, boolean>>({});
 
+  const {
+    hints,
+    setHints,
+    hintLoading,
+    setHintLoading,
+    clearStaleHintForStep,
+    handleRequestHint,
+  } = useStepHints({ currentProblem, answers, interests, gradeLevel });
+
   const hasClassifiedRef = useRef(false);
 
-  // Derive interactive steps: all steps that require student input (is_given=false).
   const interactiveSteps = useMemo(() => {
     if (!currentProblem) return [];
     return currentProblem.steps.filter((s) => !s.is_given);
   }, [currentProblem]);
 
-  // Reset classification guard when problem changes
   useEffect(() => {
     hasClassifiedRef.current = false;
   }, [currentProblem?.id]);
 
-  // Classify errors once all interactive steps have been attempted
   useEffect(() => {
     if (hasClassifiedRef.current) return;
     const allAttempted = interactiveSteps.every((s) =>
@@ -89,8 +96,6 @@ export function useStepHandlers({
       classifyErrors(thinkingSteps, currentProblem?.description || "");
     }
   }, [answers, structuredStepComplete, interactiveSteps, thinkingSteps, classifyErrors, currentProblem?.description]);
-
-  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleAnswerChange = (stepId: string, answer: string) => {
     setAnswers((prev) => ({
@@ -106,21 +111,19 @@ export function useStepHandlers({
     }));
   };
 
-  /** Drop AI hint + loading for a step so the next Check uses a fresh hint request (student_input in API body). */
-  const clearStaleHintForStep = useCallback((stepId: string) => {
-    setHints((prev) => {
-      if (!(stepId in prev)) return prev;
-      const next = { ...prev };
-      delete next[stepId];
-      return next;
-    });
-    setHintLoading((prev) => {
-      if (!prev.has(stepId)) return prev;
-      const next = new Set(prev);
-      next.delete(stepId);
-      return next;
-    });
-  }, []);
+  const validateMultiInputStep = useCallback(
+    async (
+      step: SolutionStep,
+      studentAnswer: string,
+      correctAnswer: string,
+    ): Promise<{ isCorrect: boolean; feedback?: string }> => {
+      if (!currentProblem) {
+        return { isCorrect: false, feedback: undefined };
+      }
+      return validateMultiInputStepApi(currentProblem, step, studentAnswer, correctAnswer);
+    },
+    [currentProblem],
+  );
 
   const handleCheckAnswer = useCallback(
     async (stepId: string) => {
@@ -133,7 +136,6 @@ export function useStepHandlers({
       }
       if (checkingAnswer.has(stepId)) return;
 
-      // 1. Stale hint + feedback must clear before validation (new answer attempt).
       clearStaleHintForStep(stepId);
 
       const currentAnswer = answers[stepId];
@@ -169,7 +171,6 @@ export function useStepHandlers({
       let isCorrect = false;
       let apiFeedback: string | undefined;
       try {
-        // Send the step being validated (step_id, step_number, correct_answer) so backend uses this step's key
         const data = await apiValidateStep({
           student_answer: studentText,
           correct_answer: step.correct_answer,
@@ -183,20 +184,7 @@ export function useStepHandlers({
         isCorrect = data.is_correct;
         apiFeedback = data.feedback?.trim() || undefined;
       } catch {
-        const normalize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
-        const numStudent = parseFloat(normalize(studentText));
-        const numCorrect = parseFloat(normalize(step.correct_answer ?? ""));
-        if (!isNaN(numStudent) && !isNaN(numCorrect)) {
-          // Final "Answer" / "Final Answer" steps: strict 1% tolerance (sig figs matter).
-          // All intermediate steps: 5% tolerance (rounding variations are acceptable).
-          const isFinalStep = step.label.toLowerCase().includes("answer");
-          const tolerance = isFinalStep ? 0.01 : 0.05;
-          isCorrect = numCorrect === 0
-            ? Math.abs(numStudent) < 1e-9
-            : Math.abs(numStudent - numCorrect) / Math.abs(numCorrect) <= tolerance;
-        } else {
-          isCorrect = normalize(studentText) === normalize(step.correct_answer ?? "");
-        }
+        isCorrect = compareStudentAnswerFallback(studentText, step.correct_answer, step.label);
         apiFeedback = undefined;
       } finally {
         setCheckingAnswer((prev) => {
@@ -237,71 +225,15 @@ export function useStepHandlers({
       answers,
       checkingAnswer,
       hints,
+      classifiedErrors,
+      thinkingSteps,
+      currentLevel,
       onMarkInProgress,
       recordThinkingStep,
+      updateSkillFromAttempt,
       calculatorEnabled,
       clearStaleHintForStep,
-    ], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  const handleRequestHint = useCallback(
-    async (stepId: string) => {
-      if (!currentProblem) return;
-      if (hints[stepId] || hintLoading.has(stepId)) return;
-
-      const step = currentProblem.steps.find((s) => s.id === stepId);
-      if (!step) return;
-
-      setHintLoading((prev) => new Set(prev).add(stepId));
-
-      try {
-        const stepIndex = currentProblem.steps.findIndex((s) => s.id === stepId);
-        const priorStepsSummary =
-          stepIndex > 0
-            ? currentProblem.steps
-                .slice(0, stepIndex)
-                .map((s) => `Step ${s.step_number} (${s.label}): ${s.instruction}`)
-                .join(" · ")
-            : undefined;
-
-        // Request is defined by step_id + student_input (and related fields) in the body — no client cache key needed.
-        const data = await apiGetHint({
-          step_id: stepId,
-          step_label: step.label,
-          step_instruction: step.instruction,
-          step_explanation: step.explanation,
-          student_input: answers[stepId]?.answer || "",
-          correct_answer:
-            step.type === "drag_drop"
-              ? canonicalDragDropFromParts(step.equation_parts)
-              : step.correct_answer || "",
-          attempt_count: answers[stepId]?.attempts || 1,
-          interests: interests || [],
-          grade_level: gradeLevel,
-          problem_context: currentProblem.description,
-          validation_feedback: answers[stepId]?.validation_feedback ?? undefined,
-          key_rule: step.key_rule?.trim() || undefined,
-          step_number: step.step_number,
-          total_steps: currentProblem.steps.length,
-          step_type: step.type,
-          prior_steps_summary: priorStepsSummary,
-        });
-        if (data?.hint) {
-          setHints((prev) => ({ ...prev, [stepId]: data.hint }));
-        } else {
-          setHints((prev) => ({ ...prev, [stepId]: step.hint || "Review the formula and try again." }));
-        }
-      } catch {
-        setHints((prev) => ({ ...prev, [stepId]: step.hint || "Review the formula and try again." }));
-      } finally {
-        setHintLoading((prev) => {
-          const next = new Set(prev);
-          next.delete(stepId);
-          return next;
-        });
-      }
-    },
-    [currentProblem, answers, interests, gradeLevel, hints, hintLoading], // eslint-disable-line react-hooks/exhaustive-deps
+    ],
   );
 
   const handleReset = useCallback(() => {
@@ -313,7 +245,7 @@ export function useStepHandlers({
     setCheckingAnswer(new Set());
     resetTracking();
     toast.info("Problem reset. Try again!");
-  }, [currentProblem, resetTracking]); // perProblemCacheRef is a stable ref
+  }, [currentProblem, resetTracking, setHints, setHintLoading]);
 
   const handleStructuredStepComplete = useCallback(
     (stepId: string, isCorrect: boolean) => {
@@ -404,5 +336,6 @@ export function useStepHandlers({
     handleStructuredStepComplete,
     handleValidateEquation,
     clearStaleHintForStep,
+    validateMultiInputStep,
   };
 }

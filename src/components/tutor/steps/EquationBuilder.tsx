@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { RotateCcw, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -58,6 +58,15 @@ export function EquationBuilder({
   const [slots, setSlots] = useState<string[]>(initSlots ?? []);
   const [isIncorrect, setIsIncorrect] = useState(!isComplete && (initIncorrect ?? false));
   const [isValidating, setIsValidating] = useState(false);
+  const [hintPanelOpen, setHintPanelOpen] = useState(false);
+
+  useEffect(() => {
+    if (!showHint && !hintLoading) setHintPanelOpen(false);
+  }, [showHint, hintLoading]);
+
+  useEffect(() => {
+    if (isComplete) setHintPanelOpen(false);
+  }, [isComplete]);
 
   const persist = useCallback(
     (nextSlots: string[], attempted: boolean, incorrect: boolean) =>
@@ -203,6 +212,8 @@ export function EquationBuilder({
             hintText={hintText}
             hintLoading={hintLoading}
             onRequestHint={onRequestHint}
+            hintPanelOpen={hintPanelOpen}
+            onHintPanelOpenChange={setHintPanelOpen}
           />
         )}
       </div>
