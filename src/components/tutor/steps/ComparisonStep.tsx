@@ -31,6 +31,7 @@ interface ComparisonStepProps {
   onComplete: (isCorrect: boolean) => void;
   isComplete: boolean;
   isLocked?: boolean;
+  onCheckStart?: () => void;
   showHint: boolean;
   hintText?: string;
   hintLoading?: boolean;
@@ -51,6 +52,7 @@ export function ComparisonStep({
   onComplete,
   isComplete,
   isLocked,
+  onCheckStart,
   showHint,
   hintText,
   hintLoading,
@@ -87,6 +89,7 @@ export function ComparisonStep({
 
   const handleCheck = () => {
     if (!selected || isComplete) return;
+    onCheckStart?.();
     const correct = selected === correctAnswer;
     setIsIncorrect(!correct);
     persist(selected, true, !correct);

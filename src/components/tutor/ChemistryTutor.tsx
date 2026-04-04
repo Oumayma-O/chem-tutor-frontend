@@ -513,6 +513,7 @@ export function ChemistryTutor({
                       structuredStepComplete={steps.structuredStepComplete}
                       hintLoading={steps.hintLoading}
                       checkingAnswer={steps.checkingAnswer}
+                      clearStaleHintForStep={steps.clearStaleHintForStep}
                       handleValidateEquation={steps.handleValidateEquation}
                       handleStructuredStepComplete={steps.handleStructuredStepComplete}
                       handleRequestHint={steps.handleRequestHint}

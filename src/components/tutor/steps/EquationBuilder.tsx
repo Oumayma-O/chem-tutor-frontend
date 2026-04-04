@@ -23,6 +23,7 @@ interface EquationBuilderProps {
   availableParts: string[];
   onValidate: (orderedParts: string[]) => Promise<boolean>;
   onComplete: (isCorrect: boolean) => void;
+  onCheckStart?: () => void;
   isComplete: boolean;
   isLocked?: boolean;
   showHint: boolean;
@@ -40,6 +41,7 @@ export function EquationBuilder({
   availableParts,
   onValidate,
   onComplete,
+  onCheckStart,
   isComplete,
   isLocked,
   showHint,
@@ -118,7 +120,7 @@ export function EquationBuilder({
     } finally {
       setIsValidating(false);
     }
-  }, [slots, isValidating, isComplete, onValidate, onComplete, persist]);
+  }, [slots, isValidating, isComplete, onCheckStart, onValidate, onComplete, persist]);
 
   return (
     <StepCard isComplete={isComplete} isIncorrect={isIncorrect} isLocked={isLocked}>

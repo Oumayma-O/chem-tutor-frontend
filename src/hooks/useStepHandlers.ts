@@ -106,10 +106,25 @@ export function useStepHandlers({
     }));
   };
 
+  /** Drop AI hint + loading for a step so the next Check uses a fresh hint request (student_input in API body). */
+  const clearStaleHintForStep = useCallback((stepId: string) => {
+    setHints((prev) => {
+      if (!(stepId in prev)) return prev;
+      const next = { ...prev };
+      delete next[stepId];
+      return next;
+    });
+    setHintLoading((prev) => {
+      if (!prev.has(stepId)) return prev;
+      const next = new Set(prev);
+      next.delete(stepId);
+      return next;
+    });
+  }, []);
+
   const handleCheckAnswer = useCallback(
     async (stepId: string) => {
       if (!currentProblem) return;
-      onMarkInProgress?.();
       const step = currentProblem.steps.find((s) => s.id === stepId);
       if (!step) return;
       if (!step.correct_answer) {
@@ -118,9 +133,13 @@ export function useStepHandlers({
       }
       if (checkingAnswer.has(stepId)) return;
 
+      // 1. Stale hint + feedback must clear before validation (new answer attempt).
+      clearStaleHintForStep(stepId);
+
       const currentAnswer = answers[stepId];
       let studentText = currentAnswer?.answer?.trim() || "";
       const isFirstAttempt = !currentAnswer?.attempts || currentAnswer.attempts === 0;
+      const hadHintForStep = Boolean(hints[stepId]);
 
       if (calculatorEnabled && isExpression(studentText)) {
         const evaluated = evaluateExpression(studentText);
@@ -129,6 +148,21 @@ export function useStepHandlers({
           studentText = String(rounded);
         }
       }
+
+      setAnswers((prev) => ({
+        ...prev,
+        [stepId]: {
+          ...prev[stepId],
+          step_id: stepId,
+          answer: prev[stepId]?.answer ?? "",
+          is_correct: undefined,
+          attempts: prev[stepId]?.attempts || 0,
+          first_attempt_correct: prev[stepId]?.first_attempt_correct,
+          validation_feedback: undefined,
+        },
+      }));
+
+      onMarkInProgress?.();
 
       setCheckingAnswer((prev) => new Set(prev).add(stepId));
 
@@ -191,13 +225,23 @@ export function useStepHandlers({
         step.correct_answer ?? undefined,
         isCorrect,
       );
-      updateSkillFromAttempt(classifiedErrors, [...thinkingSteps, recorded], Object.keys(hints).length, currentLevel);
+      const hintsUsedCount = Math.max(0, Object.keys(hints).length - (hadHintForStep ? 1 : 0));
+      updateSkillFromAttempt(classifiedErrors, [...thinkingSteps, recorded], hintsUsedCount, currentLevel);
 
       if (isCorrect) {
         toast.success(isFirstAttempt ? "Perfect! First try!" : "Correct!");
       }
     },
-    [currentProblem, answers, checkingAnswer, onMarkInProgress, recordThinkingStep, calculatorEnabled], // eslint-disable-line react-hooks/exhaustive-deps
+    [
+      currentProblem,
+      answers,
+      checkingAnswer,
+      hints,
+      onMarkInProgress,
+      recordThinkingStep,
+      calculatorEnabled,
+      clearStaleHintForStep,
+    ], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const handleRequestHint = useCallback(
@@ -220,6 +264,7 @@ export function useStepHandlers({
                 .join(" · ")
             : undefined;
 
+        // Request is defined by step_id + student_input (and related fields) in the body — no client cache key needed.
         const data = await apiGetHint({
           step_id: stepId,
           step_label: step.label,
@@ -358,5 +403,6 @@ export function useStepHandlers({
     handleReset,
     handleStructuredStepComplete,
     handleValidateEquation,
+    clearStaleHintForStep,
   };
 }

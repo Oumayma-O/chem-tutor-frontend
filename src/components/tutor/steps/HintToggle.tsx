@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Lightbulb, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { HintMarkdown } from "@/lib/mathDisplay";
@@ -12,6 +12,12 @@ interface HintToggleProps {
 
 export function HintToggle({ showHint, hintText, hintLoading, onRequestHint }: HintToggleProps) {
   const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!hintLoading && !showHint) {
+      setVisible(false);
+    }
+  }, [hintLoading, showHint]);
 
   const handleToggle = () => {
     if (!visible) {
@@ -34,7 +40,7 @@ export function HintToggle({ showHint, hintText, hintLoading, onRequestHint }: H
         {hintLoading ? (
           <>
             <Loader2 className="animate-spin w-4 h-4 mr-2" />
-            Generating...
+            Thinking…
           </>
         ) : (
           <>

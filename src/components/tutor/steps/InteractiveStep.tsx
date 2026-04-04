@@ -43,7 +43,6 @@ export function InteractiveStep({
 }: InteractiveStepProps) {
   const isCorrect = answer?.is_correct === true;
   const isIncorrect = answer?.is_correct === false;
-  const displayHint = hintText || step.hint;
 
   const [dismissed, setDismissed] = useState(false);
   const [showToolbar, setShowToolbar] = useState(false);
@@ -178,7 +177,7 @@ export function InteractiveStep({
         {hasBeenIncorrect && (
           <HintToggle
             showHint={showHint}
-            hintText={displayHint}
+            hintText={hintText}
             hintLoading={hintLoading}
             onRequestHint={() => onRequestHint(step.id)}
           />

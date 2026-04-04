@@ -92,6 +92,8 @@ interface MultiInputProps {
   label: string;
   instruction: string;
   variables: InputField[];
+  /** Called immediately when Check is pressed — clear stale hints before validation. */
+  onCheckStart?: () => void;
   /** Called with (studentAnswer, correctAnswer) strings — must call backend and return per-field errors. */
   onValidate: (studentAnswer: string, correctAnswer: string) => Promise<{ isCorrect: boolean; feedback?: string }>;
   onComplete: (isCorrect: boolean) => void;
@@ -110,6 +112,7 @@ export function MultiInput({
   label,
   instruction,
   variables,
+  onCheckStart,
   onValidate,
   onComplete,
   isComplete,
@@ -174,6 +177,7 @@ export function MultiInput({
 
   const handleCheck = async () => {
     if (isChecking) return;
+    onCheckStart?.();
     setIsChecking(true);
     try {
       const studentAnswer = serializeFields(variables, values);

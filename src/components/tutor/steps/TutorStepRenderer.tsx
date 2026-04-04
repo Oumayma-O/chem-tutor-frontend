@@ -17,6 +17,7 @@ interface TutorStepRendererProps {
   structuredStepComplete: Record<string, boolean>;
   hintLoading: Set<string>;
   checkingAnswer: Set<string>;
+  clearStaleHintForStep: (stepId: string) => void;
   handleValidateEquation: (orderedParts: string[], step: SolutionStep) => Promise<boolean>;
   handleStructuredStepComplete: (stepId: string, correct: boolean) => void;
   handleRequestHint: (stepId: string) => void;
@@ -32,6 +33,7 @@ export function TutorStepRenderer({
   structuredStepComplete,
   hintLoading,
   checkingAnswer,
+  clearStaleHintForStep,
   handleValidateEquation,
   handleStructuredStepComplete,
   handleRequestHint,
@@ -76,6 +78,7 @@ export function TutorStepRenderer({
               onComplete={(correct) => handleStructuredStepComplete(step.id, correct)}
               isComplete={!!structuredStepComplete[step.id]}
               isLocked={isLocked}
+              onCheckStart={() => clearStaleHintForStep(step.id)}
               showHint={!!hints[step.id]}
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
@@ -94,6 +97,7 @@ export function TutorStepRenderer({
               label={step.label}
               instruction={step.instruction}
               variables={step.input_fields}
+              onCheckStart={() => clearStaleHintForStep(step.id)}
               onValidate={async (studentAnswer, correctAnswer) => {
                 const data = await apiValidateStep({
                   student_answer: studentAnswer,
@@ -136,6 +140,7 @@ export function TutorStepRenderer({
               onComplete={(correct) => handleStructuredStepComplete(step.id, correct)}
               isComplete={!!structuredStepComplete[step.id]}
               isLocked={isLocked}
+              onCheckStart={() => clearStaleHintForStep(step.id)}
               showHint={!!hints[step.id]}
               hintText={hints[step.id]}
               hintLoading={hintLoading.has(step.id)}
