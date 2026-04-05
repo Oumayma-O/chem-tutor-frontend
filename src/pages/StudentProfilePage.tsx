@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { JoinClassDialog } from "@/components/tutor/layout/JoinClassDialog";
+import { ClassroomEnrollmentCard } from "@/components/layout/ClassroomEnrollmentCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -48,10 +50,11 @@ const ACHIEVEMENT_BADGES = [
 ];
 
 export default function StudentProfilePage() {
-  const { user, profile, signOut, updateProfile } = useAuth();
+  const { user, profile, signOut, updateProfile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [saving, setSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [joinClassOpen, setJoinClassOpen] = useState(false);
 
   const [grade, setGrade] = useState("");
   const [course, setCourse] = useState("");
@@ -228,24 +231,38 @@ export default function StudentProfilePage() {
               </div>
             )}
 
-            {profile.classroom_name && (
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
-                <Users className="w-4 h-4 text-muted-foreground" />
-                <div>
-                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                    Classroom
-                  </p>
-                  <p className="text-sm font-medium text-foreground">
-                    {profile.classroom_name}{" "}
-                    {profile.classroom_code && (
-                      <Badge variant="outline" className="ml-1 text-[10px] font-mono">
-                        {profile.classroom_code}
-                      </Badge>
-                    )}
-                  </p>
-                </div>
-              </div>
-            )}
+            <div className="space-y-3 pt-1 border-t border-border/60">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Users className="w-3 h-3" /> Classroom
+              </p>
+              {profile.classroom_name ? (
+                <ClassroomEnrollmentCard
+                  className="max-w-md"
+                  onLeft={() => setJoinClassOpen(true)}
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {isEditing
+                    ? "Join a class with your teacher's code to sync assignments and progress."
+                    : "Not enrolled in a classroom. Choose Edit to join or change class."}
+                </p>
+              )}
+              {isEditing && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => {
+                    void refreshProfile();
+                    setJoinClassOpen(true);
+                  }}
+                >
+                  <Users className="w-4 h-4" />
+                  {profile.classroom_name ? "Change classroom" : "Join a classroom"}
+                </Button>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -425,6 +442,15 @@ export default function StudentProfilePage() {
           </div>
         )}
       </main>
+
+      <JoinClassDialog
+        open={joinClassOpen}
+        onOpenChange={setJoinClassOpen}
+        onJoined={() => {
+          setJoinClassOpen(false);
+          void refreshProfile();
+        }}
+      />
     </div>
   );
 }

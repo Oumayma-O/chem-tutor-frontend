@@ -18,6 +18,7 @@ export interface MeResponse {
   grade: string | null;
   course: string | null;
   interests: string[];
+  classroom_id: string | null;
   classroom_name: string | null;
   classroom_code: string | null;
 }

@@ -211,17 +211,7 @@ export async function apiClassifyErrors(body: {
   );
 }
 
-export async function apiGenerateExitTicket(body: {
-  unit_id: string;
-  lesson_name: string;
-  difficulty?: string;
-  format?: string;
-  question_count?: number;
-}) {
-  return post<{ questions: unknown[] }>("/problems/exit-ticket", body);
-}
-
-// ── Legacy aliases (kept for backwards compatibility) ─────────────────────
+// ── Legacy alias ───────────────────────────────────────────────────────────
 
 export async function apiValidateAnswer(body: {
   student_answer: string;
@@ -230,58 +220,4 @@ export async function apiValidateAnswer(body: {
   problem_context?: string;
 }) {
   return post<{ is_correct: boolean }>("/problems/validate-step", body);
-}
-
-export async function apiGenerateHint(body: {
-  step_label: string;
-  step_instruction: string;
-  student_input?: string;
-  correct_answer: string;
-  attempt_count?: number;
-  interests?: string[];
-  grade_level?: string | null;
-  problem_context?: string | null;
-  rag_context?: Record<string, string[]>;
-}) {
-  return post<{ hint: string; hint_level: number }>("/problems/hint", body);
-}
-
-export async function apiGenerateProblem(body: {
-  unit_id: string;
-  lesson_name: string;
-  difficulty?: string;
-  interests?: string[];
-  grade_level?: string | null;
-  mastery_score?: number;
-  lesson_context?: LessonContext;
-}) {
-  return post<{
-    id: string;
-    title: string;
-    description: string;
-    lesson: string;
-    difficulty: string;
-    steps: unknown[];
-  }>("/problems/generate", body);
-}
-
-export async function apiGenerateGuide(body: {
-  unit_id: string;
-  lesson_name: string;
-  guide_step_index: number;
-  interests?: string[];
-  grade_level?: string | null;
-  mastery_score?: number;
-  rag_context?: Record<string, string[]>;
-}) {
-  return post<{ title: string; description: string }>("/problems/guide", body);
-}
-
-export async function apiGenerateClassInsights(body: {
-  misconception_data?: unknown[];
-  error_frequencies?: Record<string, unknown>;
-  class_mastery?: number;
-  student_count?: number;
-}) {
-  return post<{ insights: string[] }>("/analytics/class-insights", body);
 }

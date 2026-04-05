@@ -7,7 +7,6 @@ import {
   StudentCognitiveProfile,
   MisconceptionPattern,
 } from "@/types/cognitive";
-import { supabase } from "@/integrations/supabase/client";
 import { apiClassifyErrors, useBackendApi } from "@/lib/api";
 import { STEP_LABEL_TO_MASTERY_CATEGORY } from "@/lib/stepLabelToMasteryCategory";
 
@@ -93,7 +92,8 @@ export function useCognitiveTracking() {
       }
 
       let errors: ClassifiedError[];
-      if (useBackendApi()) {
+      const backend = useBackendApi();
+      if (backend) {
         const data = await apiClassifyErrors({
           steps: incorrectSteps.map(s => ({
             step_id: s.id,
@@ -132,25 +132,16 @@ export function useCognitiveTracking() {
         setClassifiedErrors(errors);
         setLearningInsight(data.insight || "");
       } else {
-        const response = await supabase.functions.invoke("classify-errors", {
-          body: { steps: incorrectSteps, problemContext, allSteps: steps },
-        });
-        if (response.error) {
-          console.error("Error classifying:", response.error);
-          const fallbackErrors = incorrectSteps.map(step => ({
-            stepId: step.id,
-            category: step.category === "conceptual" ? "conceptual" as const : "procedural" as const,
-            severity: "slowing" as const,
-            description: `Error in ${step.label}`,
-            suggestedIntervention: step.category === "conceptual" ? "concept_refresher" as const : "faded_example" as const,
-          }));
-          setClassifiedErrors(fallbackErrors);
-          setIsAnalyzing(false);
-          return fallbackErrors;
-        }
-        errors = response.data?.errors || [];
-        setClassifiedErrors(errors);
-        setLearningInsight(response.data?.insight || "");
+        const fallbackErrors = incorrectSteps.map((step) => ({
+          stepId: step.id,
+          category: (step.category === "conceptual" ? "conceptual" : "procedural") as ClassifiedError["category"],
+          severity: "slowing" as const,
+          description: `Error in ${step.label}`,
+          suggestedIntervention: (step.category === "conceptual" ? "concept_refresher" : "faded_example") as ClassifiedError["suggestedIntervention"],
+        }));
+        errors = fallbackErrors;
+        setClassifiedErrors(fallbackErrors);
+        setLearningInsight("");
       }
       setIsAnalyzing(false);
       return errors;

@@ -41,7 +41,7 @@ export function getStoredProfile(): CachedProfile | null {
   } catch { return null; }
 }
 
-export type AppRole = "student" | "teacher";
+export type AppRole = "student" | "teacher" | "admin";
 
 interface ProfileState {
   display_name: string;
@@ -52,6 +52,7 @@ interface ProfileState {
   avatar_url: string | null;
   classroom_name: string | null;
   classroom_code: string | null;
+  classroom_id: string | null;
 }
 
 interface AuthState {
@@ -81,6 +82,7 @@ interface AuthContextValue extends AuthState {
   updateProfile: (data: { grade?: string; course?: string; interests?: string[] }) => Promise<void>;
   isStudent: boolean;
   isTeacher: boolean;
+  isAdmin: boolean;
   isAuthenticated: boolean;
 }
 
@@ -94,6 +96,7 @@ function meToProfile(me: MeResponse): ProfileState {
     avatar_url: null,
     classroom_name: me.classroom_name ?? null,
     classroom_code: me.classroom_code ?? null,
+    classroom_id: me.classroom_id ?? null,
   };
 }
 
@@ -111,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveProfileCache(me);
     setState({
       user: { id: me.user_id, email: me.email },
-      role: me.role as AppRole,
+      role: (me.role === "admin" ? "admin" : me.role === "teacher" ? "teacher" : "student") as AppRole,
       profile: meToProfile(me),
       loading: false,
     });
@@ -168,7 +171,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         grade_level: gradeLevel || null,
         grade: grade || null,
         course: course || null,
-        class_name: className || null,
+        class_name: role === "teacher" ? null : className ?? null,
         interests: interests || [],
       });
       setStoredToken(res.access_token);
@@ -208,6 +211,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateProfile: updateProfileFn,
     isStudent: state.role === "student",
     isTeacher: state.role === "teacher",
+    isAdmin: state.role === "admin",
     isAuthenticated: !!state.user,
   };
 

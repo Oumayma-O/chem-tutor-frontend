@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildStepLog,
   getMasteryColor,
+  MASTERY_PROGRESS_HEX,
   overallMasteryPercent,
   stepLogForIncrementalSave,
 } from "@/lib/masteryTransforms";
@@ -10,15 +11,15 @@ import type { SolutionStep } from "@/types/chemistry";
 describe("getMasteryColor", () => {
   it("returns red below 15%", () => {
     expect(getMasteryColor(0).band).toBe("red");
-    expect(getMasteryColor(14).text).toContain("red");
+    expect(getMasteryColor(14).text).toContain(MASTERY_PROGRESS_HEX.red);
   });
-  it("returns amber from 15% through 59%", () => {
+  it("returns yellow tier from 15% through 59%", () => {
     expect(getMasteryColor(15).band).toBe("amber");
-    expect(getMasteryColor(59).band).toBe("amber");
+    expect(getMasteryColor(59).text).toContain(MASTERY_PROGRESS_HEX.yellow);
   });
-  it("returns emerald at 60% and above", () => {
+  it("returns green at 60% and above", () => {
     expect(getMasteryColor(60).band).toBe("emerald");
-    expect(getMasteryColor(100).bg).toContain("emerald");
+    expect(getMasteryColor(100).bg).toContain(MASTERY_PROGRESS_HEX.green);
   });
   it("clamps out-of-range scores", () => {
     expect(getMasteryColor(-5).band).toBe("red");

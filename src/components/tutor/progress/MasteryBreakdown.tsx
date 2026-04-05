@@ -2,7 +2,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ClassifiedError } from "@/types/cognitive";
 import { Brain, Calculator, FlaskConical, Layers, ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
-import { getMasteryColor } from "@/lib/masteryTransforms";
+import { getMasteryColor, MASTERY_PROGRESS_HEX } from "@/lib/masteryTransforms";
 import {
   Tooltip,
   TooltipContent,
@@ -120,7 +120,10 @@ export function MasteryBreakdown({ score, errors, categoryScores, level3Unlocked
               />
             </div>
             {level3Unlocked ? (
-              <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 font-medium text-left transition-colors duration-500">
+              <p
+                className="text-[10px] mt-1 font-medium text-left transition-colors duration-500"
+                style={{ color: MASTERY_PROGRESS_HEX.green }}
+              >
                 ✓ Level 3 unlocked!
               </p>
             ) : (

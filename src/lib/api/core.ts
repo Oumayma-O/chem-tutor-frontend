@@ -55,7 +55,16 @@ export async function request<T>(
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(typeof err.detail === "string" ? err.detail : JSON.stringify(err));
   }
-  return res.json() as Promise<T>;
+  if (res.status === 204) {
+    return undefined as T;
+  }
+  const text = await res.text();
+  if (!text.trim()) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("Response body is not valid JSON");
+  }
 }
 
 export function post<T>(path: string, body: unknown): Promise<T> {
@@ -64,6 +73,14 @@ export function post<T>(path: string, body: unknown): Promise<T> {
 
 export function get<T>(path: string): Promise<T> {
   return request<T>("GET", path);
+}
+
+export function patch<T>(path: string, body: unknown): Promise<T> {
+  return request<T>("PATCH", path, body);
+}
+
+export function del(path: string): Promise<void> {
+  return request<void>("DELETE", path);
 }
 
 export function useBackendApi(): boolean {

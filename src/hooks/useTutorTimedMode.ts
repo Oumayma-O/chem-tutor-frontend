@@ -7,7 +7,7 @@ export function useTutorTimedMode() {
   const [timedStartedAt, setTimedStartedAt] = useState<string | null>(null);
   const [showLaunchScreen, setShowLaunchScreen] = useState(false);
   const [showTransitionScreen, setShowTransitionScreen] = useState(false);
-  const [timedExitTicketConfigId] = useState<string | null>(null);
+  const [timedExitTicketConfigId, setTimedExitTicketConfigId] = useState<string | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
 
   useEffect(() => {
@@ -53,9 +53,12 @@ export function useTutorTimedMode() {
     showTransitionScreen,
     setShowTransitionScreen,
     timedExitTicketConfigId,
+    setTimedExitTicketConfigId,
     timeRemaining,
     handleTimedTransitionComplete,
     formatTime,
   };
 }
+
+export type TutorTimedModeApi = ReturnType<typeof useTutorTimedMode>;
 

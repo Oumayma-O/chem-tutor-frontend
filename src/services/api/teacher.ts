@@ -1,0 +1,175 @@
+/**
+ * Teacher dashboard API — FastAPI /teacher/* routes.
+ */
+import { get, post } from "@/lib/api/core";
+
+export interface CategorySnapshot {
+  conceptual: number;
+  procedural: number;
+  computational: number;
+}
+
+export interface ClassSummaryStats {
+  classroom_id: string;
+  avg_mastery: number;
+  total_students: number;
+  at_risk_count: number;
+  category_breakdown: CategorySnapshot;
+}
+
+export interface TeacherClass {
+  id: string;
+  name: string;
+  code: string;
+  unit_id: string | null;
+  student_count: number;
+  is_active: boolean;
+  created_at: string;
+  stats: ClassSummaryStats;
+  /** When the backend exposes live session, these drive timed mode UI. */
+  timed_mode_active?: boolean;
+  timed_practice_minutes?: number | null;
+  timed_started_at?: string | null;
+  active_exit_ticket_id?: string | null;
+}
+
+export interface MasterySnapshot {
+  overall_mastery: number;
+  category_scores: CategorySnapshot;
+  lessons_with_data: number;
+}
+
+export interface RosterStudent {
+  student_id: string;
+  name: string;
+  email: string | null;
+  joined_at: string;
+  mastery: MasterySnapshot;
+  at_risk: boolean;
+}
+
+export interface ExitTicketQuestion {
+  id: string;
+  prompt: string;
+  question_type: string;
+  options: string[];
+  /** Index-aligned with `options` for MCQ distractors. */
+  option_misconception_tags?: (string | null)[] | null;
+  correct_answer: string | null;
+  points: number;
+}
+
+export interface ExitTicketConfig {
+  id: string;
+  class_id: string;
+  teacher_id: string;
+  unit_id: string;
+  lesson_index: number;
+  difficulty: string;
+  time_limit_minutes: number;
+  is_active: boolean;
+  questions: ExitTicketQuestion[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ExitTicketResponseItem {
+  id: string;
+  student_id: string;
+  student_name: string | null;
+  student_email: string | null;
+  answers: Record<string, unknown>[];
+  score: number | null;
+  submitted_at: string;
+}
+
+export interface ExitTicketAnalytics {
+  class_id: string;
+  total_sessions: number;
+  total_submissions: number;
+  average_score: number | null;
+  last_activity_at: string | null;
+}
+
+export interface ExitTicketsForClass {
+  analytics: ExitTicketAnalytics;
+  items: { ticket: ExitTicketConfig; responses: ExitTicketResponseItem[] }[];
+}
+
+export async function getTeacherClasses(): Promise<TeacherClass[]> {
+  return get<TeacherClass[]>("/teacher/classes");
+}
+
+export async function createClass(body: { name: string; unit_id?: string | null }): Promise<{
+  id: string;
+  name: string;
+  teacher_id: string;
+  unit_id: string | null;
+  code: string;
+  is_active: boolean;
+  student_count: number;
+  created_at: string;
+}> {
+  return post("/teacher/classes", body);
+}
+
+export async function getClassRoster(classroomId: string): Promise<RosterStudent[]> {
+  return get<RosterStudent[]>(`/teacher/classes/${classroomId}/roster`);
+}
+
+export async function generateExitTicket(body: {
+  topic: string;
+  classroom_id: string;
+  unit_id?: string | null;
+  lesson_index?: number;
+  difficulty?: string;
+  question_count?: number;
+  time_limit_minutes?: number;
+}): Promise<{ ticket: ExitTicketConfig }> {
+  return post("/teacher/exit-tickets/generate", {
+    topic: body.topic,
+    classroom_id: body.classroom_id,
+    unit_id: body.unit_id ?? null,
+    lesson_index: body.lesson_index ?? 0,
+    difficulty: body.difficulty ?? "medium",
+    question_count: body.question_count ?? 4,
+    time_limit_minutes: body.time_limit_minutes ?? 10,
+  });
+}
+
+export async function getExitTicketResults(classId: string): Promise<ExitTicketsForClass> {
+  return get<ExitTicketsForClass>(`/teacher/exit-tickets/${classId}`);
+}
+
+/** Publish generated exit ticket + optional timed practice to the class (students poll live-session). */
+export async function publishClassroomLiveSession(
+  classroomId: string,
+  body: {
+    exit_ticket_id: string;
+    timed_practice_enabled: boolean;
+    timed_practice_minutes: number | null;
+    unit_id: string;
+    lesson_index: number;
+  },
+): Promise<void> {
+  await post(`/teacher/classrooms/${classroomId}/live-session/publish`, body);
+}
+
+export async function stopClassroomLiveSession(classroomId: string): Promise<void> {
+  await post(`/teacher/classrooms/${classroomId}/live-session/stop`, {});
+}
+
+/**
+ * Student-authenticated fetch of ticket + questions (ChemTutor backend: GET /student/exit-tickets/{id}).
+ * Live-session may also embed `exit_ticket` to avoid this call.
+ */
+export async function getExitTicketForStudent(ticketId: string): Promise<ExitTicketConfig> {
+  return get<ExitTicketConfig>(`/student/exit-tickets/${ticketId}`);
+}
+
+export async function submitExitTicketAttempt(
+  ticketId: string,
+  body: { answers: Record<string, string> },
+): Promise<void> {
+  await post(`/student/exit-tickets/${ticketId}/submit`, body);
+}

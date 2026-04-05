@@ -1,42 +1,39 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Clock, ArrowRight } from "lucide-react";
+import { Clock } from "lucide-react";
 
 interface TimedModeTransitionScreenProps {
   onTransitionComplete: () => void;
 }
 
+/**
+ * Brief handoff to the exit ticket — no numeric countdown (goes straight to the assessment).
+ */
 export function TimedModeTransitionScreen({ onTransitionComplete }: TimedModeTransitionScreenProps) {
-  const [countdown, setCountdown] = useState(5);
   useEffect(() => {
-    if (countdown <= 0) {
+    const t = window.setTimeout(() => {
       onTransitionComplete();
-      return;
-    }
-    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [countdown, onTransitionComplete]);
+    }, 1200);
+    return () => window.clearTimeout(t);
+  }, [onTransitionComplete]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-4">
-      <Card className="max-w-lg w-full border-warning/30 shadow-2xl">
-        <CardContent className="pt-8 pb-8 text-center space-y-6">
-          <div className="w-16 h-16 rounded-full bg-warning/10 flex items-center justify-center mx-auto">
-            <Clock className="w-8 h-8 text-warning" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-4 backdrop-blur-sm">
+      <Card className="w-full max-w-lg border-warning/30 shadow-2xl">
+        <CardContent className="space-y-6 pb-8 pt-8 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-warning/10">
+            <Clock className="h-8 w-8 text-warning" />
           </div>
           <div className="space-y-3">
-            <h2 className="text-2xl font-bold text-foreground">⏳ Time's Up for Practice</h2>
-            <p className="text-muted-foreground">You are now moving to the <span className="font-semibold text-foreground">graded Exit Ticket</span>.</p>
+            <h2 className="text-2xl font-bold text-foreground">⏳ Time&apos;s Up for Practice</h2>
+            <p className="text-muted-foreground">
+              Opening your{" "}
+              <span className="font-semibold text-foreground">graded Exit Ticket</span>…
+            </p>
             <p className="text-sm text-muted-foreground">Stay calm and apply what you practiced.</p>
-          </div>
-          <div className="flex items-center justify-center gap-3">
-            <span className="text-4xl font-bold text-warning">{countdown}</span>
-            <ArrowRight className="w-6 h-6 text-muted-foreground" />
-            <span className="text-sm font-medium text-muted-foreground">Exit Ticket</span>
           </div>
         </CardContent>
       </Card>
     </div>
   );
 }
-

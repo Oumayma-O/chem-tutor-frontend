@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useBackendApi } from "@/lib/api/core";
+import { joinClassroomByCode, leaveCurrentClassroom } from "@/services/api/student";
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AlertCircle, CheckCircle } from "lucide-react";
 
 interface JoinClassDialogProps {
@@ -19,209 +29,177 @@ interface JoinClassDialogProps {
   onJoined: () => void;
 }
 
-interface EnrollmentRow {
-  id: string;
-  class_id: string;
-  classes: {
-    name: string;
-    class_code: string;
-  } | null;
-}
-
 export function JoinClassDialog({ open, onOpenChange, onJoined }: JoinClassDialogProps) {
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
+  const hasApi = useBackendApi();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const [enrollments, setEnrollments] = useState<EnrollmentRow[]>([]);
 
-  const loadEnrollments = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("class_students")
-      .select("id, class_id, classes(name, class_code)")
-      .eq("student_id", user.id)
-      .order("created_at", { ascending: false });
-    setEnrollments((data || []) as EnrollmentRow[]);
-  };
+  const hasClassroom = Boolean(profile?.classroom_id && profile?.classroom_name);
+  /** While joining or showing success, do not show "current class" + leave — avoids prompting to leave mid-enrollment. */
+  const showCurrentClassSection = hasClassroom && profile && !loading && !success;
 
-  const handleRemoveEnrollment = async (enrollmentId: string) => {
-    setRemovingId(enrollmentId);
+  const handleLeave = async () => {
+    if (!hasApi || !profile?.classroom_id || !user?.id) return;
+    setLeaving(true);
     setError(null);
     try {
-      const { error: deleteErr } = await supabase
-        .from("class_students")
-        .delete()
-        .eq("id", enrollmentId);
-      if (deleteErr) {
-        setError("Failed to leave classroom. Please try again.");
-        return;
-      }
-      await loadEnrollments();
+      await leaveCurrentClassroom(profile.classroom_id, user.id);
+      await refreshProfile();
+      setLeaveConfirmOpen(false);
       onJoined();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to leave classroom.");
     } finally {
-      setRemovingId(null);
+      setLeaving(false);
     }
   };
 
   const handleJoin = async () => {
     if (!user || !code.trim()) return;
+    if (!hasApi) {
+      setError("Configure VITE_API_URL so your app can reach the Chem Tutor API to join a class.");
+      return;
+    }
     setLoading(true);
     setError(null);
 
     try {
-      const { data: cls, error: lookupErr } = await supabase
-        .from("classes")
-        .select("id, name")
-        .eq("class_code", code.trim().toUpperCase())
-        .single();
-
-      if (lookupErr || !cls) {
-        setError("No classroom found with that code. Please check and try again.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: existing } = await supabase
-        .from("class_students")
-        .select("id")
-        .eq("class_id", cls.id)
-        .eq("student_id", user.id)
-        .limit(1);
-
-      if (existing && existing.length > 0) {
-        setError("You're already enrolled in this class.");
-        setLoading(false);
-        return;
-      }
-
-      const { data: currentRows } = await supabase
-        .from("class_students")
-        .select("id")
-        .eq("student_id", user.id);
-      if (currentRows && currentRows.length > 0) {
-        const { error: deleteExistingErr } = await supabase
-          .from("class_students")
-          .delete()
-          .eq("student_id", user.id);
-        if (deleteExistingErr) {
-          setError("Could not switch class. Please try again.");
-          setLoading(false);
-          return;
-        }
-      }
-
-      const { error: enrollErr } = await supabase
-        .from("class_students")
-        .insert({ class_id: cls.id, student_id: user.id });
-
-      if (enrollErr) {
-        setError("Failed to join. Please try again.");
-        setLoading(false);
-        return;
-      }
-
+      await joinClassroomByCode(code.trim(), user.id);
+      await refreshProfile();
       setSuccess(true);
       setTimeout(() => {
         onJoined();
         setCode("");
         setSuccess(false);
-        loadEnrollments();
       }, 1200);
-    } catch {
-      setError("Something went wrong.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not join with that code.");
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (open && user) {
-      setError(null);
-      setSuccess(false);
-      loadEnrollments();
-    }
-  }, [open, user]); // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Join a Classroom</DialogTitle>
-          <DialogDescription>
-            Enter the class code your teacher gave you to join their classroom.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Join a Classroom</DialogTitle>
+            <DialogDescription>
+              Enter the class code your teacher gave you to join their classroom.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 mt-2">
-          {enrollments.length > 0 && (
-            <div className="space-y-2">
-              <Label>Current Classroom</Label>
-              <div className="space-y-2">
-                {enrollments.map((row) => (
-                  <div key={row.id} className="flex items-center justify-between rounded-md border border-border p-2.5">
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">
-                        {row.classes?.name || "Classroom"}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground font-mono">
-                        {row.classes?.class_code || row.class_id}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={removingId === row.id || loading}
-                      onClick={() => handleRemoveEnrollment(row.id)}
-                    >
-                      {removingId === row.id ? "Leaving..." : "Unenroll"}
-                    </Button>
-                  </div>
-                ))}
+          <div className="space-y-4 mt-2">
+            {!hasApi && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted text-sm text-foreground">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>Set VITE_API_URL to your Chem Tutor API base URL to enable joining.</span>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="space-y-2">
-            <Label htmlFor="class-code">
-              {enrollments.length > 0 ? "Switch Classroom Code" : "Class Code"}
-            </Label>
-            <Input
-              id="class-code"
-              placeholder="e.g., A1B2C3"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              maxLength={10}
-              className="text-center text-lg tracking-widest font-mono uppercase"
-            />
+            {showCurrentClassSection && profile && (
+              <div className="space-y-2">
+                <Label>Current classroom</Label>
+                <div className="flex items-center justify-between rounded-md border border-border p-2.5 gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {profile.classroom_name || "Classroom"}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground font-mono">
+                      {profile.classroom_code ?? profile.classroom_id ?? ""}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!hasApi || leaving}
+                    onClick={() => setLeaveConfirmOpen(true)}
+                  >
+                    Leave…
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="class-code">
+                {hasClassroom ? "Switch classroom code" : "Class code"}
+              </Label>
+              <Input
+                id="class-code"
+                placeholder="e.g., A1B2C3"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                maxLength={10}
+                className="text-center text-lg tracking-widest font-mono uppercase"
+                disabled={!hasApi || loading}
+              />
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            {success && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-primary text-sm">
+                <CheckCircle className="w-4 h-4 shrink-0" />
+                <span>Successfully joined! Updating your content...</span>
+              </div>
+            )}
+
+            <Button
+              type="button"
+              onClick={() => void handleJoin()}
+              disabled={loading || !code.trim() || success || !hasApi}
+              className="w-full"
+            >
+              {loading ? "Joining…" : hasClassroom ? "Switch classroom" : "Join classroom"}
+            </Button>
           </div>
+        </DialogContent>
+      </Dialog>
 
-          {error && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {success && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/10 text-primary text-sm">
-              <CheckCircle className="w-4 h-4 shrink-0" />
-              <span>Successfully joined! Updating your content...</span>
-            </div>
-          )}
-
-          <Button
-            onClick={handleJoin}
-            disabled={loading || !code.trim() || success}
-            className="w-full"
-          >
-            {loading ? "Updating..." : enrollments.length > 0 ? "Switch Classroom" : "Join Classroom"}
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+      <AlertDialog
+        open={leaveConfirmOpen}
+        onOpenChange={(next) => {
+          if (!leaving) setLeaveConfirmOpen(next);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave this classroom?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {profile?.classroom_name && (
+                <>
+                  Leave <span className="font-medium text-foreground">{profile.classroom_name}</span> before
+                  joining another code, or switch by entering a new code below after leaving.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={leaving}>Cancel</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={leaving || !hasApi}
+              onClick={() => void handleLeave()}
+            >
+              {leaving ? "Leaving…" : "Leave classroom"}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }
-

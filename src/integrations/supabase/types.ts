@@ -1,3 +1,0 @@
-// Supabase types removed — using FastAPI backend.
-export type Json = string | number | boolean | null | { [key: string]: Json } | Json[];
-export type Database = any;

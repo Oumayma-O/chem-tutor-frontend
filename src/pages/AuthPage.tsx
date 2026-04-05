@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth, AppRole } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ function capitalizeFirstInput(text: string): string {
 }
 
 export default function AuthPage() {
+  const navigate = useNavigate();
   const { signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,7 +65,6 @@ export default function AuthPage() {
   const [signupRole, setSignupRole] = useState<AppRole>("student");
   const [signupGradeRange, setSignupGradeRange] = useState("");
   const [signupCourseType, setSignupCourseType] = useState("");
-  const [signupClassName, setSignupClassName] = useState("");
 
   // Signup Step 2 - Interests
   const [signupInterests, setSignupInterests] = useState<string[]>([]);
@@ -99,10 +100,6 @@ export default function AuthPage() {
       setError("Please enter your name");
       return;
     }
-    if (signupRole === "teacher" && !signupClassName.trim()) {
-      setError("Please enter a class name");
-      return;
-    }
     // Students go to step 2 (interests), teachers skip
     if (signupRole === "student") {
       setSignupStep(2);
@@ -134,7 +131,7 @@ export default function AuthPage() {
         gradeLevel || "",
         gradeName,
         courseName,
-        signupClassName,
+        undefined,
         finalInterests
       );
       if (error) {
@@ -142,7 +139,12 @@ export default function AuthPage() {
           ? "Unable to connect. Please try again."
           : error.message;
         setError(msg);
-      } else toast.success("Account created! You're all set.");
+      } else {
+        toast.success("Account created! You're all set.");
+        if (signupRole === "teacher") {
+          navigate("/teacher/dashboard", { replace: true });
+        }
+      }
     } catch {
       setError("An unexpected error occurred");
     } finally {
@@ -405,22 +407,6 @@ export default function AuthPage() {
                         Skip if unsure — we'll adapt to your level.
                       </p>
                     </>
-                  )}
-
-                  {/* Teacher: class name */}
-                  {signupRole === "teacher" && (
-                    <div className="space-y-2">
-                      <Label htmlFor="signup-class">Class Name</Label>
-                      <Input
-                        id="signup-class"
-                        placeholder="e.g., AP Chemistry Period 3"
-                        value={signupClassName}
-                        onChange={(e) => setSignupClassName(capitalizeFirstInput(e.target.value))}
-                        autoCapitalize="words"
-                        required
-                        maxLength={100}
-                      />
-                    </div>
                   )}
 
                   <Button type="submit" className="w-full gap-1.5" disabled={isLoading}>

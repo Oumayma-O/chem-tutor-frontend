@@ -1,6 +1,5 @@
-import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { apiGenerateExitTicket, useBackendApi } from "@/lib/api";
+import { useState, useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,39 +7,60 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Wand2, CheckCircle, Clock, ChevronRight, ChevronLeft, Send, Save, RefreshCw, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Wand2, Clock, ChevronRight, ChevronLeft, Send, Save, RefreshCw, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { UnitSelector } from "./UnitSelector";
+import { ChapterSelector } from "./ChapterSelector";
 import { CourseLevel } from "@/data/units";
-import { type UnitListItem } from "@/lib/api";
 import { useUnits } from "@/hooks/useUnits";
+import type { UnitListItem } from "@/lib/api/units";
+import {
+  generateExitTicket,
+  publishClassroomLiveSession,
+  type ExitTicketConfig,
+} from "@/services/api/teacher";
+import { mapApiMcqOptions } from "@/lib/exitTicketMap";
+import { MathText } from "@/lib/mathDisplay";
 
 interface ExitTicketConfigPanelProps {
   classId: string;
   courseLevel?: CourseLevel;
-  onTimedModeLaunched?: () => void;
+  /** Called after a successful publish (not draft). Drives timed monitoring UI + refetch. */
+  onPublishSuccess?: (payload: { timedPractice: boolean; minutes: number; chapterId: string }) => void;
+  defaultChapterId?: string;
 }
 
 interface GeneratedQuestion {
   question_order: number;
-  format: "qcm" | "structured";
+  format: "mcq" | "structured";
   question_text: string;
   correct_answer: string;
   unit?: string;
   equation_parts?: string[];
-  qcm_options?: { label: string; value: string; misconception_tag?: string }[];
+  mcq_options?: { label: string; value: string; misconception_tag?: string }[];
 }
 
 type WizardStep = 1 | 2 | 3 | 4 | 5;
 
-export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunched }: ExitTicketConfigPanelProps) {
+export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, defaultChapterId }: ExitTicketConfigPanelProps) {
+  const queryClient = useQueryClient();
+  const { units } = useUnits();
   // Step state
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
 
-  // Step 1: Unit & Lesson
-  const [selectedUnitId, setSelectedUnitId] = useState("kinetics");
-  const [selectedLessonIndex, setSelectedLessonIndex] = useState(0);
+  // Step 1: Chapter & Topic
+  const [selectedChapterId, setSelectedChapterId] = useState(defaultChapterId || "");
+
+  // Sync when defaultChapterId changes (e.g. class switch)
+  useEffect(() => {
+    if (defaultChapterId) {
+      setSelectedChapterId(defaultChapterId);
+      setSelectedTopicIndex(0);
+    } else if (!selectedChapterId && units.length > 0) {
+      setSelectedChapterId(units[0].id);
+    }
+  }, [defaultChapterId, units, selectedChapterId]);
+  const [selectedTopicIndex, setSelectedTopicIndex] = useState(0);
 
   // Step 2: Timed Practice
   const [timedEnabled, setTimedEnabled] = useState(false);
@@ -56,90 +76,63 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
   const [questions, setQuestions] = useState<GeneratedQuestion[]>([]);
   const [generating, setGenerating] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
 
   // Step 5: Publish
   const [saving, setSaving] = useState(false);
+  /** Last ticket returned from Generate (same id the backend stores). */
+  const [activeTicket, setActiveTicket] = useState<ExitTicketConfig | null>(null);
 
-  const { units } = useUnits();
-  const selectedUnit = units.find(u => u.id === selectedUnitId);
-  const lessonName = selectedUnit?.lesson_titles[selectedLessonIndex] || "Reaction Kinetics";
+  const selectedChapter = units.find((u) => u.id === selectedChapterId);
+  const topicName = selectedChapter?.lesson_titles[selectedTopicIndex] || "Reaction Kinetics";
 
-  const stepLabels = ["Unit & Lesson", "Timed Practice", "Exit Ticket", "Preview", "Publish"];
+  const stepLabels = ["Chapter & Topic", "Timed Practice", "Exit Ticket", "Preview", "Publish"];
 
   const handleGenerate = useCallback(async () => {
     setGenerating(true);
     try {
-      if (useBackendApi()) {
-        const data = await apiGenerateExitTicket({
-          lesson_name: lessonName,
-          unit_id: selectedUnitId,
-          difficulty,
-          format,
-          question_count: questionCount,
-        });
-        setQuestions((data?.questions || []) as GeneratedQuestion[]);
-        setCurrentStep(4);
-        toast.success(`Generated ${data?.questions?.length || 0} questions`);
-      } else {
-        const { data, error } = await supabase.functions.invoke("generate-exit-ticket", {
-          body: { lessonName, unitId: selectedUnitId, difficulty, format, questionCount },
-        });
-        if (error) throw error;
-        if (data?.error) { toast.error(data.error); return; }
-        setQuestions(data?.questions || []);
-        setCurrentStep(4);
-        toast.success(`Generated ${data?.questions?.length || 0} questions`);
-      }
+      const topic = `${selectedChapter?.title ?? "Chemistry"} — ${topicName}`;
+      const res = await generateExitTicket({
+        topic,
+        classroom_id: classId,
+        unit_id: selectedChapterId,
+        lesson_index: selectedTopicIndex,
+        difficulty,
+        question_count: Math.min(Math.max(questionCount, 3), 5),
+        time_limit_minutes: timeLimit,
+      });
+      const mapped: GeneratedQuestion[] = res.ticket.questions.map((q, i) => {
+        const isMcq = q.question_type === "mcq" || (q.options?.length ?? 0) > 0;
+        return {
+          question_order: i + 1,
+          format: (isMcq ? "mcq" : "structured") as "mcq" | "structured",
+          question_text: q.prompt,
+          correct_answer: q.correct_answer || "",
+          mcq_options: isMcq ? mapApiMcqOptions(q) : undefined,
+        };
+      });
+      setQuestions(mapped);
+      setActiveTicket(res.ticket);
+      setCurrentStep(4);
+      void queryClient.invalidateQueries({ queryKey: ["teacher", "exit-tickets", classId] });
+      toast.success("Exit ticket generated and saved.");
     } catch (err) {
       console.error(err);
-      toast.error("Failed to generate questions");
+      toast.error(err instanceof Error ? err.message : "Failed to generate questions");
     } finally {
       setGenerating(false);
     }
-  }, [lessonName, selectedUnitId, difficulty, format, questionCount]);
-
-  const handleRegenerateOne = useCallback(async (index: number) => {
-    setRegeneratingIndex(index);
-    try {
-      if (useBackendApi()) {
-        const data = await apiGenerateExitTicket({
-          lesson_name: lessonName,
-          unit_id: selectedUnitId,
-          difficulty,
-          format: questions[index].format,
-          question_count: 1,
-        });
-        if (data?.questions?.[0]) {
-          const q = data.questions[0] as GeneratedQuestion;
-          setQuestions(prev => {
-            const updated = [...prev];
-            updated[index] = { ...q, question_order: index + 1 };
-            return updated;
-          });
-          toast.success("Question regenerated");
-        }
-      } else {
-        const { data, error } = await supabase.functions.invoke("generate-exit-ticket", {
-          body: { lessonName, unitId: selectedUnitId, difficulty, format: questions[index].format, questionCount: 1 },
-        });
-        if (error) throw error;
-        if (data?.questions?.[0]) {
-          setQuestions(prev => {
-            const updated = [...prev];
-            updated[index] = { ...data.questions[0], question_order: index + 1 };
-            return updated;
-          });
-          toast.success("Question regenerated");
-        }
-      }
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to regenerate question");
-    } finally {
-      setRegeneratingIndex(null);
-    }
-  }, [lessonName, selectedUnitId, difficulty, questions]);
+  }, [
+    topicName,
+    selectedChapterId,
+    selectedChapter?.title,
+    selectedTopicIndex,
+    difficulty,
+    format,
+    questionCount,
+    timeLimit,
+    classId,
+    queryClient,
+  ]);
 
   const handleDeleteQuestion = useCallback((index: number) => {
     setQuestions(prev => prev.filter((_, i) => i !== index).map((q, i) => ({ ...q, question_order: i + 1 })));
@@ -155,77 +148,72 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
     });
   }, []);
 
-  const handleEditQcmOption = useCallback((qIndex: number, optIndex: number, field: string, value: string) => {
-    setQuestions(prev => {
+  const handleEditMcqOption = useCallback((qIndex: number, optIndex: number, field: string, value: string) => {
+    setQuestions((prev) => {
       const updated = [...prev];
-      const opts = [...(updated[qIndex].qcm_options || [])];
+      const opts = [...(updated[qIndex].mcq_options || [])];
       opts[optIndex] = { ...opts[optIndex], [field]: value };
-      updated[qIndex] = { ...updated[qIndex], qcm_options: opts };
+      updated[qIndex] = { ...updated[qIndex], mcq_options: opts };
       return updated;
     });
   }, []);
 
   const handlePublish = useCallback(async (isDraft: boolean) => {
-    if (questions.length === 0) { toast.error("No questions to publish"); return; }
+    if (questions.length === 0 || !activeTicket) {
+      toast.error("Generate questions first, then publish.");
+      return;
+    }
     setSaving(true);
     try {
-      const { data: config, error: configErr } = await supabase
-        .from("exit_ticket_configs")
-        .insert({
-          class_id: classId,
-          unit_id: selectedUnitId,
-          lesson_index: selectedLessonIndex,
-          question_count: questions.length,
-          difficulty,
-          time_limit_minutes: timeLimit,
-          format,
-          is_active: !isDraft,
-        })
-        .select()
-        .single();
-      if (configErr) throw configErr;
-
-      const questionsToInsert = questions.map(q => ({
-        config_id: config.id,
-        question_order: q.question_order,
-        format: q.format,
-        question_text: q.question_text,
-        correct_answer: q.correct_answer,
-        unit: q.unit || null,
-        equation_parts: q.equation_parts || null,
-        qcm_options: q.qcm_options || null,
-      }));
-      const { error: qErr } = await supabase
-        .from("exit_ticket_questions")
-        .insert(questionsToInsert);
-      if (qErr) throw qErr;
-
-      // If timed mode enabled AND publishing (not draft), launch timed mode
-      if (!isDraft && timedEnabled) {
-        const { error: timedErr } = await supabase
-          .from("classes")
-          .update({
-            timed_mode_active: true,
-            timed_practice_minutes: timedDuration,
-            timed_started_at: new Date().toISOString(),
-            active_unit_id: selectedUnitId,
-          })
-          .eq("id", classId);
-        if (timedErr) throw timedErr;
-        onTimedModeLaunched?.();
+      if (!isDraft) {
+        await publishClassroomLiveSession(classId, {
+          exit_ticket_id: activeTicket.id,
+          timed_practice_enabled: timedEnabled,
+          timed_practice_minutes: timedEnabled ? timedDuration : null,
+          unit_id: selectedChapterId,
+          lesson_index: selectedTopicIndex,
+        });
+        void queryClient.invalidateQueries({ queryKey: ["teacher", "classes"] });
+        void queryClient.invalidateQueries({ queryKey: ["teacher", "exit-tickets", classId] });
+        onPublishSuccess?.({
+          timedPractice: timedEnabled,
+          minutes: timedDuration,
+          chapterId: selectedChapterId,
+        });
+        toast.success(
+          timedEnabled
+            ? "Published. Timed practice is running — use Stop timed mode when the class is done."
+            : "Published. Students will see the exit ticket on their next sync.",
+        );
+      } else {
+        toast.success(
+          "Draft noted locally. The ticket is already stored from Generate; publish when your class is ready.",
+        );
       }
-
-      toast.success(isDraft ? "Exit ticket saved as draft" : "Exit ticket published to classroom!");
-      // Reset wizard
       setCurrentStep(1);
       setQuestions([]);
+      setActiveTicket(null);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to save exit ticket");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Publish failed. Deploy POST /teacher/classrooms/{id}/live-session/publish on the API.",
+      );
     } finally {
       setSaving(false);
     }
-  }, [questions, classId, selectedUnitId, selectedLessonIndex, difficulty, timeLimit, format, timedEnabled, timedDuration, onTimedModeLaunched]);
+  }, [
+    questions.length,
+    activeTicket,
+    classId,
+    timedEnabled,
+    timedDuration,
+    selectedChapterId,
+    selectedTopicIndex,
+    onPublishSuccess,
+    queryClient,
+  ]);
 
   return (
     <Card>
@@ -265,15 +253,15 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
-        {/* ===== STEP 1: Unit & Lesson ===== */}
+        {/* ===== STEP 1: Chapter & Topic ===== */}
         {currentStep === 1 && (
-          <Step1UnitLesson
-            selectedUnitId={selectedUnitId}
-            setSelectedUnitId={(id) => { setSelectedUnitId(id); setSelectedLessonIndex(0); }}
-            selectedLessonIndex={selectedLessonIndex}
-            setSelectedLessonIndex={setSelectedLessonIndex}
+          <Step1ChapterTopic
+            selectedChapterId={selectedChapterId}
+            setSelectedChapterId={(id) => { setSelectedChapterId(id); setSelectedTopicIndex(0); }}
+            selectedTopicIndex={selectedTopicIndex}
+            setSelectedTopicIndex={setSelectedTopicIndex}
             courseLevel={courseLevel}
-            selectedUnit={selectedUnit}
+            selectedChapter={selectedChapter}
             onNext={() => setCurrentStep(2)}
           />
         )}
@@ -307,17 +295,15 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         {currentStep === 4 && (
           <Step4Preview
             questions={questions}
-            selectedUnit={selectedUnit}
-            lessonName={lessonName}
+            selectedChapter={selectedChapter}
+            topicName={topicName}
             difficulty={difficulty}
             timeLimit={timeLimit}
             editingIndex={editingIndex}
             setEditingIndex={setEditingIndex}
-            regeneratingIndex={regeneratingIndex}
-            onRegenerateOne={handleRegenerateOne}
             onDeleteQuestion={handleDeleteQuestion}
             onEditField={handleEditField}
-            onEditQcmOption={handleEditQcmOption}
+            onEditMcqOption={handleEditMcqOption}
             onRegenerateAll={() => { setCurrentStep(3); }}
             onBack={() => setCurrentStep(3)}
             onNext={() => setCurrentStep(5)}
@@ -327,8 +313,8 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
         {/* ===== STEP 5: Publish ===== */}
         {currentStep === 5 && (
           <Step5Publish
-            selectedUnit={selectedUnit}
-            lessonName={lessonName}
+            selectedChapter={selectedChapter}
+            topicName={topicName}
             questionCount={questions.length}
             difficulty={difficulty}
             timeLimit={timeLimit}
@@ -347,22 +333,22 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onTimedModeLaunche
 
 // ===== Step Sub-Components =====
 
-function Step1UnitLesson({ selectedUnitId, setSelectedUnitId, selectedLessonIndex, setSelectedLessonIndex, courseLevel, selectedUnit, onNext }: {
-  selectedUnitId: string; setSelectedUnitId: (id: string) => void;
-  selectedLessonIndex: number; setSelectedLessonIndex: (i: number) => void;
-  courseLevel?: CourseLevel; selectedUnit?: UnitListItem;
+function Step1ChapterTopic({ selectedChapterId, setSelectedChapterId, selectedTopicIndex, setSelectedTopicIndex, courseLevel, selectedChapter, onNext }: {
+  selectedChapterId: string; setSelectedChapterId: (id: string) => void;
+  selectedTopicIndex: number; setSelectedTopicIndex: (i: number) => void;
+  courseLevel?: CourseLevel; selectedChapter?: UnitListItem;
   onNext: () => void;
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <UnitSelector value={selectedUnitId} onValueChange={setSelectedUnitId} courseLevel={courseLevel} label="Unit" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
+        <ChapterSelector value={selectedChapterId} onValueChange={setSelectedChapterId} courseLevel={courseLevel} label="Chapter" />
         <div className="space-y-2">
-          <Label>Lesson</Label>
-          <Select value={String(selectedLessonIndex)} onValueChange={v => setSelectedLessonIndex(Number(v))}>
+          <Label className="flex items-center gap-1.5 h-5">Topic</Label>
+          <Select value={String(selectedTopicIndex)} onValueChange={v => setSelectedTopicIndex(Number(v))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              {(selectedUnit?.lesson_titles || []).map((t, i) => (
+              {(selectedChapter?.lesson_titles || []).map((t, i) => (
                 <SelectItem key={i} value={String(i)}>{t}</SelectItem>
               ))}
             </SelectContent>
@@ -433,8 +419,8 @@ function Step3Config({ questionCount, setQuestionCount, difficulty, setDifficult
   generating: boolean; onBack: () => void; onGenerate: () => void;
 }) {
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="space-y-2">
           <Label>Questions</Label>
           <Select value={String(questionCount)} onValueChange={v => setQuestionCount(Number(v))}>
@@ -473,9 +459,9 @@ function Step3Config({ questionCount, setQuestionCount, difficulty, setDifficult
           <Select value={format} onValueChange={setFormat}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="qcm">QCM Only</SelectItem>
-              <SelectItem value="structured">Two-Step Structured</SelectItem>
-              <SelectItem value="mixed">Mixed (QCM + Structured)</SelectItem>
+              <SelectItem value="mcq">MCQ only</SelectItem>
+              <SelectItem value="structured">Two-step structured</SelectItem>
+              <SelectItem value="mixed">Mixed (MCQ + structured)</SelectItem>
             </SelectContent>
           </Select>
           {format === "structured" && (
@@ -485,7 +471,7 @@ function Step3Config({ questionCount, setQuestionCount, difficulty, setDifficult
           )}
         </div>
       </div>
-      <div className="flex justify-between">
+      <div className="flex justify-between pt-2">
         <Button variant="outline" onClick={onBack} className="gap-1.5">
           <ChevronLeft className="w-4 h-4" /> Back
         </Button>
@@ -498,16 +484,14 @@ function Step3Config({ questionCount, setQuestionCount, difficulty, setDifficult
   );
 }
 
-function Step4Preview({ questions, selectedUnit, lessonName, difficulty, timeLimit, editingIndex, setEditingIndex, regeneratingIndex, onRegenerateOne, onDeleteQuestion, onEditField, onEditQcmOption, onRegenerateAll, onBack, onNext }: {
+function Step4Preview({ questions, selectedChapter, topicName, difficulty, timeLimit, editingIndex, setEditingIndex, onDeleteQuestion, onEditField, onEditMcqOption, onRegenerateAll, onBack, onNext }: {
   questions: GeneratedQuestion[];
-  selectedUnit?: UnitListItem;
-  lessonName: string; difficulty: string; timeLimit: number;
+  selectedChapter?: UnitListItem;
+  topicName: string; difficulty: string; timeLimit: number;
   editingIndex: number | null; setEditingIndex: (v: number | null) => void;
-  regeneratingIndex: number | null;
-  onRegenerateOne: (i: number) => void;
   onDeleteQuestion: (i: number) => void;
   onEditField: (i: number, field: string, value: string) => void;
-  onEditQcmOption: (qi: number, oi: number, field: string, value: string) => void;
+  onEditMcqOption: (qi: number, oi: number, field: string, value: string) => void;
   onRegenerateAll: () => void;
   onBack: () => void; onNext: () => void;
 }) {
@@ -515,8 +499,8 @@ function Step4Preview({ questions, selectedUnit, lessonName, difficulty, timeLim
     <div className="space-y-4">
       {/* Preview header */}
       <div className="flex flex-wrap items-center gap-2 p-3 bg-secondary/30 rounded-lg">
-        <Badge variant="outline">{selectedUnit?.icon} {selectedUnit?.title}</Badge>
-        <Badge variant="secondary">{lessonName}</Badge>
+        <Badge variant="outline">{selectedChapter?.icon} {selectedChapter?.title}</Badge>
+        <Badge variant="secondary">{topicName}</Badge>
         <Badge variant="outline">{questions.length} Q</Badge>
         <Badge variant="outline">{timeLimit} min</Badge>
         <Badge className={cn(
@@ -531,15 +515,24 @@ function Step4Preview({ questions, selectedUnit, lessonName, difficulty, timeLim
           <div key={i} className="p-4 border border-border rounded-lg bg-card space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px]">{q.format.toUpperCase()}</Badge>
+                <Badge variant="outline" className="text-[10px]">
+                  {q.format === "mcq" ? "MCQ" : "Structured"}
+                </Badge>
                 <span className="text-sm font-semibold text-foreground">Q{q.question_order}</span>
               </div>
               <div className="flex items-center gap-1">
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditingIndex(editingIndex === i ? null : i)}>
                   <Pencil className="w-3.5 h-3.5" />
                 </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onRegenerateOne(i)} disabled={regeneratingIndex === i}>
-                  {regeneratingIndex === i ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled
+                  title="Single-question regeneration is not available yet. Use Regenerate All to return to step 3 and run Generate again."
+                >
+                  <RefreshCw className="w-3.5 h-3.5 opacity-50" />
                 </Button>
                 <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDeleteQuestion(i)}>
                   <Trash2 className="w-3.5 h-3.5" />
@@ -554,28 +547,64 @@ function Step4Preview({ questions, selectedUnit, lessonName, difficulty, timeLim
                 {q.unit !== undefined && (
                   <Input value={q.unit || ""} onChange={e => onEditField(i, "unit", e.target.value)} placeholder="Unit" className="w-32" />
                 )}
-                {q.qcm_options && q.qcm_options.map((opt, j) => (
-                  <div key={j} className="flex gap-2">
-                    <Input value={opt.label} onChange={e => onEditQcmOption(i, j, "label", e.target.value)} placeholder="Option label" className="flex-1" />
-                    <Input value={opt.value} onChange={e => onEditQcmOption(i, j, "value", e.target.value)} placeholder="Value" className="w-24" />
+                {q.mcq_options && q.mcq_options.map((opt, j) => (
+                  <div key={j} className="space-y-1.5 rounded-md border border-border/70 bg-muted/20 p-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Input
+                        value={opt.label}
+                        onChange={(e) => onEditMcqOption(i, j, "label", e.target.value)}
+                        placeholder="Label (A,B,…)"
+                        className="w-14"
+                      />
+                      <Input
+                        value={opt.value}
+                        onChange={(e) => onEditMcqOption(i, j, "value", e.target.value)}
+                        placeholder="Answer text"
+                        className="min-w-0 flex-1"
+                      />
+                    </div>
+                    {opt.value.trim() !== (q.correct_answer || "").trim() && (
+                      <Input
+                        value={opt.misconception_tag || ""}
+                        onChange={(e) => onEditMcqOption(i, j, "misconception_tag", e.target.value)}
+                        placeholder="Misconception tag (e.g. incorrect_mixing_order)"
+                        className="font-mono text-xs"
+                      />
+                    )}
                   </div>
                 ))}
                 <Button variant="outline" size="sm" onClick={() => setEditingIndex(null)}>Done editing</Button>
               </div>
             ) : (
               <>
-                <p className="text-sm text-foreground">{q.question_text}</p>
-                {q.qcm_options && (
-                  <div className="space-y-1 ml-4">
-                    {q.qcm_options.map((opt, j) => (
+                <div className="text-sm text-foreground">
+                  <MathText>{q.question_text}</MathText>
+                </div>
+                {q.mcq_options && (
+                  <div className="ml-1 space-y-2">
+                    {q.mcq_options.map((opt, j) => (
                       <div key={j} className={cn(
-                        "text-xs px-2 py-1.5 rounded",
-                        opt.value === q.correct_answer ? "bg-success/10 text-success border border-success/20" : "bg-secondary/50 text-muted-foreground"
+                        "flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-sm",
+                        opt.value === q.correct_answer
+                          ? "border-emerald-500/30 bg-emerald-500/5 text-foreground"
+                          : "border-border bg-secondary/40 text-foreground",
                       )}>
-                        {opt.label}
-                        {opt.misconception_tag && opt.value !== q.correct_answer && (
-                          <span className="ml-2 text-[10px] text-destructive">({opt.misconception_tag})</span>
-                        )}
+                        <span className="min-w-0 flex-1 leading-snug">
+                          <span className="mr-1.5 font-semibold">{opt.label}.</span>
+                          {opt.value}
+                        </span>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {opt.value === q.correct_answer && (
+                            <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-[10px] text-emerald-800 dark:text-emerald-200">
+                              ✓ Correct
+                            </Badge>
+                          )}
+                          {opt.misconception_tag && opt.value !== q.correct_answer && (
+                            <Badge variant="destructive" className="max-w-[200px] truncate text-[10px]">
+                              {opt.misconception_tag}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -609,9 +638,9 @@ function Step4Preview({ questions, selectedUnit, lessonName, difficulty, timeLim
   );
 }
 
-function Step5Publish({ selectedUnit, lessonName, questionCount, difficulty, timeLimit, format, timedEnabled, timedDuration, saving, onBack, onPublish }: {
-  selectedUnit?: UnitListItem;
-  lessonName: string; questionCount: number; difficulty: string;
+function Step5Publish({ selectedChapter, topicName, questionCount, difficulty, timeLimit, format, timedEnabled, timedDuration, saving, onBack, onPublish }: {
+  selectedChapter?: UnitListItem;
+  topicName: string; questionCount: number; difficulty: string;
   timeLimit: number; format: string;
   timedEnabled: boolean; timedDuration: number;
   saving: boolean;
@@ -623,12 +652,17 @@ function Step5Publish({ selectedUnit, lessonName, questionCount, difficulty, tim
       <div className="p-4 bg-secondary/30 rounded-lg space-y-3">
         <h4 className="font-semibold text-foreground">Review & Publish</h4>
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><span className="text-muted-foreground">Unit:</span> <span className="font-medium text-foreground">{selectedUnit?.icon} {selectedUnit?.title}</span></div>
-          <div><span className="text-muted-foreground">Lesson:</span> <span className="font-medium text-foreground">{lessonName}</span></div>
+          <div><span className="text-muted-foreground">Chapter:</span> <span className="font-medium text-foreground">{selectedChapter?.icon} {selectedChapter?.title}</span></div>
+          <div><span className="text-muted-foreground">Topic:</span> <span className="font-medium text-foreground">{topicName}</span></div>
           <div><span className="text-muted-foreground">Questions:</span> <span className="font-medium text-foreground">{questionCount}</span></div>
           <div><span className="text-muted-foreground">Difficulty:</span> <Badge variant="outline" className="ml-1">{difficulty}</Badge></div>
           <div><span className="text-muted-foreground">Time Limit:</span> <span className="font-medium text-foreground">{timeLimit} min</span></div>
-          <div><span className="text-muted-foreground">Format:</span> <span className="font-medium text-foreground capitalize">{format}</span></div>
+          <div>
+            <span className="text-muted-foreground">Format:</span>{" "}
+            <span className="font-medium text-foreground">
+              {format === "mcq" ? "MCQ only" : format === "mixed" ? "Mixed (MCQ + structured)" : format === "structured" ? "Two-step structured" : format}
+            </span>
+          </div>
         </div>
         {timedEnabled && (
           <div className="p-3 bg-primary/5 border border-primary/20 rounded-md text-sm">

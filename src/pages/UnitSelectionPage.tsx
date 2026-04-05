@@ -14,6 +14,7 @@ import { NavDropdown } from "@/components/tutor/layout";
 import { BeakerMascot } from "@/components/tutor/widgets";
 import { UnitRow } from "@/components/landing/UnitRow";
 import { PhaseHeader } from "@/components/landing/PhaseHeader";
+import { ClassroomLiveBanner } from "@/components/student/ClassroomLiveBanner";
 
 type NavState = { searchQuery?: string; selectedLevel?: CourseLevel | "all" } | null;
 
@@ -185,6 +186,8 @@ export default function UnitSelectionPage() {
               Follow the sequence below — each topic builds on the last.
             </p>
           </div>
+
+          <ClassroomLiveBanner />
 
           {/* Search + Filter */}
           <div className="flex flex-col sm:flex-row gap-3 mb-6">

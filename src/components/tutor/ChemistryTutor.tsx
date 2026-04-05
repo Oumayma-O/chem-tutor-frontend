@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import { Level, LEVEL_CONFIGS, StudentAnswer } from "@/types/chemistry";
 import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { useQuery } from "@tanstack/react-query";
@@ -26,6 +28,7 @@ import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
 import { useTutorMasterySync } from "@/hooks/useTutorMasterySync";
 import { useTutorProgression } from "@/hooks/useTutorProgression";
 import { useTutorTimedMode } from "@/hooks/useTutorTimedMode";
+import { useStudentLiveSessionTimedSync } from "@/hooks/useStudentLiveSessionTimedSync";
 import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
 import { effectiveLevel2CompletedCountIncludingCurrent } from "@/lib/progressionUtils";
 import { Button } from "@/components/ui/button";
@@ -201,6 +204,33 @@ export function ChemistryTutor({
     onMarkInProgress,
   });
 
+  const { profile, isStudent } = useAuth();
+  const heartbeatStepId = useMemo(() => {
+    const prob = nav.currentProblem;
+    if (!prob) return `${unitId}:${lessonIndex}`;
+    const pending = steps.interactiveSteps.find(
+      (s) => !isStepAnswerCorrect(steps.answers, steps.structuredStepComplete, s.id),
+    );
+    const sid =
+      pending?.id ??
+      steps.interactiveSteps[steps.interactiveSteps.length - 1]?.id ??
+      "done";
+    return `${unitId}:${lessonIndex}:${sid}`;
+  }, [
+    unitId,
+    lessonIndex,
+    nav.currentProblem,
+    steps.interactiveSteps,
+    steps.answers,
+    steps.structuredStepComplete,
+  ]);
+
+  usePresenceHeartbeat(
+    profile?.classroom_id ?? null,
+    heartbeatStepId,
+    Boolean(isStudent && profile?.classroom_id),
+  );
+
   // ── Sync bridge refs (runs after all hooks' useLayoutEffects) ─────────────
   useLayoutEffect(() => {
     masteryScoreRef.current = masteryScore;
@@ -322,6 +352,13 @@ export function ChemistryTutor({
 
   const timed = useTutorTimedMode();
 
+  const { liveSession, showExitTicketAction, dismissExitTicketOverlays, prefetchedExitTicket } =
+    useStudentLiveSessionTimedSync({
+      isStudent: Boolean(isStudent),
+      classroomId: profile?.classroom_id,
+      timed,
+    });
+
   useEffect(() => {
     setMasteryLevel2Completions(null);
   }, [unitId, lessonIndex]);
@@ -334,9 +371,9 @@ export function ChemistryTutor({
     });
   }, [nav.currentLevel, nav.levelSolved[2], masteryLevel2Completions]);
 
+  /** Records exit-ticket outcome; overlay stays open until the user dismisses the results dialog (ExitTicketMode calls onCancel). */
   const handleExitTicketComplete = (result: ExitTicketResult) => {
     setExitTicketResults((prev) => [result, ...prev]);
-    timed.setShowExitTicket(false);
     if (result.readyFlag) {
       toast.success("Excellent! You're ready to progress!");
     } else {
@@ -365,8 +402,10 @@ export function ChemistryTutor({
         problem={nav.currentProblem ?? undefined}
         timeLimit={180}
         onComplete={handleExitTicketComplete}
-        onCancel={() => timed.setShowExitTicket(false)}
+        onCancel={dismissExitTicketOverlays}
         configId={timed.timedExitTicketConfigId || undefined}
+        classId={profile?.classroom_id ?? undefined}
+        prefetchedTicket={prefetchedExitTicket}
       />
     );
   }
@@ -417,22 +456,24 @@ export function ChemistryTutor({
               isLevel3Locked={isLevel3Locked}
               masteryScore={masteryScore}
             />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                if (!nav.currentProblem) {
-                  toast.info("Wait for the problem to load, then try again.");
-                  return;
-                }
-                timed.setShowExitTicket(true);
-              }}
-              disabled={nav.problemLoading || !nav.currentProblem}
-              className="gap-1.5"
-            >
-              <ClipboardCheck className="w-4 h-4" />
-              <span className="hidden sm:inline">Exit Ticket</span>
-            </Button>
+            {showExitTicketAction && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (!nav.currentProblem) {
+                    toast.info("Wait for the problem to load, then try again.");
+                    return;
+                  }
+                  timed.setShowExitTicket(true);
+                }}
+                disabled={nav.problemLoading || !nav.currentProblem}
+                className="gap-1.5"
+              >
+                <ClipboardCheck className="w-4 h-4" />
+                <span className="hidden sm:inline">Exit Ticket</span>
+              </Button>
+            )}
           </div>
         </div>
 

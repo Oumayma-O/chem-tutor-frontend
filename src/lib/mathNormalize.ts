@@ -57,9 +57,6 @@ function removeStrayUnescapedDollars(inner: string): string {
   return inner.replace(/(?<!\\)\$/g, "");
 }
 
-/** @deprecated Use stripOuterMathDelimiters from @/utils/mathUtils */
-export const stripOuterDollarDelimiters = stripOuterMathDelimiters;
-
 function trimTripleDollarNoise(s: string): string {
   return s.replace(/^\s*\$\$\$/g, "$$").replace(/\$\$\$\s*$/g, "$$");
 }

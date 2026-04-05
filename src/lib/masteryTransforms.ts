@@ -57,7 +57,14 @@ export function normalizeCategoryScores(categoryScores?: MasteryCategoryScores):
   };
 }
 
-/** Mastery UI tiers (0–100%): red urgent, amber progress, emerald proficient. */
+/** Brand hexes for mastery progress (bars, icons, percentages). */
+export const MASTERY_PROGRESS_HEX = {
+  red: "#de0030",
+  yellow: "#e7b008",
+  green: "#16a249",
+} as const;
+
+/** Mastery UI tiers (0–100%): red urgent, yellow progress, green proficient. */
 export type MasteryColorBand = "red" | "amber" | "emerald";
 
 export type MasteryColorClasses = {
@@ -69,18 +76,19 @@ export type MasteryColorClasses = {
 };
 
 /**
- * Dynamic mastery colors for score displays. Thresholds: &lt;15% red, 15–59% amber, ≥60% emerald.
+ * Dynamic mastery colors for score displays. Thresholds: &lt;15% red, 15–59% yellow, ≥60% green.
  * Use with `transition-colors duration-500` on colored elements.
  */
 export function getMasteryColor(score: number): MasteryColorClasses {
   const s = Math.max(0, Math.min(100, Number.isFinite(score) ? score : 0));
+  // Full literal class strings (not template literals) so Tailwind JIT always emits these utilities.
   if (s < 15) {
-    return { text: "text-red-500", bg: "bg-red-500", band: "red" };
+    return { text: "text-[#de0030]", bg: "bg-[#de0030]", band: "red" };
   }
   if (s < 60) {
-    return { text: "text-amber-500", bg: "bg-amber-500", band: "amber" };
+    return { text: "text-[#e7b008]", bg: "bg-[#e7b008]", band: "amber" };
   }
-  return { text: "text-emerald-500", bg: "bg-emerald-500", band: "emerald" };
+  return { text: "text-[#16a249]", bg: "bg-[#16a249]", band: "emerald" };
 }
 
 /** Partial mastery payload from apiGetMastery / apiCompleteAttempt / apiSaveStep responses. */

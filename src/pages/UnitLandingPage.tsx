@@ -15,6 +15,7 @@ import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
 import { enqueuePrefetch } from "@/lib/problemPrefetchCache";
 import { getSimEntry } from "@/components/simulations/registry";
 import { setLastActiveTab } from "@/utils/lessonTabStore";
+import { ClassroomLiveBanner } from "@/components/student/ClassroomLiveBanner";
 
 export default function UnitLandingPage() {
   const { unitId, lessonIndex } = useParams<{ unitId?: string; lessonIndex?: string }>();
@@ -168,6 +169,9 @@ export default function UnitLandingPage() {
 
         <div className="flex-1 min-w-0 flex flex-col">
           <main className="flex-1 pb-24">
+            <div className="px-4 pt-4 max-w-screen-xl mx-auto w-full">
+              <ClassroomLiveBanner />
+            </div>
             {currentLesson && (
               <LessonOverview
                 lesson={currentLesson}
