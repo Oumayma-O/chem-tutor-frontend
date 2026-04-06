@@ -343,24 +343,39 @@ function Step1ChapterTopic({ selectedChapterId, setSelectedChapterId, selectedLe
   courseLevel?: CourseLevel; selectedChapter?: UnitListItem;
   onNext: () => void;
 }) {
+  const lessons = selectedChapter?.lesson_titles ?? [];
+  const canProceed = selectedChapterId.length > 0 && lessons.length > 0;
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 items-end">
         <ChapterSelector value={selectedChapterId} onValueChange={setSelectedChapterId} courseLevel={courseLevel} label="Chapter" />
         <div className="space-y-2">
-          <Label className="flex items-center gap-1.5 h-5">Lesson</Label>
-          <Select value={String(selectedLessonIndex)} onValueChange={v => setSelectedLessonIndex(Number(v))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Label className="flex items-center gap-1.5 h-5">
+            Lesson
+            <span className="text-destructive ml-0.5">*</span>
+          </Label>
+          <Select
+            value={lessons.length > 0 ? String(selectedLessonIndex) : ""}
+            onValueChange={v => setSelectedLessonIndex(Number(v))}
+            disabled={lessons.length === 0}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={lessons.length === 0 ? "Select a chapter first" : "Select lesson"} />
+            </SelectTrigger>
             <SelectContent>
-              {(selectedChapter?.lesson_titles || []).map((t, i) => (
+              {lessons.map((t, i) => (
                 <SelectItem key={i} value={String(i)}>{t}</SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {selectedChapterId && lessons.length === 0 && (
+            <p className="text-[11px] text-destructive">This chapter has no lessons yet.</p>
+          )}
         </div>
       </div>
       <div className="flex justify-end">
-        <Button onClick={onNext} className="gap-1.5">
+        <Button onClick={onNext} disabled={!canProceed} className="gap-1.5">
           Next <ChevronRight className="w-4 h-4" />
         </Button>
       </div>

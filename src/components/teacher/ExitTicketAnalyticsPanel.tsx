@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,9 +25,32 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Eye, Filter, Users } from "lu
 import {
   getExitTicketResults,
   getMisconceptionAnalytics,
+  type ExitTicketQuestion,
+  type ExitTicketResponseItem,
   type MisconceptionAnalytics,
 } from "@/services/api/teacher";
+import { useUnits } from "@/hooks/useUnits";
 import { MathText } from "@/lib/mathDisplay";
+
+function computeQuestionClassScore(
+  q: ExitTicketQuestion,
+  responses: ExitTicketResponseItem[],
+): number | null {
+  if (!q.correct_answer || responses.length === 0) return null;
+  let correct = 0;
+  let total = 0;
+  const normalizedCorrect = q.correct_answer.trim().toLowerCase();
+  for (const r of responses) {
+    const ans = (r.answers as Record<string, unknown>[]).find(
+      (a) => String(a.question_id ?? a.id ?? "") === q.id,
+    );
+    if (!ans) continue;
+    total++;
+    const chosen = String(ans.answer ?? ans.value ?? "").trim().toLowerCase();
+    if (chosen === normalizedCorrect) correct++;
+  }
+  return total > 0 ? Math.round((correct / total) * 100) : null;
+}
 
 const PAGE_SIZE = 10;
 
@@ -118,6 +141,19 @@ export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelPr
   const [filterUnitId, setFilterUnitId] = useState<string>("");
   const [filterLessonId, setFilterLessonId] = useState<string>("");
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const { units } = useUnits();
+
+  const unitTitle = useMemo(() => {
+    const map = new Map(units.map((u) => [u.id, u]));
+    return (uid: string, lessonIndex?: number) => {
+      const unit = map.get(uid);
+      const chapterName = unit?.title ?? uid;
+      if (lessonIndex != null && unit?.lesson_titles?.[lessonIndex]) {
+        return `${chapterName} — L${lessonIndex + 1}: ${unit.lesson_titles[lessonIndex]}`;
+      }
+      return chapterName;
+    };
+  }, [units]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["teacher", "exit-tickets", classId, page, filterUnitId, filterLessonId],
@@ -249,20 +285,18 @@ export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelPr
           return (
             <div key={bundle.ticket.id} className="space-y-3 border rounded-lg p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium">
+                    {unitTitle(bundle.ticket.unit_id, bundle.ticket.lesson_index)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
                     {new Date(bundle.ticket.published_at ?? bundle.ticket.created_at).toLocaleString()}
                   </span>
-                  <Badge variant="outline">{bundle.ticket.difficulty}</Badge>
-                  {bundle.ticket.lesson_id && (
-                    <Badge variant="secondary" className="text-[10px]">
-                      {bundle.ticket.lesson_id}
-                    </Badge>
-                  )}
                 </div>
                 <div className="flex items-center gap-2">
+                  <Badge variant="outline">{bundle.ticket.difficulty}</Badge>
                   <span className="text-xs text-muted-foreground">
-                    Lesson {bundle.ticket.lesson_index + 1} · {bundle.ticket.time_limit_minutes} min
+                    {bundle.ticket.time_limit_minutes} min
                   </span>
                   {bundle.responses.length > 0 && (
                     <Button
@@ -283,25 +317,51 @@ export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelPr
                     <TableHead className="w-10">#</TableHead>
                     <TableHead>Question</TableHead>
                     <TableHead className="w-20">Type</TableHead>
+                    <TableHead className="w-32">Correct Answer</TableHead>
+                    <TableHead className="w-24 text-center">Class Score</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bundle.ticket.questions.map((q, i) => (
-                    <TableRow key={q.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell className="text-sm">
-                        <MathText>{q.prompt}</MathText>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {q.question_type}
-                        {q.unit && (
-                          <span className="ml-1 rounded bg-muted px-1 font-mono text-[10px]">
-                            {q.unit}
-                          </span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {bundle.ticket.questions.map((q, i) => {
+                    const classPct = computeQuestionClassScore(q, bundle.responses);
+                    return (
+                      <TableRow key={q.id}>
+                        <TableCell>{i + 1}</TableCell>
+                        <TableCell className="text-sm">
+                          <MathText>{q.prompt}</MathText>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {q.question_type}
+                          {q.unit && (
+                            <span className="ml-1 rounded bg-muted px-1 font-mono text-[10px]">
+                              {q.unit}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {q.correct_answer ? <MathText>{q.correct_answer}</MathText> : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {classPct != null ? (
+                            <Badge
+                              variant="outline"
+                              className={
+                                classPct >= 80
+                                  ? "border-green-500 text-green-700 dark:text-green-400"
+                                  : classPct >= 50
+                                    ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
+                                    : "border-red-500 text-red-700 dark:text-red-400"
+                              }
+                            >
+                              {classPct}%
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {bundle.responses.length > 0 && (

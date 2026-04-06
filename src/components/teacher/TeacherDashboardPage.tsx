@@ -149,7 +149,7 @@ export function TeacherDashboardPage({
               Students
             </TabsTrigger>
             <TabsTrigger value="standards">Standards</TabsTrigger>
-            <TabsTrigger value="exit-tickets">Exit Tickets</TabsTrigger>
+            <TabsTrigger value="exit-tickets">Assessments</TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5">
               <Settings className="w-3.5 h-3.5" />
               Settings

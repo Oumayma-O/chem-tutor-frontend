@@ -186,8 +186,8 @@ export async function getClassRoster(classroomId: string): Promise<RosterStudent
 
 export async function generateExitTicket(body: {
   classroom_id: string;
-  unit_id?: string | null;
-  lesson_index?: number;
+  unit_id: string;
+  lesson_index: number;
   lesson_id?: string | null;
   difficulty?: string;
   question_count?: number;
@@ -195,8 +195,8 @@ export async function generateExitTicket(body: {
 }): Promise<{ ticket: ExitTicketConfig }> {
   return post("/teacher/exit-tickets/generate", {
     classroom_id: body.classroom_id,
-    unit_id: body.unit_id ?? null,
-    lesson_index: body.lesson_index ?? 0,
+    unit_id: body.unit_id,
+    lesson_index: body.lesson_index,
     lesson_id: body.lesson_id ?? null,
     difficulty: body.difficulty ?? "medium",
     question_count: body.question_count ?? 4,
