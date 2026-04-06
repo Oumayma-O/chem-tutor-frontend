@@ -38,6 +38,7 @@ interface Params {
   nav: {
     currentProblem: { id: string } | null;
     currentLevel: number;
+    currentDifficulty: "easy" | "medium" | "hard";
     completedProblemIds: string[];
     setCompletedProblemIds: (ids: string[]) => void;
     saveCurrentStateToCache: () => void;
@@ -81,15 +82,10 @@ export function useTutorProgression({
     setShowProgressionModal(false);
   }, [nav]);
 
-  const handleCheckProgression = useCallback(() => {
+  /** Record the current attempt on the backend (non-blocking). Reusable by
+   *  both the progression-modal path and the direct "Practice More" path. */
+  const completeCurrentAttempt = useCallback(() => {
     if (!nav.currentProblem) return;
-    const result = checkProgression();
-    setProgressionResult(result);
-    setShowProgressionModal(true);
-
-    if (isLevel2To3Advance(result, nav.currentLevel)) {
-      setHasCompletedLevel2(true);
-    }
 
     const allFirstAttempt = interactiveStepIds.every(
       (id) => steps.answers[id]?.first_attempt_correct === true,
@@ -141,8 +137,6 @@ export function useTutorProgression({
     }
   }, [
     nav,
-    checkProgression,
-    setHasCompletedLevel2,
     interactiveStepIds,
     steps,
     completeProblemAttempt,
@@ -154,8 +148,22 @@ export function useTutorProgression({
     setMasteryScore,
     setRecommendedDifficulty,
     setCurrentAttemptId,
+    setHasCompletedLevel2,
     onMasteryLevel2Completions,
   ]);
+
+  const handleCheckProgression = useCallback(() => {
+    if (!nav.currentProblem) return;
+    const result = checkProgression();
+    setProgressionResult(result);
+    setShowProgressionModal(true);
+
+    if (isLevel2To3Advance(result, nav.currentLevel)) {
+      setHasCompletedLevel2(true);
+    }
+
+    completeCurrentAttempt();
+  }, [nav, checkProgression, setHasCompletedLevel2, completeCurrentAttempt]);
 
   const handleContinueAfterProgression = useCallback(async () => {
     if (!progressionResult || !nav.currentProblem) return;
@@ -226,11 +234,12 @@ export function useTutorProgression({
     prepareNextProblemTransition(nextExcludeIds);
     delete nav.levelCacheRef.current[nav.currentLevel as 1 | 2 | 3];
 
+    const diff = nav.currentDifficulty;
     if (nav.currentLevel === 2) {
-      await nav.loadNewProblem("medium", nextExcludeIds, 2);
+      await nav.loadNewProblem(diff, nextExcludeIds, 2);
       toast.info("Great choice! Here's another Level 2 problem for extra practice.");
     } else if (nav.currentLevel === 3) {
-      await nav.loadNewProblem("medium", nextExcludeIds, 3);
+      await nav.loadNewProblem(diff, nextExcludeIds, 3);
       toast.success("Another Level 3 problem loaded!");
     }
   }, [nav, prepareNextProblemTransition]);

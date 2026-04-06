@@ -81,10 +81,6 @@ export function normalizeLiveSession(data: unknown): MyClassroomLiveSession | nu
  * Poll while the student is enrolled in a classroom. Returns null if the route is missing or idle.
  */
 export async function getMyClassroomLiveSession(): Promise<MyClassroomLiveSession | null> {
-  try {
-    const raw = await get<unknown>("/classrooms/me/live-session");
-    return normalizeLiveSession(raw);
-  } catch {
-    return null;
-  }
+  const raw = await get<unknown>("/classrooms/me/live-session");
+  return normalizeLiveSession(raw);
 }

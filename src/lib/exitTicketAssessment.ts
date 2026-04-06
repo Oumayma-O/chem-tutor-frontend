@@ -2,23 +2,56 @@ import type { SolutionStep } from "@/types/chemistry";
 import type { StudentAnswer } from "@/types/chemistry";
 import type { ExitTicketResult } from "@/types/cognitive";
 import type { UiExitTicketQuestion } from "@/lib/exitTicketMap";
+import { apiValidateStep } from "@/lib/api/problems";
 
-/** Per-question correctness for class exit tickets (blank answers → incorrect). */
-export function gradeClassQuestions(
+/**
+ * Per-question correctness for class exit tickets.
+ * MCQ: simple string match (selection is unambiguous).
+ * Structured / numeric: delegates to the practice validation API so math
+ * equivalence, unit handling, and sig-fig tolerance are applied uniformly.
+ * Falls back to local string comparison if the API call fails.
+ */
+export async function gradeClassQuestions(
   questions: UiExitTicketQuestion[],
   answers: Record<string, string>,
-): {
+): Promise<{
   perQuestion: Record<string, boolean>;
   correctCount: number;
   total: number;
   scorePercent: number;
-} {
+}> {
   const perQuestion: Record<string, boolean> = {};
-  questions.forEach((q) => {
-    const studentAnswer = answers[q.id]?.trim().toLowerCase() || "";
-    const correct = (q.correct_answer || "").trim().toLowerCase();
-    perQuestion[q.id] = studentAnswer === correct;
+  const validationPromises = questions.map(async (q, i) => {
+    const studentAnswer = answers[q.id]?.trim() || "";
+    const correct = (q.correct_answer || "").trim();
+
+    if (!studentAnswer || !correct) {
+      perQuestion[q.id] = false;
+      return;
+    }
+
+    if (q.format === "mcq") {
+      perQuestion[q.id] = studentAnswer.toLowerCase() === correct.toLowerCase();
+      return;
+    }
+
+    try {
+      const result = await apiValidateStep({
+        student_answer: studentAnswer,
+        correct_answer: correct,
+        step_id: q.id,
+        step_number: i + 1,
+        step_label: q.question_text,
+        step_type: q.format === "structured" ? "calculation" : "final_answer",
+        problem_context: q.question_text,
+      });
+      perQuestion[q.id] = result.is_correct;
+    } catch {
+      perQuestion[q.id] = studentAnswer.toLowerCase() === correct.toLowerCase();
+    }
   });
+
+  await Promise.all(validationPromises);
   const correctCount = Object.values(perQuestion).filter(Boolean).length;
   const total = questions.length;
   const scorePercent = total > 0 ? (correctCount / total) * 100 : 0;

@@ -11,28 +11,22 @@ import {
 } from "recharts";
 import { AlertTriangle } from "lucide-react";
 import { getAggregateMisconceptions } from "@/services/api/teacher";
-
-const BAR_COLOURS = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#a855f7",
-  "#ec4899",
-  "#14b8a6",
-  "#3b82f6",
-  "#6366f1",
-];
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
+import { teacherQueryNoRetry, refetchIntervalUnlessError } from "@/lib/teacherQueryOptions";
+import { TEACHER_MISCONCEPTION_BAR_COLORS } from "@/lib/teacherChartPalette";
 
 interface MisconceptionSummaryCardProps {
   classId: string;
 }
 
 export function MisconceptionSummaryCard({ classId }: MisconceptionSummaryCardProps) {
-  const { data, isLoading } = useQuery({
-    queryKey: ["teacher", "misconceptions-aggregate", classId],
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: teacherQueryKeys.exitTickets.aggregate(classId),
     queryFn: () => getAggregateMisconceptions(classId),
     enabled: Boolean(classId),
     staleTime: 60_000,
+    refetchInterval: refetchIntervalUnlessError(90_000),
+    ...teacherQueryNoRetry,
   });
 
   if (isLoading) {
@@ -40,6 +34,22 @@ export function MisconceptionSummaryCard({ classId }: MisconceptionSummaryCardPr
       <Card>
         <CardContent className="py-6 text-center text-sm text-muted-foreground">
           Loading misconception data…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    const msg = error instanceof Error ? error.message : "Request failed";
+    return (
+      <Card>
+        <CardContent className="py-6 text-center text-sm text-muted-foreground">
+          <p className="font-medium text-destructive">Could not load misconception analytics</p>
+          <p className="mt-1 text-xs">{msg}</p>
+          <p className="mt-2 text-xs">
+            Ensure the API exposes{" "}
+            <code className="rounded bg-muted px-1">GET /teacher/exit-tickets/{"{classId}"}/misconceptions/aggregate</code>.
+          </p>
         </CardContent>
       </Card>
     );
@@ -90,7 +100,7 @@ export function MisconceptionSummaryCard({ classId }: MisconceptionSummaryCardPr
             />
             <Bar dataKey="count" radius={[0, 4, 4, 0]}>
               {chartData.map((_, i) => (
-                <Cell key={i} fill={BAR_COLOURS[i % BAR_COLOURS.length]} />
+                <Cell key={i} fill={TEACHER_MISCONCEPTION_BAR_COLORS[i % TEACHER_MISCONCEPTION_BAR_COLORS.length]} />
               ))}
             </Bar>
           </BarChart>

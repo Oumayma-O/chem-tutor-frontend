@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Select,
@@ -10,39 +10,54 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { History, Clock, Users } from "lucide-react";
-import { format } from "date-fns";
+import { History, Clock } from "lucide-react";
+import { format, subDays } from "date-fns";
+import { getClassroomSessions, type ClassroomSessionOut } from "@/services/api/teacher";
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
+import { teacherQueryNoRetry } from "@/lib/teacherQueryOptions";
 
-interface SessionLog {
-  id: string;
-  class_id: string;
-  chapter_id: string | null;
-  started_at: string | null;
-  ended_at: string;
-  duration_minutes: number | null;
-  activity_type: string;
-  student_count: number;
-  created_at: string;
-}
+const SESSION_TYPE_LABELS: Record<string, string> = {
+  timed_practice: "Timed Practice",
+  exit_ticket: "Exit Ticket",
+  timed_practice_with_exit: "Practice + Exit Ticket",
+};
+
+const SESSION_TYPE_VARIANTS: Record<string, "default" | "secondary" | "outline"> = {
+  timed_practice: "secondary",
+  exit_ticket: "outline",
+  timed_practice_with_exit: "default",
+};
 
 interface SessionHistoryProps {
   classId: string;
+  onSelectSession?: (session: ClassroomSessionOut | null) => void;
 }
 
-export function SessionHistory({ classId }: SessionHistoryProps) {
-  const [logs, setLogs] = useState<SessionLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [limit, setLimit] = useState("5");
-  const [dateRange, setDateRange] = useState("7");
+export function SessionHistory({ classId, onSelectSession }: SessionHistoryProps) {
+  const [limit, setLimit] = useState("10");
+  const [dateRange, setDateRange] = useState("30");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    // TODO: Connect to FastAPI — session history for class
-    setLogs([]);
-    setLoading(false);
-  }, [classId, limit, dateRange]);
+  const { data: sessions, isLoading, isError } = useQuery({
+    queryKey: teacherQueryKeys.sessions(classId, Number(limit)),
+    queryFn: () => getClassroomSessions(classId, Number(limit)),
+    enabled: Boolean(classId),
+    staleTime: 30_000,
+    ...teacherQueryNoRetry,
+  });
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  const filtered = useMemo(() => {
+    if (!sessions) return [];
+    if (dateRange === "all") return sessions;
+    const cutoff = subDays(new Date(), Number(dateRange));
+    return sessions.filter((s) => new Date(s.started_at) >= cutoff);
+  }, [sessions, dateRange]);
+
+  const handleRowClick = (session: ClassroomSessionOut) => {
+    const next = selectedId === session.id ? null : session.id;
+    setSelectedId(next);
+    onSelectSession?.(next ? session : null);
+  };
 
   return (
     <Card>
@@ -80,9 +95,14 @@ export function SessionHistory({ classId }: SessionHistoryProps) {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {isLoading ? (
           <p className="text-sm text-muted-foreground py-4">Loading…</p>
-        ) : logs.length === 0 ? (
+        ) : isError ? (
+          <div className="text-center py-8 text-muted-foreground">
+            <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Could not load session history. The backend may need a restart.</p>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No session history yet.</p>
@@ -95,35 +115,52 @@ export function SessionHistory({ classId }: SessionHistoryProps) {
                   <TableHead>Date</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Duration</TableHead>
-                  <TableHead>Chapter</TableHead>
-                  <TableHead>Students</TableHead>
+                  <TableHead>Chapter / Lesson</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {logs.map(log => (
-                  <TableRow key={log.id}>
-                    <TableCell className="text-sm">
-                      {format(new Date(log.ended_at), "MMM d, yyyy h:mm a")}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-[10px]">
-                        {log.activity_type === "timed_practice" ? "Timed Practice" : "Exit Ticket"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {log.duration_minutes ? `${log.duration_minutes} min` : "–"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {log.chapter_id || "–"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Users className="w-3.5 h-3.5 text-muted-foreground" />
-                        {log.student_count}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filtered.map((s) => {
+                  const isActive = s.ended_at == null;
+                  const durationMin = s.timed_practice_minutes ?? null;
+                  const isSelected = selectedId === s.id;
+                  return (
+                    <TableRow
+                      key={s.id}
+                      className={`cursor-pointer transition-colors ${isSelected ? "bg-accent" : "hover:bg-muted/50"}`}
+                      onClick={() => handleRowClick(s)}
+                    >
+                      <TableCell className="text-sm">
+                        {format(new Date(s.started_at), "MMM d, yyyy h:mm a")}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={SESSION_TYPE_VARIANTS[s.session_type] ?? "outline"}
+                          className="text-[10px]"
+                        >
+                          {SESSION_TYPE_LABELS[s.session_type] ?? s.session_type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {durationMin ? `${durationMin} min` : "–"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {s.unit_id} · L{s.lesson_index + 1}
+                      </TableCell>
+                      <TableCell>
+                        {isActive ? (
+                          <Badge variant="default" className="text-[10px] animate-pulse">
+                            Active
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            Ended {format(new Date(s.ended_at!), "h:mm a")}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

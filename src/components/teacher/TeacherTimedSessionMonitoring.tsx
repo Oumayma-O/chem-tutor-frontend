@@ -10,8 +10,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Users, Activity, Send } from "lucide-react";
-import { getLiveClassStatus, type LiveStudentEntry } from "@/services/api/presence";
+import { useTeacherExitTicketsSSE } from "@/hooks/useTeacherDashboardSSE";
+import { useTeacherLivePresence } from "@/hooks/useTeacherLivePresence";
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
+import type { LiveStudentEntry } from "@/services/api/presence";
 import { getExitTicketResults } from "@/services/api/teacher";
+import { refetchIntervalWhileActive, teacherQueryNoRetry } from "@/lib/teacherQueryOptions";
 
 interface TeacherTimedSessionMonitoringProps {
   classId: string;
@@ -27,23 +31,40 @@ function formatStep(stepId: string | null | undefined) {
   return stepId.length > 48 ? `${stepId.slice(0, 45)}…` : stepId;
 }
 
+const MONITOR_EXIT_TICKET_PAGE = 1;
+const MONITOR_EXIT_TICKET_LIMIT = 30;
+
 export function TeacherTimedSessionMonitoring({
   classId,
   enabled,
   activeExitTicketId,
 }: TeacherTimedSessionMonitoringProps) {
-  const { data: live = [], isLoading } = useQuery({
-    queryKey: ["teacher", "live", classId],
-    queryFn: () => getLiveClassStatus(classId),
+  useTeacherExitTicketsSSE({
+    classId,
+    page: MONITOR_EXIT_TICKET_PAGE,
+    limit: MONITOR_EXIT_TICKET_LIMIT,
+    unitId: "",
+    lessonId: "",
+    enabled: Boolean(enabled && classId && activeExitTicketId),
+  });
+
+  const { data: live = [], isLoading } = useTeacherLivePresence({
+    classId,
     enabled: enabled && Boolean(classId),
-    refetchInterval: 5000,
   });
 
   const { data: ticketPage } = useQuery({
-    queryKey: ["teacher", "exit-tickets", classId, "live-count", activeExitTicketId],
-    queryFn: () => getExitTicketResults(classId, 1, 30),
+    queryKey: teacherQueryKeys.exitTickets.list(
+      classId,
+      MONITOR_EXIT_TICKET_PAGE,
+      MONITOR_EXIT_TICKET_LIMIT,
+      "",
+      "",
+    ),
+    queryFn: () => getExitTicketResults(classId, MONITOR_EXIT_TICKET_PAGE, MONITOR_EXIT_TICKET_LIMIT),
     enabled: enabled && Boolean(classId && activeExitTicketId),
-    refetchInterval: 4000,
+    ...teacherQueryNoRetry,
+    refetchInterval: refetchIntervalWhileActive(4_000, Boolean(enabled && classId && activeExitTicketId)),
   });
 
   const submissionCount =

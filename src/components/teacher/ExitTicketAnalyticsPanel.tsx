@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,157 +12,54 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
-import { AlertTriangle, ChevronLeft, ChevronRight, Eye, Filter, Users } from "lucide-react";
-import {
-  getExitTicketResults,
-  getMisconceptionAnalytics,
-  type ExitTicketQuestion,
-  type ExitTicketResponseItem,
-  type MisconceptionAnalytics,
-} from "@/services/api/teacher";
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, Eye, Filter, Users, X } from "lucide-react";
+import { getExitTicketResults } from "@/services/api/teacher";
+import { ExitTicketMisconceptionPanel } from "@/components/teacher/ExitTicketMisconceptionPanel";
 import { useUnits } from "@/hooks/useUnits";
+import { useUnitLessonTitle } from "@/hooks/useUnitLessonTitle";
+import { useTeacherExitTicketsSSE } from "@/hooks/useTeacherDashboardSSE";
+import { computeQuestionClassScore } from "@/lib/exitTicketAnalyticsUtils";
 import { MathText } from "@/lib/mathDisplay";
-
-function computeQuestionClassScore(
-  q: ExitTicketQuestion,
-  responses: ExitTicketResponseItem[],
-): number | null {
-  if (!q.correct_answer || responses.length === 0) return null;
-  let correct = 0;
-  let total = 0;
-  const normalizedCorrect = q.correct_answer.trim().toLowerCase();
-  for (const r of responses) {
-    const ans = (r.answers as Record<string, unknown>[]).find(
-      (a) => String(a.question_id ?? a.id ?? "") === q.id,
-    );
-    if (!ans) continue;
-    total++;
-    const chosen = String(ans.answer ?? ans.value ?? "").trim().toLowerCase();
-    if (chosen === normalizedCorrect) correct++;
-  }
-  return total > 0 ? Math.round((correct / total) * 100) : null;
-}
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
+import { teacherQueryNoRetry, refetchIntervalUnlessError } from "@/lib/teacherQueryOptions";
+import { scorePercentBadgeClassName } from "@/lib/teacherScoreStyles";
 
 const PAGE_SIZE = 10;
 
-// Colour palette for misconception bars — one colour per bar segment.
-const BAR_COLOURS = [
-  "#ef4444",
-  "#f97316",
-  "#eab308",
-  "#a855f7",
-  "#ec4899",
-  "#14b8a6",
-];
-
-interface MisconceptionPanelProps {
-  classId: string;
-  ticketId: string;
-}
-
-function MisconceptionPanel({ classId, ticketId }: MisconceptionPanelProps) {
-  const { data, isLoading } = useQuery<MisconceptionAnalytics>({
-    queryKey: ["teacher", "misconceptions", classId, ticketId],
-    queryFn: () => getMisconceptionAnalytics(classId, ticketId),
-    retry: false,
-  });
-
-  if (isLoading) {
-    return <p className="text-xs text-muted-foreground">Loading misconception data…</p>;
-  }
-
-  if (!data?.questions?.length) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        No misconception data yet for this session.
-      </p>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {data.questions.map((q) => {
-        const chartData = q.hits.map((h) => ({
-          tag: h.tag.replace(/_/g, " "),
-          count: h.count,
-        }));
-        return (
-          <div key={q.question_id} className="rounded-lg border border-border bg-muted/30 p-3">
-            <p className="mb-2 text-xs font-semibold text-foreground line-clamp-2">
-              <MathText>{q.prompt}</MathText>
-            </p>
-            <ResponsiveContainer width="100%" height={Math.max(60, chartData.length * 32)}>
-              <BarChart
-                data={chartData}
-                layout="vertical"
-                margin={{ top: 0, right: 16, left: 0, bottom: 0 }}
-              >
-                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-                <YAxis
-                  type="category"
-                  dataKey="tag"
-                  width={180}
-                  tick={{ fontSize: 11 }}
-                  tickLine={false}
-                />
-                <Tooltip
-                  formatter={(v) => [`${v} student${Number(v) !== 1 ? "s" : ""}`, "Count"]}
-                  labelFormatter={(l) => String(l)}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {chartData.map((_, i) => (
-                    <Cell key={i} fill={BAR_COLOURS[i % BAR_COLOURS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 interface ExitTicketAnalyticsPanelProps {
   classId: string;
+  isActive?: boolean;
 }
 
-export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelProps) {
+export function ExitTicketAnalyticsPanel({ classId, isActive = false }: ExitTicketAnalyticsPanelProps) {
   const [page, setPage] = useState(1);
   const [filterUnitId, setFilterUnitId] = useState<string>("");
   const [filterLessonId, setFilterLessonId] = useState<string>("");
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [expandedSubmissionsId, setExpandedSubmissionsId] = useState<string | null>(null);
   const { units } = useUnits();
+  const unitTitle = useUnitLessonTitle(units);
 
-  const unitTitle = useMemo(() => {
-    const map = new Map(units.map((u) => [u.id, u]));
-    return (uid: string, lessonIndex?: number) => {
-      const unit = map.get(uid);
-      const chapterName = unit?.title ?? uid;
-      if (lessonIndex != null && unit?.lesson_titles?.[lessonIndex]) {
-        return `${chapterName} — L${lessonIndex + 1}: ${unit.lesson_titles[lessonIndex]}`;
-      }
-      return chapterName;
-    };
-  }, [units]);
+  useTeacherExitTicketsSSE({
+    classId,
+    page,
+    limit: PAGE_SIZE,
+    unitId: filterUnitId,
+    lessonId: filterLessonId,
+    enabled: Boolean(classId) && isActive,
+  });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["teacher", "exit-tickets", classId, page, filterUnitId, filterLessonId],
+    queryKey: teacherQueryKeys.exitTickets.list(classId, page, PAGE_SIZE, filterUnitId, filterLessonId),
     queryFn: () =>
       getExitTicketResults(classId, page, PAGE_SIZE, {
         unit_id: filterUnitId || undefined,
         lesson_id: filterLessonId || undefined,
       }),
     enabled: Boolean(classId),
+    staleTime: 15_000,
+    refetchInterval: refetchIntervalUnlessError(12_000),
+    ...teacherQueryNoRetry,
   });
 
   if (isLoading) {
@@ -298,17 +195,26 @@ export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelPr
                   <span className="text-xs text-muted-foreground">
                     {bundle.ticket.time_limit_minutes} min
                   </span>
-                  {bundle.responses.length > 0 && (
-                    <Button
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
-                      className="h-6 gap-1 px-2 text-[10px]"
-                      onClick={() => setSelectedTicketId(isSelected ? null : bundle.ticket.id)}
-                    >
-                      <AlertTriangle className="h-3 w-3" />
-                      Misconceptions
-                    </Button>
-                  )}
+                  <Button
+                    variant={expandedSubmissionsId === bundle.ticket.id ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 gap-1 px-2 text-[10px]"
+                    disabled={bundle.responses.length === 0}
+                    onClick={() => setExpandedSubmissionsId(expandedSubmissionsId === bundle.ticket.id ? null : bundle.ticket.id)}
+                  >
+                    <Users className="h-3 w-3" />
+                    Submissions ({bundle.responses.length})
+                  </Button>
+                  <Button
+                    variant={isSelected ? "default" : "outline"}
+                    size="sm"
+                    className="h-6 gap-1 px-2 text-[10px]"
+                    disabled={bundle.responses.length === 0}
+                    onClick={() => setSelectedTicketId(isSelected ? null : bundle.ticket.id)}
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    Misconceptions
+                  </Button>
                 </div>
               </div>
               <Table>
@@ -343,16 +249,7 @@ export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelPr
                         </TableCell>
                         <TableCell className="text-center">
                           {classPct != null ? (
-                            <Badge
-                              variant="outline"
-                              className={
-                                classPct >= 80
-                                  ? "border-green-500 text-green-700 dark:text-green-400"
-                                  : classPct >= 50
-                                    ? "border-yellow-500 text-yellow-700 dark:text-yellow-400"
-                                    : "border-red-500 text-red-700 dark:text-red-400"
-                              }
-                            >
+                            <Badge variant="outline" className={scorePercentBadgeClassName(classPct)}>
                               {classPct}%
                             </Badge>
                           ) : (
@@ -364,20 +261,89 @@ export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelPr
                   })}
                 </TableBody>
               </Table>
-              {bundle.responses.length > 0 && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5" />
-                    {bundle.responses.length} submission(s)
-                  </span>
-                  {bundle.responses.map((r) => (
-                    <span key={r.id}>
-                      {r.student_name ?? r.student_id.slice(0, 8)}:{" "}
-                      <span className="font-medium text-foreground">
-                        {r.score != null ? `${Math.round(r.score)}%` : "—"}
-                      </span>
-                    </span>
-                  ))}
+              {expandedSubmissionsId === bundle.ticket.id && bundle.responses.length > 0 && (
+                <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+                    <Users className="h-3.5 w-3.5 text-primary" />
+                    Student Submissions ({bundle.responses.length})
+                  </p>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[120px]">Student</TableHead>
+                          {bundle.ticket.questions.map((q, qi) => (
+                            <TableHead key={q.id} className="text-center min-w-[80px]">
+                              Q{qi + 1}
+                            </TableHead>
+                          ))}
+                          <TableHead className="text-center min-w-[70px]">Score</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {bundle.responses.map((r) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-sm font-medium">
+                              {r.student_name ?? r.student_id.slice(0, 8)}
+                            </TableCell>
+                            {bundle.ticket.questions.map((q) => {
+                              const ans = (r.answers as Record<string, unknown>[]).find(
+                                (a) => String(a.question_id ?? a.id ?? "") === q.id,
+                              );
+                              if (!ans) {
+                                return (
+                                  <TableCell key={q.id} className="text-center text-xs text-muted-foreground">
+                                    —
+                                  </TableCell>
+                                );
+                              }
+                              const chosen = String(ans.answer ?? ans.value ?? "");
+                              const isCorrect =
+                                q.correct_answer != null &&
+                                chosen.trim().toLowerCase() === q.correct_answer.trim().toLowerCase();
+                              return (
+                                <TableCell key={q.id} className="text-center">
+                                  <div className="flex items-center justify-center gap-1">
+                                    {q.correct_answer != null ? (
+                                      isCorrect ? (
+                                        <Check className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                      ) : (
+                                        <X className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                                      )
+                                    ) : null}
+                                    <span
+                                      className={`text-xs max-w-[100px] truncate ${
+                                        q.correct_answer == null
+                                          ? "text-foreground"
+                                          : isCorrect
+                                            ? "text-green-700 dark:text-green-400"
+                                            : "text-red-600 dark:text-red-400"
+                                      }`}
+                                      title={chosen}
+                                    >
+                                      {chosen || "—"}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                              );
+                            })}
+                            <TableCell className="text-center">
+                              {r.score != null ? (
+                                <Badge
+                                  variant="outline"
+                                  className={scorePercentBadgeClassName(Math.round(r.score))}
+                                >
+                                  {Math.round(r.score)}%
+                                </Badge>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </div>
               )}
               {isSelected && (
@@ -386,7 +352,7 @@ export function ExitTicketAnalyticsPanel({ classId }: ExitTicketAnalyticsPanelPr
                     <AlertTriangle className="h-3.5 w-3.5" />
                     Common Misconceptions
                   </p>
-                  <MisconceptionPanel classId={classId} ticketId={bundle.ticket.id} />
+                  <ExitTicketMisconceptionPanel classId={classId} ticketId={bundle.ticket.id} />
                 </div>
               )}
             </div>

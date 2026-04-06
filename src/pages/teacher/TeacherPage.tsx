@@ -10,11 +10,7 @@ export default function TeacherPage() {
 
   return (
     <DashboardShell managedClassCount={managedClassCount}>
-      <TeacherDashboardPage
-        profile={profile}
-        exitTicketResults={[]}
-        onManagedClassCountChange={setManagedClassCount}
-      />
+      <TeacherDashboardPage profile={profile} onManagedClassCountChange={setManagedClassCount} />
     </DashboardShell>
   );
 }

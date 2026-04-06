@@ -20,6 +20,7 @@ import {
   type ExitTicketConfig,
 } from "@/services/api/teacher";
 import { mapApiMcqOptions } from "@/lib/exitTicketMap";
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import { MathText } from "@/lib/mathDisplay";
 
 interface ExitTicketConfigPanelProps {
@@ -102,6 +103,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
         lesson_index: selectedLessonIndex,
         difficulty,
         question_count: questionCount,
+        question_format: format,
         time_limit_minutes: timeLimit,
       });
       const mapped: GeneratedQuestion[] = res.ticket.questions.map((q, i) => {
@@ -117,7 +119,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
       setQuestions(mapped);
       setActiveTicket(res.ticket);
       setCurrentStep(4);
-      void queryClient.invalidateQueries({ queryKey: ["teacher", "exit-tickets", classId] });
+      void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.exitTickets.byClass(classId) });
       toast.success("Exit ticket generated and saved.");
     } catch (err) {
       console.error(err);
@@ -130,6 +132,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
     selectedLessonIndex,
     difficulty,
     questionCount,
+    format,
     timeLimit,
     classId,
     queryClient,
@@ -174,8 +177,8 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
           unit_id: selectedChapterId,
           lesson_index: selectedLessonIndex,
         });
-        void queryClient.invalidateQueries({ queryKey: ["teacher", "classes"] });
-        void queryClient.invalidateQueries({ queryKey: ["teacher", "exit-tickets", classId] });
+        void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classes() });
+        void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.exitTickets.byClass(classId) });
         onPublishSuccess?.({
           timedPractice: timedEnabled,
           minutes: timedDuration,

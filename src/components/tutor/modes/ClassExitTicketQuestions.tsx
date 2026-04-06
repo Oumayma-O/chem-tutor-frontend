@@ -117,6 +117,7 @@ export function ClassExitTicketQuestions({
                 <Input
                   value={classAnswers[q.id] || ""}
                   onChange={(e) => onAnswer(q.id, e.target.value)}
+                  readOnly={isComplete}
                   disabled={isComplete}
                   placeholder={`Enter answer${q.unit ? ` in ${q.unit}` : ""}`}
                   className={cn(
@@ -125,6 +126,15 @@ export function ClassExitTicketQuestions({
                   )}
                 />
               </div>
+              {isComplete && classResults[q.id] === false && q.correct_answer && (
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+                  <CheckCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                    <span className="font-semibold">Correct answer: </span>
+                    {q.correct_answer}{q.unit ? ` ${q.unit}` : ""}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

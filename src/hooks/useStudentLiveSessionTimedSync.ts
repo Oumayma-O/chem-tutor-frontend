@@ -6,6 +6,8 @@ import {
   postDismissLiveSessionOverlay,
 } from "@/services/api/classroomSession";
 import type { TutorTimedModeApi } from "@/hooks/useTutorTimedMode";
+import { studentQueryKeys } from "@/lib/studentQueryKeys";
+import { useStudentLiveSessionSSE } from "@/hooks/useStudentLiveSessionSSE";
 
 /**
  * Polls live session for students and drives timed-practice / exit-ticket overlays.
@@ -21,15 +23,26 @@ export function useStudentLiveSessionTimedSync(options: {
   const timedRef = useRef(timed);
   timedRef.current = timed;
 
+  // SSE connection — pushes session changes in real time; updates the same
+  // React Query cache key so this query's data reacts instantly.
+  useStudentLiveSessionSSE({
+    enabled: Boolean(isStudent && classroomId),
+    classroomId,
+  });
+
   const { data: liveSession, isLoading: liveSessionLoading } = useQuery({
-    queryKey: ["student", "live-session", classroomId],
+    queryKey:
+      classroomId != null
+        ? studentQueryKeys.liveSession(classroomId)
+        : ["student", "live-session", "pending"],
     queryFn: getMyClassroomLiveSession,
     enabled: Boolean(isStudent && classroomId),
-    // Poll aggressively only while a session is active; drop to 15 s when idle
-    // to avoid saturating the network with no-op requests.
+    retry: false,
+    // SSE handles real-time; polling is a safety-net fallback.
     refetchInterval: (query) => {
+      if (query.state.status === "error") return false;
       const phase = (query.state.data as { session_phase?: string } | undefined)?.session_phase;
-      return phase && phase !== "idle" ? 4_000 : 15_000;
+      return phase && phase !== "idle" ? 5_000 : 30_000;
     },
   });
 

@@ -1,7 +1,13 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { getMyClassroomLiveSession } from "@/services/api/classroomSession";
+import { studentQueryKeys } from "@/lib/studentQueryKeys";
+import { getMyClassroomLiveSession, liveSessionAnchorKey } from "@/services/api/classroomSession";
+import {
+  clearDismissedLiveBannerAnchor,
+  getDismissedLiveBannerAnchor,
+} from "@/lib/studentLiveBannerDismiss";
 import { Button } from "@/components/ui/button";
 import { ClipboardCheck, Timer } from "lucide-react";
 
@@ -10,15 +16,38 @@ import { ClipboardCheck, Timer } from "lucide-react";
  */
 export function ClassroomLiveBanner() {
   const { profile, isStudent } = useAuth();
+  const [, setDismissTick] = useState(0);
+
+  useEffect(() => {
+    const onDismiss = () => setDismissTick((n) => n + 1);
+    window.addEventListener("chemtutor-live-banner-dismiss", onDismiss);
+    return () => window.removeEventListener("chemtutor-live-banner-dismiss", onDismiss);
+  }, []);
+
+  // SSE (opened in useStudentLiveSessionTimedSync) already updates this cache
+  // key in real time. The interval here is a safety-net fallback only.
   const { data: session } = useQuery({
-    queryKey: ["student", "live-session", profile?.classroom_id],
+    queryKey:
+      profile?.classroom_id != null
+        ? studentQueryKeys.liveSession(profile.classroom_id)
+        : ["student", "live-session", "none"],
     queryFn: getMyClassroomLiveSession,
     enabled: Boolean(isStudent && profile?.classroom_id),
-    refetchInterval: 15_000,
+    retry: false,
+    refetchInterval: (query) => (query.state.status === "error" ? false : 30_000),
   });
 
+  useEffect(() => {
+    if (session?.session_phase === "idle") {
+      clearDismissedLiveBannerAnchor();
+    }
+  }, [session?.session_phase]);
+
   if (!isStudent || !session?.active_exit_ticket_id) return null;
-  if (session.session_phase === "idle") return null;
+  if (session.session_phase !== "exit_ticket" && session.session_phase !== "timed_practice") return null;
+
+  const anchor = liveSessionAnchorKey(session);
+  if (getDismissedLiveBannerAnchor() === anchor) return null;
 
   const label =
     session.session_phase === "timed_practice"

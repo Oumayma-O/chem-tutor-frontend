@@ -2,8 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Users, Wifi, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
-import { getLiveClassStatus } from "@/services/api/presence";
+import { useTeacherLivePresence } from "@/hooks/useTeacherLivePresence";
 
 interface LiveSessionPanelProps {
   classId: string;
@@ -11,14 +10,9 @@ interface LiveSessionPanelProps {
   onStudentClick?: (studentId: string) => void;
 }
 
-/** Polls FastAPI GET /teacher/classes/{id}/live every 10s (heartbeat from students). */
+/** Live presence: SSE + polling live in `TeacherDashboardPage` via `useTeacherLivePresence` (shared cache key). */
 export function LiveSessionPanel({ classId, totalStudents, onStudentClick }: LiveSessionPanelProps) {
-  const { data: liveRows = [], isFetching } = useQuery({
-    queryKey: ["teacher", "live", classId],
-    queryFn: () => getLiveClassStatus(classId),
-    enabled: Boolean(classId),
-    refetchInterval: 10_000,
-  });
+  const { data: liveRows = [], isFetching } = useTeacherLivePresence({ classId });
 
   const now = Date.now();
   const onlineThreshold = 90 * 1000;

@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Problem, StudentAnswer, type SolutionStep } from "@/types/chemistry";
 import { ExitTicketResult } from "@/types/cognitive";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Timer } from "lucide-react";
@@ -31,6 +32,18 @@ interface ExitTicketModeProps {
   configId?: string;
   /** From GET /classrooms/me/live-session when the API embeds the full ticket (avoids a separate fetch). */
   prefetchedTicket?: ExitTicketConfig | null;
+  /** When true the overlay opens directly in read-only review mode (already-submitted answers). */
+  initialReviewMode?: boolean;
+  /** Pre-populated answers for review mode (keyed by question id). */
+  initialAnswers?: Record<string, string>;
+  /** Pre-graded per-question results for review mode. */
+  initialResults?: Record<string, boolean>;
+  /** Called after the student submits so the parent can persist answers for later review. */
+  onSubmitted?: (data: {
+    answers: Record<string, string>;
+    results: Record<string, boolean>;
+    configId?: string;
+  }) => void;
 }
 
 export function ExitTicketMode({
@@ -41,18 +54,25 @@ export function ExitTicketMode({
   classId: _classId,
   configId,
   prefetchedTicket,
+  initialReviewMode = false,
+  initialAnswers,
+  initialResults,
+  onSubmitted,
 }: ExitTicketModeProps) {
+  /** Use prefetched ticket even when `configId` is not yet set (live-session race). */
   const embedded =
-    prefetchedTicket && configId && prefetchedTicket.id === configId ? prefetchedTicket : null;
+    prefetchedTicket && (!configId || prefetchedTicket.id === configId) ? prefetchedTicket : null;
+
+  const fetchTicketId = configId ?? prefetchedTicket?.id;
 
   const {
     data: fetchedTicket,
     isLoading: ticketLoading,
     isError: ticketError,
   } = useQuery({
-    queryKey: ["student", "exit-ticket", configId],
-    queryFn: () => getExitTicketForStudent(configId!),
-    enabled: Boolean(configId && !embedded),
+    queryKey: ["student", "exit-ticket", fetchTicketId],
+    queryFn: () => getExitTicketForStudent(fetchTicketId!),
+    enabled: Boolean(fetchTicketId && !embedded),
   });
 
   const ticket = embedded ?? fetchedTicket ?? null;
@@ -69,23 +89,26 @@ export function ExitTicketMode({
 
   const [timeLimit, setTimeLimit] = useState(derivedLimitSec);
   const [timeRemaining, setTimeRemaining] = useState(derivedLimitSec);
-  const [isComplete, setIsComplete] = useState(false);
+  const [isComplete, setIsComplete] = useState(initialReviewMode);
   const [showResults, setShowResults] = useState(false);
-  const [classAnswers, setClassAnswers] = useState<Record<string, string>>({});
-  const [classResults, setClassResults] = useState<Record<string, boolean>>({});
+  const [isReviewMode, setIsReviewMode] = useState(initialReviewMode);
+  const [classAnswers, setClassAnswers] = useState<Record<string, string>>(initialAnswers ?? {});
+  const [classResults, setClassResults] = useState<Record<string, boolean>>(initialResults ?? {});
   const [answers, setAnswers] = useState<Record<string, StudentAnswer>>({});
   /** Why the assessment closed — drives dialog copy (submit vs cancel vs time). */
-  const [assessmentEndReason, setAssessmentEndReason] = useState<"submit" | "cancel" | "time" | null>(null);
-  // Prevents double-submission (e.g. timer firing while user clicks Submit simultaneously).
-  const submittedRef = useRef(false);
+  const [assessmentEndReason, setAssessmentEndReason] = useState<"submit" | "cancel" | "time" | null>(
+    initialReviewMode ? "submit" : null,
+  );
+  const submittedRef = useRef(initialReviewMode);
 
   useEffect(() => {
     setTimeLimit(derivedLimitSec);
     setTimeRemaining(derivedLimitSec);
   }, [derivedLimitSec]);
 
-  const isClassMode = Boolean(configId && classQuestions.length > 0);
-  const loading = Boolean(configId && !ticket && ticketLoading);
+  /** Class exit ticket = we successfully mapped questions from the ticket (do not require `configId` — it can lag behind prefetched ticket). */
+  const hasClassQuestions = classQuestions.length > 0;
+  const loading = Boolean(fetchTicketId && !ticket && ticketLoading);
 
   const steps: Array<SolutionStep & { type: "interactive" }> =
     problem?.steps.map((step) => ({ ...step, type: "interactive" as const })) ?? [];
@@ -102,35 +125,49 @@ export function ExitTicketMode({
 
   const finalizeClassAssessment = useCallback(
     async (endReason: "submit" | "cancel" | "time") => {
-      const graded = gradeClassQuestions(classQuestions, classAnswers);
-      setClassResults(graded.perQuestion);
-      setAssessmentEndReason(endReason);
-      setIsComplete(true);
-      setShowResults(true);
-      if (configId && !submittedRef.current) {
-        submittedRef.current = true;
-        try {
-          await submitExitTicketAttempt(configId, { answers: classAnswers });
-          if (endReason === "time") {
-            toast.info("Time's up! Your answers have been automatically submitted.");
-          } else if (endReason === "cancel") {
-            toast.info("Your answers have been submitted.");
-          }
-        } catch {
-          /* submission optional if route missing */
-        }
+      const graded = await gradeClassQuestions(classQuestions, classAnswers);
+      const submitId = configId ?? ticket?.id;
+
+      if (!submitId) {
+        toast.error("Could not submit — missing exit ticket id.");
+        return;
       }
-      onComplete(
-        buildClassExitTicketResult({
-          configId,
-          correctCount: graded.correctCount,
-          total: graded.total,
-          timeLimitSec: timeLimit,
-          timeRemainingSec: timeRemaining,
-        }),
-      );
+      if (submittedRef.current) {
+        return;
+      }
+
+      try {
+        await submitExitTicketAttempt(submitId, { answers: classAnswers });
+        submittedRef.current = true;
+        setClassResults(graded.perQuestion);
+        setAssessmentEndReason(endReason);
+        setIsComplete(true);
+        setShowResults(true);
+        if (endReason === "time") {
+          toast.info("Time's up! Your answers have been automatically submitted.");
+        } else if (endReason === "cancel") {
+          toast.info("Your answers have been submitted.");
+        }
+        onSubmitted?.({
+          answers: classAnswers,
+          results: graded.perQuestion,
+          configId: submitId ?? undefined,
+        });
+        onComplete(
+          buildClassExitTicketResult({
+            configId: submitId ?? configId,
+            correctCount: graded.correctCount,
+            total: graded.total,
+            timeLimitSec: timeLimit,
+            timeRemainingSec: timeRemaining,
+          }),
+        );
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Could not submit your exit ticket.";
+        toast.error(`${msg} Your teacher may not see this attempt until it succeeds.`);
+      }
     },
-    [classQuestions, classAnswers, configId, timeLimit, timeRemaining, onComplete],
+    [classQuestions, classAnswers, configId, ticket, timeLimit, timeRemaining, onComplete, onSubmitted],
   );
 
   const handleSubmitClass = useCallback(async () => {
@@ -138,11 +175,11 @@ export function ExitTicketMode({
   }, [finalizeClassAssessment]);
 
   const handleTimeUp = useCallback(() => {
-    if (isClassMode && classQuestions.length > 0) {
+    if (hasClassQuestions) {
       void finalizeClassAssessment("time");
       return;
     }
-    if (!isClassMode && problem && steps.length > 0) {
+    if (!hasClassQuestions && problem && steps.length > 0) {
       setAssessmentEndReason("time");
       setIsComplete(true);
       setShowResults(true);
@@ -153,7 +190,7 @@ export function ExitTicketMode({
     setIsComplete(true);
     setShowResults(true);
   }, [
-    isClassMode,
+    hasClassQuestions,
     classQuestions.length,
     finalizeClassAssessment,
     problem,
@@ -163,7 +200,7 @@ export function ExitTicketMode({
   ]);
 
   // Keep a stable ref so the setInterval callback always reads the latest handleTimeUp
-  // (avoids the stale-closure bug where classAnswers/isClassMode freeze at initial values).
+  // (avoids the stale-closure bug where classAnswers/hasClassQuestions freeze at initial values).
   const handleTimeUpRef = useRef(handleTimeUp);
   useEffect(() => {
     handleTimeUpRef.current = handleTimeUp;
@@ -221,11 +258,11 @@ export function ExitTicketMode({
       onCancel();
       return;
     }
-    if (isClassMode && classQuestions.length > 0) {
+    if (hasClassQuestions) {
       await finalizeClassAssessment("cancel");
       return;
     }
-    if (!isClassMode && problem && steps.length > 0) {
+    if (!hasClassQuestions && problem && steps.length > 0) {
       setAssessmentEndReason("cancel");
       setIsComplete(true);
       setShowResults(true);
@@ -235,7 +272,7 @@ export function ExitTicketMode({
     onCancel();
   }, [
     loading,
-    isClassMode,
+    hasClassQuestions,
     classQuestions.length,
     finalizeClassAssessment,
     problem,
@@ -265,7 +302,7 @@ export function ExitTicketMode({
     );
   }
 
-  if (configId && !ticket && ticketError && !ticketLoading) {
+  if (fetchTicketId && !ticket && ticketError && !ticketLoading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-4 backdrop-blur-sm">
         <div className="max-w-md space-y-4 rounded-lg border border-border bg-card p-6 text-center">
@@ -283,7 +320,7 @@ export function ExitTicketMode({
     );
   }
 
-  if (configId && classQuestions.length === 0) {
+  if (ticket && classQuestions.length === 0) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-4 backdrop-blur-sm">
         <div className="max-w-md space-y-4 rounded-lg border border-border bg-card p-6 text-center">
@@ -294,7 +331,7 @@ export function ExitTicketMode({
     );
   }
 
-  if (!configId && !problem) {
+  if (!hasClassQuestions && !problem) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-4 backdrop-blur-sm">
         <div className="max-w-md space-y-4 rounded-lg border border-border bg-card p-6 text-center">
@@ -314,31 +351,61 @@ export function ExitTicketMode({
         <div className="mb-6 rounded-lg border border-border bg-card p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Timer className={cn("h-5 w-5", isLowTime ? "animate-pulse text-destructive" : "text-primary")} />
-              <h2 className="text-lg font-bold text-foreground">Exit Ticket Assessment</h2>
+              <Timer className={cn("h-5 w-5", isReviewMode ? "text-muted-foreground" : isLowTime ? "animate-pulse text-destructive" : "text-primary")} />
+              <h2 className="text-lg font-bold text-foreground">
+                {isReviewMode ? "Review: Exit Ticket" : "Exit Ticket Assessment"}
+              </h2>
+              {isReviewMode && classQuestions.length > 0 && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "ml-2",
+                    Object.values(classResults).filter(Boolean).length === classQuestions.length
+                      ? "border-green-500 text-green-700 dark:text-green-400"
+                      : "border-yellow-500 text-yellow-700 dark:text-yellow-400",
+                  )}
+                >
+                  {Object.values(classResults).filter(Boolean).length}/{classQuestions.length} correct
+                </Badge>
+              )}
             </div>
-            <Button variant="ghost" size="sm" onClick={() => void handleCancelWithEvaluation()}>
-              Cancel
-            </Button>
+            {isReviewMode ? (
+              <Button variant="outline" size="sm" onClick={onCancel}>
+                Finish Review
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => void handleCancelWithEvaluation()}>
+                Cancel
+              </Button>
+            )}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Progress value={timePercentage} className={cn("h-2", isLowTime && "[&>div]:bg-destructive")} />
-            </div>
-            <span
-              className={cn("font-mono text-lg font-bold", isLowTime ? "text-destructive" : "text-foreground")}
-            >
-              {formatTime(timeRemaining)}
-            </span>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            {isClassMode
-              ? "Complete all questions. Class assessment — no hints."
-              : "Complete this problem without hints. Your performance determines readiness."}
-          </p>
+          {!isReviewMode && (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <Progress value={timePercentage} className={cn("h-2", isLowTime && "[&>div]:bg-destructive")} />
+                </div>
+                <span
+                  className={cn("font-mono text-lg font-bold", isLowTime ? "text-destructive" : "text-foreground")}
+                >
+                  {formatTime(timeRemaining)}
+                </span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {hasClassQuestions
+                  ? "Complete all questions. Class assessment — no hints."
+                  : "Complete this problem without hints. Your performance determines readiness."}
+              </p>
+            </>
+          )}
+          {isReviewMode && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Review your answers below. Correct answers are highlighted in green.
+            </p>
+          )}
         </div>
 
-        {isClassMode ? (
+        {hasClassQuestions ? (
           <ClassExitTicketQuestions
             questions={classQuestions}
             classAnswers={classAnswers}
@@ -361,20 +428,34 @@ export function ExitTicketMode({
           <div className="mt-6">
             <ExitTicketResultsDialog
               open={showResults}
-              onOpenChange={setShowResults}
+              onOpenChange={(open) => {
+                if (!open) {
+                  if (hasClassQuestions) {
+                    setIsReviewMode(true);
+                  }
+                  setShowResults(false);
+                } else {
+                  setShowResults(true);
+                }
+              }}
               assessmentEndReason={assessmentEndReason}
-              isClassMode={isClassMode}
+              isClassMode={hasClassQuestions}
               classResults={classResults}
               classQuestionCount={classQuestions.length}
               timeLimitSec={timeLimit}
               timeRemainingSec={timeRemaining}
               getProblemResult={calculateResult}
               onContinue={() => {
-                setShowResults(false);
-                if (!isClassMode && assessmentEndReason === "submit") {
-                  onComplete(calculateResult());
+                if (hasClassQuestions) {
+                  setIsReviewMode(true);
+                  setShowResults(false);
+                } else {
+                  setShowResults(false);
+                  if (assessmentEndReason === "submit") {
+                    onComplete(calculateResult());
+                  }
+                  onCancel();
                 }
-                onCancel();
               }}
             />
           </div>

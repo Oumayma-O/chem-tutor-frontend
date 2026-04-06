@@ -1,10 +1,10 @@
-import type { ReactNode } from "react";
-import { useMemo } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { SkillRadarChart } from "@/components/tutor/progress";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
 import { cn } from "@/lib/utils";
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import { CourseLevel } from "@/data/units";
 import { useUnits } from "@/hooks/useUnits";
 import {
@@ -38,6 +38,11 @@ import {
 import type { SkillMastery } from "@/types/cognitive";
 import type { ClassStudentRow, TeacherClassRow } from "@/hooks/useTeacherDashboardData";
 import {
+  isAssessmentPassingPercent,
+  TEACHER_SCORE_MODERATE_MIN,
+  TEACHER_SCORE_STRONG_MIN,
+} from "@/lib/teacherScoreStyles";
+import {
   getStudentAnalytics,
   getExitTicketResults,
   type StudentAttemptOut,
@@ -49,7 +54,7 @@ interface TeacherStudentsTabProps {
   selectedClassId: string;
   selectedClass: TeacherClassRow | undefined;
   loadingStudents: boolean;
-  displayStudents: ClassStudentRow[];
+  enrolledStudents: ClassStudentRow[];
   selectedStudent: string | null;
   onSelectStudent: (id: string) => void;
   analyticsDate: Date | undefined;
@@ -66,7 +71,7 @@ export function TeacherStudentsTab({
   selectedClassId,
   selectedClass,
   loadingStudents,
-  displayStudents,
+  enrolledStudents,
   selectedStudent,
   onSelectStudent,
   analyticsDate,
@@ -82,10 +87,51 @@ export function TeacherStudentsTab({
   const selectedChapterForFilter = analyticsChapter !== "all" ? units.find((u) => u.id === analyticsChapter) : undefined;
   const lessonTitles = selectedChapterForFilter?.lesson_titles ?? [];
 
+  const [filteredMetrics, setFilteredMetrics] = useState<{ score: number; weakTopics: string[] } | null>(null);
+  useEffect(() => { setFilteredMetrics(null); }, [selectedStudent]);
+
   return (
     <TabsContent value="students" className="space-y-6">
       {selectedClassId !== "all" && (
         <div className="flex flex-wrap items-center gap-3 p-3 bg-secondary/30 rounded-lg">
+          <ChapterSelector
+            value={analyticsChapter}
+            onValueChange={onAnalyticsChapterChange}
+            courseLevel={selectedClass?.grade_level as CourseLevel | undefined}
+            label=""
+            showAllOption
+          />
+
+          {lessonTitles.length > 0 && (
+            <Select
+              value={analyticsLesson === "all" ? "all" : String(analyticsLesson)}
+              onValueChange={(v) => onAnalyticsLessonChange(v === "all" ? "all" : Number(v))}
+            >
+              <SelectTrigger className="w-[180px] h-8 text-xs">
+                <SelectValue placeholder="All Lessons" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Lessons</SelectItem>
+                {lessonTitles.map((title, i) => (
+                  <SelectItem key={i} value={String(i)}>
+                    L{i + 1} · {title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+
+          <Select value={analyticsMode} onValueChange={(v) => onAnalyticsModeChange(v as "all" | "practice" | "exit-ticket")}>
+            <SelectTrigger className="w-[140px] h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Modes</SelectItem>
+              <SelectItem value="practice">Practice</SelectItem>
+              <SelectItem value="exit-ticket">Exit Ticket</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className={cn("gap-1.5 text-xs", !analyticsDate && "text-muted-foreground")}>
@@ -109,98 +155,65 @@ export function TeacherStudentsTab({
               )}
             </PopoverContent>
           </Popover>
-
-          <ChapterSelector
-            value={analyticsChapter}
-            onValueChange={onAnalyticsChapterChange}
-            courseLevel={selectedClass?.grade_level as CourseLevel | undefined}
-            label=""
-            showAllOption
-          />
-
-          <Select value={analyticsMode} onValueChange={(v) => onAnalyticsModeChange(v as "all" | "practice" | "exit-ticket")}>
-            <SelectTrigger className="w-[140px] h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Modes</SelectItem>
-              <SelectItem value="practice">Practice</SelectItem>
-              <SelectItem value="exit-ticket">Exit Ticket</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {lessonTitles.length > 0 && (
-            <Select
-              value={analyticsLesson === "all" ? "all" : String(analyticsLesson)}
-              onValueChange={(v) => onAnalyticsLessonChange(v === "all" ? "all" : Number(v))}
-            >
-              <SelectTrigger className="w-[160px] h-8 text-xs">
-                <SelectValue placeholder="All Lessons" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Lessons</SelectItem>
-                {lessonTitles.map((title, i) => (
-                  <SelectItem key={i} value={String(i)}>
-                    L{i + 1} · {title}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="space-y-2">
           <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Students ({displayStudents.length})
+            Students ({enrolledStudents.length})
           </h3>
           {loadingStudents && <p className="text-sm text-muted-foreground">Loading…</p>}
-          {!loadingStudents && displayStudents.length === 0 && (
+          {!loadingStudents && enrolledStudents.length === 0 && (
             <p className="text-sm text-muted-foreground py-4">
               {selectedClassId === "all" ? "Select a class to view students." : "No students enrolled yet."}
             </p>
           )}
-          {displayStudents.map((student) => (
-            <button
-              key={student.id}
-              type="button"
-              onClick={() => onSelectStudent(student.id)}
-              className={cn(
-                "w-full p-3 rounded-lg border text-left transition-all",
-                selectedStudent === student.id
-                  ? "border-primary bg-primary/5 shadow-sm"
-                  : "border-border bg-card hover:border-primary/30",
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium text-foreground text-sm">{student.name}</span>
+          {enrolledStudents.map((student) => {
+            const isActive = selectedStudent === student.id;
+            const displayMastery = isActive && filteredMetrics ? filteredMetrics.score : student.mastery;
+            const displayWeakTopics = isActive && filteredMetrics ? filteredMetrics.weakTopics : student.weakTopics;
+            return (
+              <button
+                key={student.id}
+                type="button"
+                onClick={() => onSelectStudent(student.id)}
+                className={cn(
+                  "w-full p-3 rounded-lg border text-left transition-all",
+                  isActive
+                    ? "border-primary bg-primary/5 shadow-sm"
+                    : "border-border bg-card hover:border-primary/30",
+                )}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-muted-foreground" />
+                    <span className="font-medium text-foreground text-sm">{student.name}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {student.trend === "up" && <TrendingUp className="w-3 h-3 text-success" />}
+                    {student.trend === "down" && <TrendingDown className="w-3 h-3 text-destructive" />}
+                    {student.trend === "stable" && <Minus className="w-3 h-3 text-muted-foreground" />}
+                    <Badge
+                      variant={displayMastery >= 75 ? "default" : displayMastery >= 50 ? "secondary" : "destructive"}
+                      className="text-xs"
+                    >
+                      {displayMastery}%
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {student.trend === "up" && <TrendingUp className="w-3 h-3 text-success" />}
-                  {student.trend === "down" && <TrendingDown className="w-3 h-3 text-destructive" />}
-                  {student.trend === "stable" && <Minus className="w-3 h-3 text-muted-foreground" />}
-                  <Badge
-                    variant={student.mastery >= 75 ? "default" : student.mastery >= 50 ? "secondary" : "destructive"}
-                    className="text-xs"
-                  >
-                    {student.mastery}%
-                  </Badge>
-                </div>
-              </div>
-              {student.weakTopics.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {student.weakTopics.map((t) => (
-                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
-                      {t.replace(/_/g, " ")}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </button>
-          ))}
+                {displayWeakTopics.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {displayWeakTopics.map((t) => (
+                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
+                        {t.replace(/_/g, " ")}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div className="lg:col-span-2 space-y-6">
@@ -215,11 +228,12 @@ export function TeacherStudentsTab({
             <StudentDetailPanel
               studentId={selectedStudent}
               classroomId={selectedClassId}
-              displayStudents={displayStudents}
+              enrolledStudents={enrolledStudents}
               analyticsChapter={analyticsChapter}
               analyticsLesson={analyticsLesson}
               analyticsDate={analyticsDate}
               analyticsMode={analyticsMode}
+              onFilteredMetrics={setFilteredMetrics}
             />
           )}
         </div>
@@ -242,21 +256,23 @@ type StudentAnalyticsMode = "all" | "practice" | "exit-ticket";
 function StudentDetailPanel({
   studentId,
   classroomId,
-  displayStudents,
+  enrolledStudents,
   analyticsChapter,
   analyticsLesson,
   analyticsDate,
   analyticsMode,
+  onFilteredMetrics,
 }: {
   studentId: string;
   classroomId: string;
-  displayStudents: ClassStudentRow[];
+  enrolledStudents: ClassStudentRow[];
   analyticsChapter: string;
   analyticsLesson: number | "all";
   analyticsDate: Date | undefined;
   analyticsMode: StudentAnalyticsMode;
+  onFilteredMetrics?: (m: { score: number; weakTopics: string[] }) => void;
 }) {
-  const student = displayStudents.find((s) => s.id === studentId);
+  const student = enrolledStudents.find((s) => s.id === studentId);
   const { units } = useUnits();
   const chapterFilter = analyticsChapter !== "all" ? analyticsChapter : undefined;
 
@@ -278,7 +294,7 @@ function StudentDetailPanel({
   });
 
   const { data: exitData, isLoading: exitLoading } = useQuery({
-    queryKey: ["teacher", "exit-tickets", classroomId, "student-panel"],
+    queryKey: teacherQueryKeys.exitTickets.studentPanel(classroomId),
     queryFn: () => getExitTicketResults(classroomId, 1, 50),
     enabled: Boolean(classroomId && classroomId !== "all" && needExit),
     staleTime: 30_000,
@@ -470,6 +486,34 @@ function StudentDetailPanel({
     units,
   ]);
 
+  const filteredWeakTopics = useMemo(() => {
+    if (headlineScorePct >= 75) return [];
+    if (analyticsLesson !== "all") return [];
+    if (!analytics?.category_scores) return [];
+    const cs = analytics.category_scores;
+    const weak: string[] = [];
+    if (cs.conceptual < 0.5) weak.push("conceptual");
+    if (cs.procedural < 0.5) weak.push("procedural");
+    if (cs.computational < 0.5) weak.push("computational");
+    return weak;
+  }, [headlineScorePct, analytics, analyticsLesson]);
+
+  const filteredStrengths = useMemo(() => {
+    if (!analytics?.category_scores || analyticsLesson !== "all") {
+      return headlineScorePct >= 75 ? ["All areas strong"] : [];
+    }
+    const cs = analytics.category_scores;
+    const strong: string[] = [];
+    if (cs.conceptual >= 0.75) strong.push("conceptual");
+    if (cs.procedural >= 0.75) strong.push("procedural");
+    if (cs.computational >= 0.75) strong.push("computational");
+    return strong.length > 0 ? strong : headlineScorePct >= 75 ? ["All areas strong"] : [];
+  }, [analytics, analyticsLesson, headlineScorePct]);
+
+  useEffect(() => {
+    onFilteredMetrics?.({ score: headlineScorePct, weakTopics: filteredWeakTopics });
+  }, [headlineScorePct, filteredWeakTopics, onFilteredMetrics]);
+
   const actionMastery = headlineScorePct;
   const suggestedActions: { label: string; icon: ReactNode; variant: "default" | "secondary" | "outline" }[] = [];
   if (actionMastery < 50) {
@@ -491,18 +535,23 @@ function StudentDetailPanel({
 
   if (!student) return null;
 
-  const modeLabel =
-    analyticsMode === "all" ? "All Modes" : analyticsMode === "practice" ? "Practice" : "Exit Ticket";
-  const chapterLabel = chapterFilter ? unitTitle(chapterFilter) : "All Chapters";
-  const lessonLabel =
-    analyticsLesson === "all"
-      ? "All Lessons"
-      : (() => {
-          const chapter = chapterFilter ? units.find((u) => u.id === chapterFilter) : undefined;
-          const title = chapter?.lesson_titles?.[analyticsLesson];
-          return title ? `L${analyticsLesson + 1} ${title}` : `L${analyticsLesson + 1}`;
-        })();
-  const dateLabel = analyticsDate ? format(analyticsDate, "MMM d, yyyy") : "All Dates";
+  const scoreLabel =
+    analyticsLesson !== "all" ? "Lesson Mastery" : chapterFilter ? "Chapter Mastery" : "Overall Mastery";
+
+  const scopeText = (() => {
+    const modePart =
+      analyticsMode === "practice" ? "Practice" : analyticsMode === "exit-ticket" ? "Exit Ticket" : "All";
+    let scopePart = "";
+    if (chapterFilter && analyticsLesson !== "all") {
+      const chapter = units.find((u) => u.id === chapterFilter);
+      const lTitle = chapter?.lesson_titles?.[analyticsLesson as number] ?? `Lesson ${(analyticsLesson as number) + 1}`;
+      scopePart = ` for ${lTitle}`;
+    } else if (chapterFilter) {
+      scopePart = ` for ${unitTitle(chapterFilter)}`;
+    }
+    const datePart = analyticsDate ? ` on ${format(analyticsDate, "MMM d, yyyy")}` : "";
+    return `Viewing ${modePart} data${scopePart}${datePart}.`;
+  })();
 
   return (
     <>
@@ -512,24 +561,7 @@ function StudentDetailPanel({
             <User className="w-5 h-5 text-primary" />
             {student.name}
           </CardTitle>
-          <CardDescription>
-            {(() => {
-              const parts = [
-                chapterFilter ? `Scope: ${unitTitle(chapterFilter)}.` : null,
-                analyticsMode === "practice" && "Practice problems only.",
-                analyticsMode === "exit-ticket" && "Exit ticket submissions only.",
-                analyticsMode === "all" && "Practice + exit tickets combined.",
-                analyticsDate && `Date: ${format(analyticsDate, "MMM d, yyyy")}.`,
-              ].filter(Boolean) as string[];
-              return parts.length > 0 ? parts.join(" ") : "Overview for the selected class and filters.";
-            })()}
-          </CardDescription>
-          <div className="flex flex-wrap gap-1.5 mt-1">
-            <Badge variant="outline" className="text-[10px]">Mode: {modeLabel}</Badge>
-            <Badge variant="outline" className="text-[10px]">Chapter: {chapterLabel}</Badge>
-            <Badge variant="outline" className="text-[10px]">Lesson: {lessonLabel}</Badge>
-            <Badge variant="outline" className="text-[10px]">Date: {dateLabel}</Badge>
-          </div>
+          <CardDescription>{scopeText}</CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -538,17 +570,15 @@ function StudentDetailPanel({
             <>
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div>
-                  <span className="text-xs text-muted-foreground">
-                    {chapterFilter
-                      ? "Chapter score"
-                      : analyticsMode === "exit-ticket"
-                        ? "Avg score (units w/ submissions)"
-                        : "Avg score (chapters w/ attempts)"}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{scoreLabel}</span>
                   <div
                     className={cn(
                       "text-2xl font-bold",
-                      headlineScorePct >= 75 ? "text-success" : headlineScorePct >= 50 ? "text-warning" : "text-destructive",
+                      headlineScorePct >= TEACHER_SCORE_STRONG_MIN
+                        ? "text-success"
+                        : headlineScorePct >= TEACHER_SCORE_MODERATE_MIN
+                          ? "text-warning"
+                          : "text-destructive",
                     )}
                   >
                     {headlineScorePct}%
@@ -556,17 +586,7 @@ function StudentDetailPanel({
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground">
-                    {analyticsMode === "exit-ticket"
-                      ? chapterFilter
-                        ? "Submissions (chapter)"
-                        : "Submissions in scope"
-                      : analyticsMode === "all"
-                        ? chapterFilter
-                          ? "Scored items (chapter)"
-                          : "Scored items in scope"
-                        : chapterFilter
-                          ? "Attempts (chapter)"
-                          : "Attempts in sample"}
+                    {analyticsMode === "exit-ticket" ? "Submissions" : analyticsMode === "all" ? "Scored Items" : "Attempts"}
                   </span>
                   <div className="text-2xl font-bold">{finishedCount}</div>
                 </div>
@@ -604,11 +624,27 @@ function StudentDetailPanel({
                         </span>
                         <div className="w-24 h-1.5 rounded-full bg-secondary overflow-hidden">
                           <div
-                            className={cn("h-full rounded-full", ch.avg >= 75 ? "bg-success" : ch.avg >= 50 ? "bg-yellow-400" : "bg-destructive")}
+                            className={cn(
+                              "h-full rounded-full",
+                              ch.avg >= TEACHER_SCORE_STRONG_MIN
+                                ? "bg-success"
+                                : ch.avg >= TEACHER_SCORE_MODERATE_MIN
+                                  ? "bg-yellow-400"
+                                  : "bg-destructive",
+                            )}
                             style={{ width: `${ch.avg}%` }}
                           />
                         </div>
-                        <span className={cn("text-xs font-semibold w-9 text-right", ch.avg >= 75 ? "text-success" : ch.avg >= 50 ? "text-warning" : "text-destructive")}>
+                        <span
+                          className={cn(
+                            "text-xs font-semibold w-9 text-right",
+                            ch.avg >= TEACHER_SCORE_STRONG_MIN
+                              ? "text-success"
+                              : ch.avg >= TEACHER_SCORE_MODERATE_MIN
+                                ? "text-warning"
+                                : "text-destructive",
+                          )}
+                        >
                           {ch.avg}%
                         </span>
                       </div>
@@ -620,21 +656,18 @@ function StudentDetailPanel({
               <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="p-3 bg-success/5 border border-success/20 rounded-lg">
                   <span className="text-xs font-medium text-success">Strengths</span>
-                  {student.weakTopics.length === 0 ? (
-                    <p className="text-sm text-foreground mt-1">All areas strong</p>
-                  ) : (
-                    <p className="text-sm text-foreground mt-1">
-                      {["conceptual", "procedural", "computational"]
-                        .filter((s) => !student.weakTopics.includes(s))
-                        .slice(0, 2)
-                        .join(", ") || "Building foundations"}
-                    </p>
-                  )}
+                  <p className="text-sm text-foreground mt-1">
+                    {filteredStrengths.length > 0
+                      ? filteredStrengths.join(", ")
+                      : filteredWeakTopics.length === 0
+                        ? "All areas strong"
+                        : "Building foundations"}
+                  </p>
                 </div>
                 <div className="p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
                   <span className="text-xs font-medium text-destructive">Weak Areas</span>
                   <p className="text-sm text-foreground mt-1">
-                    {student.weakTopics.length > 0 ? student.weakTopics.join(", ") : "None identified"}
+                    {filteredWeakTopics.length > 0 ? filteredWeakTopics.join(", ") : "None identified"}
                   </p>
                 </div>
               </div>
@@ -711,7 +744,7 @@ function StudentDetailPanel({
                 if (row.kind === "practice") {
                   const a = row.attempt;
                   const scorePct = a.score != null ? Math.round(a.score * 100) : null;
-                  const passed = scorePct != null && scorePct >= 80;
+                  const passed = scorePct != null && isAssessmentPassingPercent(scorePct);
                   return (
                     <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/30 text-xs">
                       <span className="text-muted-foreground w-4 shrink-0">{i + 1}</span>
@@ -736,7 +769,7 @@ function StudentDetailPanel({
                 }
                 const { response, ticket } = row;
                 const scorePct = response.score != null ? Math.round(response.score) : null;
-                const passed = scorePct != null && scorePct >= 80;
+                const passed = scorePct != null && isAssessmentPassingPercent(scorePct);
                 return (
                   <div key={response.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/30 text-xs">
                     <span className="text-muted-foreground w-4 shrink-0">{i + 1}</span>

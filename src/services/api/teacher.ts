@@ -1,7 +1,7 @@
 /**
  * Teacher dashboard API — FastAPI /teacher/* routes.
  */
-import { get, post, patch } from "@/lib/api/core";
+import { get, post, patch, del } from "@/lib/api/core";
 
 export interface CategorySnapshot {
   conceptual: number;
@@ -160,6 +160,10 @@ export async function getStudentAnalytics(
   return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics${qs}`);
 }
 
+export async function deleteClassroom(classroomId: string): Promise<void> {
+  await del(`/classrooms/${classroomId}`);
+}
+
 export async function patchTeacherClass(
   classroomId: string,
   body: { calculator_enabled?: boolean },
@@ -191,6 +195,7 @@ export async function generateExitTicket(body: {
   lesson_id?: string | null;
   difficulty?: string;
   question_count?: number;
+  question_format?: string;
   time_limit_minutes?: number;
 }): Promise<{ ticket: ExitTicketConfig }> {
   return post("/teacher/exit-tickets/generate", {
@@ -200,6 +205,7 @@ export async function generateExitTicket(body: {
     lesson_id: body.lesson_id ?? null,
     difficulty: body.difficulty ?? "medium",
     question_count: body.question_count ?? 4,
+    question_format: body.question_format ?? "mixed",
     time_limit_minutes: body.time_limit_minutes ?? 10,
   });
 }

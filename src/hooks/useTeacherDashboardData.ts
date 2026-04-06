@@ -3,10 +3,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getTeacherClasses,
   createClass,
+  deleteClassroom,
   getClassRoster,
   type TeacherClass as ApiTeacherClass,
   type ClassSummaryStats,
 } from "@/services/api/teacher";
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import { toast } from "sonner";
 
 export interface TeacherClassRow {
@@ -71,7 +73,7 @@ export function useTeacherDashboardData(options?: {
   };
 
   const { data: apiClasses = [], isLoading: classesLoading } = useQuery({
-    queryKey: ["teacher", "classes"],
+    queryKey: teacherQueryKeys.classes(),
     queryFn: getTeacherClasses,
   });
   const classes = useMemo(() => apiClasses.map(mapApiTeacherClass), [apiClasses]);
@@ -79,7 +81,7 @@ export function useTeacherDashboardData(options?: {
   const resolvedClassId = selectedClassId ?? "all";
 
   const { data: rosterRaw = [], isLoading: loadingStudents } = useQuery({
-    queryKey: ["teacher", "roster", resolvedClassId],
+    queryKey: teacherQueryKeys.roster(resolvedClassId),
     queryFn: () => getClassRoster(resolvedClassId),
     enabled: resolvedClassId !== "all" && selectedClassId !== null,
   });
@@ -127,25 +129,23 @@ export function useTeacherDashboardData(options?: {
   );
   const classStats = resolvedClassId !== "all" ? selectedClass?.stats : undefined;
 
-  const displayStudents = enrolledStudents;
-
   const classMastery = useMemo(() => {
     if (classStats) return Math.round(classStats.avg_mastery * 100);
-    if (displayStudents.length === 0) return 0;
-    return Math.round(displayStudents.reduce((a, s) => a + s.mastery, 0) / displayStudents.length);
-  }, [classStats, displayStudents]);
+    if (enrolledStudents.length === 0) return 0;
+    return Math.round(enrolledStudents.reduce((a, s) => a + s.mastery, 0) / enrolledStudents.length);
+  }, [classStats, enrolledStudents]);
 
   const atRiskStudents = useMemo(
-    () => displayStudents.filter((s) => s.mastery < 50),
-    [displayStudents],
+    () => enrolledStudents.filter((s) => s.mastery < 50),
+    [enrolledStudents],
   );
   const masteredStudents = useMemo(
-    () => displayStudents.filter((s) => s.mastery >= 75),
-    [displayStudents],
+    () => enrolledStudents.filter((s) => s.mastery >= 75),
+    [enrolledStudents],
   );
   const developingStudents = useMemo(
-    () => displayStudents.filter((s) => s.mastery >= 50 && s.mastery < 75),
-    [displayStudents],
+    () => enrolledStudents.filter((s) => s.mastery >= 50 && s.mastery < 75),
+    [enrolledStudents],
   );
 
   const detectedChapterId = useMemo(() => {
@@ -154,7 +154,7 @@ export function useTeacherDashboardData(options?: {
   }, [resolvedClassId, selectedClass]);
 
   const refetchClasses = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ["teacher", "classes"] });
+    void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classes() });
   }, [queryClient]);
 
   const createTeacherClass = useCallback(
@@ -180,11 +180,12 @@ export function useTeacherDashboardData(options?: {
     async (classId: string) => {
       try {
         if (resolvedClassId === classId) setSelectedClassId("all");
-        toast.info("Archive/delete for classrooms is not exposed in the API yet.");
+        await deleteClassroom(classId);
+        toast.success("Class deleted.");
         refetchClasses();
       } catch (err) {
         console.error(err);
-        toast.error("Failed to delete class");
+        toast.error(err instanceof Error ? err.message : "Failed to delete class");
       }
     },
     [resolvedClassId, refetchClasses],
@@ -198,7 +199,6 @@ export function useTeacherDashboardData(options?: {
     rosterRaw,
     loadingStudents,
     enrolledStudents,
-    displayStudents,
     selectedClass,
     classStats,
     classMastery,

@@ -4,7 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePresenceHeartbeat } from "@/hooks/usePresenceHeartbeat";
 import { Level, LEVEL_CONFIGS, StudentAnswer } from "@/types/chemistry";
 import { ExitTicketResult, ThinkingStep, ClassifiedError } from "@/types/cognitive";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   apiGetReferenceCard,
   refCardQueryKey,
@@ -29,6 +29,10 @@ import { useTutorMasterySync } from "@/hooks/useTutorMasterySync";
 import { useTutorProgression } from "@/hooks/useTutorProgression";
 import { useTutorTimedMode } from "@/hooks/useTutorTimedMode";
 import { useStudentLiveSessionTimedSync } from "@/hooks/useStudentLiveSessionTimedSync";
+import { studentQueryKeys } from "@/lib/studentQueryKeys";
+import { setDismissedLiveBannerAnchor } from "@/lib/studentLiveBannerDismiss";
+import { loadExitTicketSubmit, saveExitTicketSubmit } from "@/lib/exitTicketSubmitPersistence";
+import { liveSessionAnchorKey } from "@/services/api/classroomSession";
 import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
 import { effectiveLevel2CompletedCountIncludingCurrent } from "@/lib/progressionUtils";
 import { Button } from "@/components/ui/button";
@@ -111,6 +115,13 @@ export function ChemistryTutor({
   // ── UI / modal state ──────────────────────────────────────────────────────
   const [exitTicketResults, setExitTicketResults] = useState<ExitTicketResult[]>([]);
   const [calculatorEnabled] = useState(true);
+
+  // Persists submitted class exit-ticket answers so re-opening shows review mode.
+  const exitTicketSubmittedRef = useRef<{
+    configId: string;
+    answers: Record<string, string>;
+    results: Record<string, boolean>;
+  } | null>(null);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -205,6 +216,7 @@ export function ChemistryTutor({
   });
 
   const { profile, isStudent } = useAuth();
+  const queryClient = useQueryClient();
   const heartbeatStepId = useMemo(() => {
     const prob = nav.currentProblem;
     if (!prob) return `${unitId}:${lessonIndex}`;
@@ -339,6 +351,7 @@ export function ChemistryTutor({
     nav: {
       currentProblem: nav.currentProblem ? { id: nav.currentProblem.id } : null,
       currentLevel: nav.currentLevel,
+      currentDifficulty: nav.currentDifficulty,
       completedProblemIds: nav.completedProblemIds,
       setCompletedProblemIds: nav.setCompletedProblemIds,
       saveCurrentStateToCache: nav.saveCurrentStateToCache,
@@ -381,6 +394,27 @@ export function ChemistryTutor({
     }
   };
 
+  /** Timed hook id can lag or clear while live-session still carries `active_exit_ticket_id` — coalesce for UI + persistence. */
+  const resolvedExitTicketId =
+    timed.timedExitTicketConfigId ?? liveSession?.active_exit_ticket_id ?? null;
+  const submittedForActiveTicket =
+    resolvedExitTicketId != null &&
+    (exitTicketSubmittedRef.current?.configId === resolvedExitTicketId ||
+      loadExitTicketSubmit(resolvedExitTicketId) != null);
+
+  useEffect(() => {
+    const tid = liveSession?.active_exit_ticket_id ?? timed.timedExitTicketConfigId ?? null;
+    if (!tid) return;
+    const persisted = loadExitTicketSubmit(tid);
+    if (!persisted) return;
+    if (exitTicketSubmittedRef.current?.configId === tid) return;
+    exitTicketSubmittedRef.current = {
+      configId: tid,
+      answers: persisted.answers,
+      results: persisted.results,
+    };
+  }, [liveSession?.active_exit_ticket_id, timed.timedExitTicketConfigId]);
+
   // ── Timed mode overlays ───────────────────────────────────────────────────
 
   if (timed.showLaunchScreen && timed.timedPracticeMinutes && !liveSessionLoading) {
@@ -397,15 +431,39 @@ export function ChemistryTutor({
   }
 
   if (timed.showExitTicket) {
+    const configId = resolvedExitTicketId ?? undefined;
+    const persisted = configId != null ? loadExitTicketSubmit(configId) : null;
+    const fromRef =
+      configId != null && exitTicketSubmittedRef.current?.configId === configId
+        ? exitTicketSubmittedRef.current
+        : null;
+    const initialAnswers = submittedForActiveTicket ? (fromRef?.answers ?? persisted?.answers) : undefined;
+    const initialResults = submittedForActiveTicket ? (fromRef?.results ?? persisted?.results) : undefined;
     return (
       <ExitTicketMode
         problem={nav.currentProblem ?? undefined}
         timeLimit={180}
         onComplete={handleExitTicketComplete}
         onCancel={dismissExitTicketOverlays}
-        configId={timed.timedExitTicketConfigId || undefined}
+        configId={configId}
         classId={profile?.classroom_id ?? undefined}
         prefetchedTicket={prefetchedExitTicket}
+        initialReviewMode={submittedForActiveTicket}
+        initialAnswers={initialAnswers}
+        initialResults={initialResults}
+        onSubmitted={(data) => {
+          const id = data.configId ?? configId;
+          if (id) {
+            exitTicketSubmittedRef.current = { configId: id, answers: data.answers, results: data.results };
+            saveExitTicketSubmit(id, { answers: data.answers, results: data.results });
+          }
+          if (profile?.classroom_id) {
+            void queryClient.invalidateQueries({ queryKey: studentQueryKeys.liveSession(profile.classroom_id) });
+          }
+          if (liveSession) {
+            setDismissedLiveBannerAnchor(liveSessionAnchorKey(liveSession));
+          }
+        }}
       />
     );
   }
@@ -456,25 +514,39 @@ export function ChemistryTutor({
               isLevel3Locked={isLevel3Locked}
               masteryScore={masteryScore}
             />
-            {showExitTicketAction && (
+            {(showExitTicketAction || submittedForActiveTicket) && (
               <Button
-                variant={liveSession?.session_phase === "exit_ticket" ? "default" : "outline"}
+                variant={
+                  submittedForActiveTicket
+                    ? "outline"
+                    : liveSession?.session_phase === "exit_ticket"
+                      ? "default"
+                      : "outline"
+                }
                 size="sm"
                 onClick={() => {
-                  if (!nav.currentProblem) {
+                  if (!submittedForActiveTicket && !nav.currentProblem) {
                     toast.info("Wait for the problem to load, then try again.");
                     return;
                   }
+                  if (resolvedExitTicketId && !timed.timedExitTicketConfigId) {
+                    timed.setTimedExitTicketConfigId(resolvedExitTicketId);
+                  }
                   timed.setShowExitTicket(true);
                 }}
-                disabled={nav.problemLoading || !nav.currentProblem}
+                disabled={!submittedForActiveTicket && (nav.problemLoading || !nav.currentProblem)}
                 className={cn(
                   "gap-1.5",
-                  liveSession?.session_phase === "exit_ticket" && "ring-2 ring-primary/60 shadow-sm",
+                  submittedForActiveTicket && "border-border bg-background text-foreground shadow-sm",
+                  liveSession?.session_phase === "exit_ticket" &&
+                    !submittedForActiveTicket &&
+                    "ring-2 ring-primary/60 shadow-sm",
                 )}
               >
                 <ClipboardCheck className="w-4 h-4" />
-                <span className="hidden sm:inline">Exit Ticket</span>
+                <span className="hidden sm:inline">
+                  {submittedForActiveTicket ? "Review exit ticket" : "Exit Ticket"}
+                </span>
               </Button>
             )}
           </div>

@@ -2,13 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import { Clock } from "lucide-react";
 import { ExitTicketConfigPanel } from "@/components/teacher/ExitTicketConfigPanel";
 import { ExitTicketAnalyticsPanel } from "@/components/teacher/ExitTicketAnalyticsPanel";
+import { MisconceptionSummaryCard } from "@/components/teacher/MisconceptionSummaryCard";
+import { SessionHistory } from "@/components/teacher/SessionHistory";
 import { TimedModeControls } from "@/components/teacher/TimedModeControls";
 import { ExitTicketSessionControls } from "@/components/teacher/ExitTicketSessionControls";
 import { TeacherTimedSessionMonitoring } from "@/components/teacher/TeacherTimedSessionMonitoring";
+import { TimedPracticeAnalyticsPanel } from "@/components/teacher/TimedPracticeAnalyticsPanel";
 import { Card, CardContent } from "@/components/ui/card";
 import { TabsContent } from "@/components/ui/tabs";
 import { CourseLevel } from "@/data/units";
 import type { TeacherClassRow } from "@/hooks/useTeacherDashboardData";
+import type { ClassroomSessionOut } from "@/services/api/teacher";
 
 /** Local timed session until GET /teacher/classes returns timed_mode_active from the API. */
 type OptimisticTimedSession = {
@@ -42,10 +46,12 @@ export function TeacherExitTicketsTab({
 }: TeacherExitTicketsTabProps) {
   const [optimisticTimed, setOptimisticTimed] = useState<OptimisticTimedSession | null>(null);
   const [optimisticExit, setOptimisticExit] = useState<OptimisticExitTicketSession | null>(null);
+  const [selectedSession, setSelectedSession] = useState<ClassroomSessionOut | null>(null);
 
   useEffect(() => {
     setOptimisticTimed(null);
     setOptimisticExit(null);
+    setSelectedSession(null);
   }, [selectedClassId]);
 
   useEffect(() => {
@@ -183,7 +189,29 @@ export function TeacherExitTicketsTab({
       )}
 
       {selectedClassId !== "all" && (
-        <ExitTicketAnalyticsPanel classId={selectedClassId} />
+        <MisconceptionSummaryCard classId={selectedClassId} />
+      )}
+
+      {selectedClassId !== "all" && (
+        <SessionHistory
+          classId={selectedClassId}
+          onSelectSession={setSelectedSession}
+        />
+      )}
+
+      {selectedSession && selectedSession.session_type !== "exit_ticket" && (
+        <TimedPracticeAnalyticsPanel
+          classId={selectedClassId}
+          sessionId={selectedSession.id}
+          isActive={selectedSession.ended_at == null}
+        />
+      )}
+
+      {selectedClassId !== "all" && (
+        <ExitTicketAnalyticsPanel
+          classId={selectedClassId}
+          isActive
+        />
       )}
     </TabsContent>
   );

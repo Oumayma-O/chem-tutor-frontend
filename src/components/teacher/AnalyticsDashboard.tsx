@@ -29,11 +29,12 @@ import { cn } from "@/lib/utils";
 import type { ClassStudentRow } from "@/hooks/useTeacherDashboardData";
 import type { ClassSummaryStats } from "@/services/api/teacher";
 import type { ClassAnalyticsResponse } from "@/lib/api/analytics";
+import { masteryPercentBarColorHsl } from "@/lib/teacherScoreStyles";
 
 export interface AnalyticsDashboardProps {
   selectedClassId: string;
   loadingStudents: boolean;
-  displayStudents: ClassStudentRow[];
+  enrolledStudents: ClassStudentRow[];
   classStats?: ClassSummaryStats;
   classMastery: number;
   atRiskCount: number;
@@ -43,16 +44,10 @@ export interface AnalyticsDashboardProps {
   loadingAnalytics?: boolean;
 }
 
-function barColor(mastery: number) {
-  if (mastery >= 75) return "hsl(152 60% 45%)";
-  if (mastery >= 50) return "hsl(38 92% 55%)";
-  return "hsl(0 72% 55%)";
-}
-
 export function AnalyticsDashboard({
   selectedClassId,
   loadingStudents,
-  displayStudents,
+  enrolledStudents,
   classStats,
   classMastery,
   atRiskCount,
@@ -77,7 +72,7 @@ export function AnalyticsDashboard({
 
   const weakTopicRows = useMemo(() => {
     const m = new Map<string, number>();
-    for (const s of displayStudents) {
+    for (const s of enrolledStudents) {
       for (const t of s.weakTopics) {
         m.set(t, (m.get(t) ?? 0) + 1);
       }
@@ -86,9 +81,9 @@ export function AnalyticsDashboard({
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8)
       .map(([topic, count]) => ({ topic, count }));
-  }, [displayStudents]);
+  }, [enrolledStudents]);
 
-  const totalStudents = classStats?.total_students ?? displayStudents.length;
+  const totalStudents = classStats?.total_students ?? enrolledStudents.length;
 
   const kpis = useMemo(
     () => [
@@ -139,7 +134,7 @@ export function AnalyticsDashboard({
     );
   }
 
-  if (loadingStudents && displayStudents.length === 0) {
+  if (loadingStudents && enrolledStudents.length === 0) {
     return (
       <div className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white p-12 text-slate-500 shadow-sm">
         <Loader2 className="h-5 w-5 animate-spin" />
@@ -208,14 +203,14 @@ export function AnalyticsDashboard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayStudents.length === 0 ? (
+              {enrolledStudents.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={4} className="text-center text-sm text-slate-500">
                     No students enrolled in this class.
                   </TableCell>
                 </TableRow>
               ) : (
-                displayStudents.map((s) => (
+                enrolledStudents.map((s) => (
                   <TableRow key={s.id} className="hover:bg-slate-50/50">
                     <TableCell className="font-medium text-slate-800">{s.name}</TableCell>
                     <TableCell className="text-slate-500">—</TableCell>
@@ -272,7 +267,7 @@ export function AnalyticsDashboard({
                     />
                     <Bar dataKey="mastery" radius={[6, 6, 0, 0]}>
                       {categoryChartData.map((entry, i) => (
-                        <Cell key={i} fill={barColor(entry.mastery)} />
+                        <Cell key={i} fill={masteryPercentBarColorHsl(entry.mastery)} />
                       ))}
                     </Bar>
                   </BarChart>

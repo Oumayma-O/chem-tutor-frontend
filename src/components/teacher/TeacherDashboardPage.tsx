@@ -1,8 +1,13 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTeacherDashboardData } from "@/hooks/useTeacherDashboardData";
+import { useTeacherStudentSelectionFromUrl } from "@/hooks/useTeacherStudentSelectionFromUrl";
+import { useTeacherLiveSSE } from "@/hooks/useTeacherDashboardSSE";
+import { useTeacherLivePresence } from "@/hooks/useTeacherLivePresence";
 import { apiPostClassAnalytics } from "@/lib/api/analytics";
-import { StudentCognitiveProfile, ExitTicketResult } from "@/types/cognitive";
+import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
+import type { TeacherDashboardProfile } from "@/types/teacherDashboard";
 import { AnalyticsDashboard } from "@/components/teacher/AnalyticsDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -21,19 +26,17 @@ import { TeacherStandardsTab } from "@/components/teacher/TeacherStandardsTab";
 import { TeacherExitTicketsTab } from "@/components/teacher/TeacherExitTicketsTab";
 import { TeacherSettingsTab } from "@/components/teacher/TeacherSettingsTab";
 import { patchTeacherClass } from "@/services/api/teacher";
+import { parseTeacherDashboardTab } from "@/lib/teacherDashboardTabs";
 
 interface TeacherDashboardPageProps {
-  profile: StudentCognitiveProfile;
-  exitTicketResults: ExitTicketResult[];
+  profile: TeacherDashboardProfile;
   onManagedClassCountChange?: (count: number) => void;
 }
 
 export function TeacherDashboardPage({
   profile,
-  exitTicketResults: _exitTicketResults,
   onManagedClassCountChange,
 }: TeacherDashboardPageProps) {
-  const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   const [chapterFilter, setChapterFilter] = useState("all");
 
   const [analyticsDate, setAnalyticsDate] = useState<Date | undefined>(undefined);
@@ -51,13 +54,15 @@ export function TeacherDashboardPage({
   const [creatingClass, setCreatingClass] = useState(false);
   const [manageClassesOpen, setManageClassesOpen] = useState(false);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   const {
     classes,
     classesLoading,
     selectedClassId,
     setSelectedClassId,
     loadingStudents,
-    displayStudents,
+    enrolledStudents,
     selectedClass,
     classStats,
     classMastery,
@@ -70,8 +75,39 @@ export function TeacherDashboardPage({
     deleteTeacherClass,
   } = useTeacherDashboardData({ onManagedClassCountChange });
 
+  const { selectedStudent, setSelectedStudentWithUrl } = useTeacherStudentSelectionFromUrl({
+    selectedClassId,
+    loadingStudents,
+    enrolledStudents,
+    searchParams,
+    setSearchParams,
+  });
+
+  const dashboardTab = parseTeacherDashboardTab(searchParams.get("tab"));
+  const handleDashboardTabChange = (value: string) => {
+    const next = parseTeacherDashboardTab(value);
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next === "class") p.delete("tab");
+        else p.set("tab", next);
+        return p;
+      },
+      { replace: true },
+    );
+  };
+
+  useTeacherLiveSSE({
+    classId: selectedClassId !== "all" ? selectedClassId : undefined,
+    enabled: selectedClassId !== "all",
+  });
+
+  /** Polling fallback for live rows when SSE (`/live/stream`) fails (e.g. CORS / missing route). Same cache key as SSE + panels. */
+  const livePollClassId = selectedClassId !== "all" ? selectedClassId : null;
+  useTeacherLivePresence({ classId: livePollClassId });
+
   const { data: classAnalytics, isLoading: loadingAnalytics } = useQuery({
-    queryKey: ["teacher", "analytics", selectedClassId, detectedChapterId],
+    queryKey: teacherQueryKeys.classAnalytics(selectedClassId, detectedChapterId),
     queryFn: () =>
       apiPostClassAnalytics({
         class_id: selectedClassId,
@@ -101,14 +137,14 @@ export function TeacherDashboardPage({
   const queryClient = useQueryClient();
   const handleToggleCalculator = async (classId: string, enabled: boolean) => {
     await patchTeacherClass(classId, { calculator_enabled: enabled });
-    queryClient.invalidateQueries({ queryKey: ["teacher", "classes"] });
+    queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classes() });
   };
 
   return (
     <div className="min-h-screen bg-background">
       <TeacherDashboardHeader
         selectedStudent={selectedStudent}
-        onClearSelectedStudent={() => setSelectedStudent(null)}
+        onClearSelectedStudent={() => setSelectedStudentWithUrl(null)}
         classes={classes}
         selectedClassId={selectedClassId}
         onSelectedClassIdChange={setSelectedClassId}
@@ -134,7 +170,8 @@ export function TeacherDashboardPage({
           onCreateClass={handleCreateClass}
         />
 
-        <Tabs defaultValue="class" className="space-y-6">
+        {/* Tab panels: most tabs wrap their own `TabsContent` inside child components; only Analytics is inlined here. */}
+        <Tabs value={dashboardTab} onValueChange={handleDashboardTabChange} className="space-y-6">
           <TabsList className="grid w-full max-w-4xl grid-cols-6">
             <TabsTrigger value="class" className="gap-1.5">
               <BarChart3 className="w-3.5 h-3.5" />
@@ -162,12 +199,12 @@ export function TeacherDashboardPage({
             selectedClassId={selectedClassId}
             selectedClass={selectedClass}
             classStats={classStats}
-            displayStudents={displayStudents}
+            enrolledStudents={enrolledStudents}
             classMastery={classMastery}
             masteredStudents={masteredStudents}
             developingStudents={developingStudents}
             atRiskStudents={atRiskStudents}
-            onStudentClick={setSelectedStudent}
+            onStudentClick={setSelectedStudentWithUrl}
             profile={profile}
             onOpenManageClasses={() => setManageClassesOpen(true)}
           />
@@ -176,7 +213,7 @@ export function TeacherDashboardPage({
             <AnalyticsDashboard
               selectedClassId={selectedClassId}
               loadingStudents={loadingStudents}
-              displayStudents={displayStudents}
+              enrolledStudents={enrolledStudents}
               classStats={classStats}
               classMastery={classMastery}
               atRiskCount={atRiskStudents.length}
@@ -191,9 +228,9 @@ export function TeacherDashboardPage({
             selectedClassId={selectedClassId}
             selectedClass={selectedClass}
             loadingStudents={loadingStudents}
-            displayStudents={displayStudents}
+            enrolledStudents={enrolledStudents}
             selectedStudent={selectedStudent}
-            onSelectStudent={setSelectedStudent}
+            onSelectStudent={setSelectedStudentWithUrl}
             analyticsDate={analyticsDate}
             onAnalyticsDateChange={setAnalyticsDate}
             analyticsChapter={analyticsChapter}

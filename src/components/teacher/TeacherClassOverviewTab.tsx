@@ -17,7 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TabsContent } from "@/components/ui/tabs";
-import type { StudentCognitiveProfile } from "@/types/cognitive";
+import type { TeacherDashboardProfile } from "@/types/teacherDashboard";
 import type { ClassSummaryStats } from "@/services/api/teacher";
 import type { ClassStudentRow, TeacherClassRow } from "@/hooks/useTeacherDashboardData";
 
@@ -27,13 +27,13 @@ interface TeacherClassOverviewTabProps {
   selectedClassId: string;
   selectedClass: TeacherClassRow | undefined;
   classStats: ClassSummaryStats | undefined;
-  displayStudents: ClassStudentRow[];
+  enrolledStudents: ClassStudentRow[];
   classMastery: number;
   masteredStudents: ClassStudentRow[];
   developingStudents: ClassStudentRow[];
   atRiskStudents: ClassStudentRow[];
   onStudentClick: (studentId: string) => void;
-  profile: StudentCognitiveProfile;
+  profile: TeacherDashboardProfile;
   onOpenManageClasses: () => void;
 }
 
@@ -43,7 +43,7 @@ export function TeacherClassOverviewTab({
   selectedClassId,
   selectedClass,
   classStats,
-  displayStudents,
+  enrolledStudents,
   classMastery,
   masteredStudents,
   developingStudents,
@@ -87,7 +87,7 @@ export function TeacherClassOverviewTab({
         {selectedClassId !== "all" && (
           <LiveSessionPanel
             classId={selectedClassId}
-            totalStudents={classStats?.total_students ?? displayStudents.length}
+            totalStudents={classStats?.total_students ?? enrolledStudents.length}
             onStudentClick={onStudentClick}
           />
         )}
@@ -103,7 +103,7 @@ export function TeacherClassOverviewTab({
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {(classStats || displayStudents.length > 0) ? `${classMastery}%` : "–"}
+              {(classStats || enrolledStudents.length > 0) ? `${classMastery}%` : "–"}
             </div>
           </CardContent>
         </Card>
@@ -116,7 +116,7 @@ export function TeacherClassOverviewTab({
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {classStats?.total_students ?? displayStudents.length}
+              {classStats?.total_students ?? enrolledStudents.length}
             </div>
           </CardContent>
         </Card>
@@ -167,7 +167,7 @@ export function TeacherClassOverviewTab({
                   <div className="h-3 bg-secondary rounded-full overflow-hidden">
                     <div
                       className={cn("h-full rounded-full transition-all", bucket.color)}
-                      style={{ width: `${displayStudents.length > 0 ? (bucket.count / displayStudents.length) * 100 : 0}%` }}
+                      style={{ width: `${enrolledStudents.length > 0 ? (bucket.count / enrolledStudents.length) * 100 : 0}%` }}
                     />
                   </div>
                 </div>
@@ -188,7 +188,7 @@ export function TeacherClassOverviewTab({
             <WeakAreasBody
               classStats={classStats}
               selectedClassId={selectedClassId}
-              displayStudents={displayStudents}
+              enrolledStudents={enrolledStudents}
             />
           </CardContent>
         </Card>
@@ -198,7 +198,7 @@ export function TeacherClassOverviewTab({
         <SessionHistory classId={selectedClassId} />
       )}
 
-      {displayStudents.length > 0 && (
+      {enrolledStudents.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card>
             <CardHeader className="pb-2">
@@ -209,8 +209,8 @@ export function TeacherClassOverviewTab({
             </CardHeader>
             <CardContent>
               {(() => {
-                const readyCount = displayStudents.filter((s) => s.mastery >= 75).length;
-                const readiness = Math.round((readyCount / displayStudents.length) * 100);
+                const readyCount = enrolledStudents.filter((s) => s.mastery >= 75).length;
+                const readiness = Math.round((readyCount / enrolledStudents.length) * 100);
                 return (
                   <div>
                     <div className={cn(
@@ -221,7 +221,7 @@ export function TeacherClassOverviewTab({
                       {readiness}%
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {readyCount}/{displayStudents.length} students at mastery ≥75%
+                      {readyCount}/{enrolledStudents.length} students at mastery ≥75%
                     </p>
                   </div>
                 );
@@ -271,11 +271,11 @@ export function TeacherClassOverviewTab({
 function WeakAreasBody({
   classStats,
   selectedClassId,
-  displayStudents,
+  enrolledStudents,
 }: {
   classStats: ClassSummaryStats | undefined;
   selectedClassId: string;
-  displayStudents: ClassStudentRow[];
+  enrolledStudents: ClassStudentRow[];
 }) {
   if (classStats && selectedClassId !== "all") {
     const cb = classStats.category_breakdown;
@@ -312,7 +312,7 @@ function WeakAreasBody({
   }
 
   const topicCounts: Record<string, number> = {};
-  displayStudents.forEach((s) => s.weakTopics.forEach((t) => {
+  enrolledStudents.forEach((s) => s.weakTopics.forEach((t) => {
     topicCounts[t] = (topicCounts[t] || 0) + 1;
   }));
   const sorted = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]);
@@ -325,12 +325,12 @@ function WeakAreasBody({
         <div key={topic}>
           <div className="flex items-center justify-between text-sm mb-1">
             <span className="capitalize text-foreground font-medium">{topic.replace(/_/g, " ")}</span>
-            <span className="text-muted-foreground">{count}/{displayStudents.length} students</span>
+            <span className="text-muted-foreground">{count}/{enrolledStudents.length} students</span>
           </div>
           <div className="h-2 bg-secondary rounded-full overflow-hidden">
             <div
               className="h-full rounded-full bg-warning transition-all"
-              style={{ width: `${(count / displayStudents.length) * 100}%` }}
+              style={{ width: `${(count / enrolledStudents.length) * 100}%` }}
             />
           </div>
         </div>

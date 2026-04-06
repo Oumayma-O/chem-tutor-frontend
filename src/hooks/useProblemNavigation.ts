@@ -67,7 +67,7 @@ export function defaultPaginationForLevel(level: Level): ProblemPagination {
     total: 1,
     max_problems: maxProblems,
     has_prev: false,
-    has_next: true,
+    has_next: false,
     at_limit: false,
   };
 }
@@ -368,6 +368,13 @@ export function useProblemNavigation({
             !excludeIds.includes(prefetchedProblem.current.id)
           ) {
             const p = prefetchedProblem.current;
+            if (stateSnapshot.current.currentLevel !== (level as Level)) {
+              // User switched levels during the await — cache result, don't hijack UI.
+              // triggerPrefetch already wrote to levelCacheRef; clear prefetch refs.
+              prefetchedProblem.current = null;
+              prefetchedLevel.current = 0;
+              return p;
+            }
             applyPrefetchedProblem(p, level, difficulty);
             return p;
           }
@@ -402,16 +409,25 @@ export function useProblemNavigation({
         if (isCurrentLevel) {
           setCurrentProblem(problem);
           if (level === 1) {
-            // Level 1 pagination is managed entirely client-side (cap: 3 examples).
-            // Never use the backend's pagination for Level 1 — it returns max_problems: 5
-            // and its "total" reflects the backend playlist, not our local 3-example cap.
             setPagination(makeLevel1Pagination(0, 1));
           } else {
             setPagination(pag ?? defaultPaginationForLevel(level as Level));
           }
-          // Use the difficulty the backend actually assigned, not the request value,
-          // so currentDifficulty stays in sync with the backend playlist key.
           setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
+        } else {
+          // User switched levels during generation — cache the result for instant
+          // restore when they return, instead of discarding and re-generating.
+          const cachedPag = level === 1
+            ? makeLevel1Pagination(0, 1)
+            : (pag ?? defaultPaginationForLevel(level as Level));
+          levelCacheRef.current[expectedLevel] = {
+            problem,
+            answers: {},
+            hints: {},
+            structuredStepComplete: {},
+            pagination: cachedPag,
+            difficulty: problem.difficulty as "easy" | "medium" | "hard",
+          };
         }
         if (level === 1 && level1ProblemsRef.current.length === 0) {
           level1ProblemsRef.current[0] = problem;
@@ -438,7 +454,11 @@ export function useProblemNavigation({
         onAttemptStart(null);
         return null;
       } finally {
-        setProblemLoading(false);
+        // Only clear loading if this level is still active. If the user switched
+        // levels, another loadNewProblem or restoreFromCache owns the flag now.
+        if (stateSnapshot.current.currentLevel === expectedLevel) {
+          setProblemLoading(false);
+        }
         isFetchingLevelRef.current[level as Level] = false;
       }
     },
@@ -777,20 +797,37 @@ export function useProblemNavigation({
           difficulty: diff,
           direction,
         });
-        const { problem, pagination: pag } = parseProblemOutput(data);
-        saveCurrentStateToCache();
-        if (lvl === 1 && problem && pag) {
-          const idx = pag.current_index;
+        const { problem, pagination: navPag } = parseProblemOutput(data);
+
+        // Always populate Level 1 local cache regardless of active level.
+        if (lvl === 1 && problem && navPag) {
+          const idx = navPag.current_index;
           if (level1ProblemsRef.current.length <= idx) level1ProblemsRef.current.length = idx + 1;
           level1ProblemsRef.current[idx] = problem;
         }
+
+        if (stateSnapshot.current.currentLevel !== lvl) {
+          // User switched levels during the API call — cache the result for later
+          // instead of overwriting the now-active level's display.
+          levelCacheRef.current[lvl] = {
+            problem,
+            answers: {},
+            hints: {},
+            structuredStepComplete: {},
+            pagination: lvl === 1
+              ? makeLevel1Pagination(navPag?.current_index ?? 0, navPag?.total ?? 1)
+              : (navPag ?? defaultPaginationForLevel(lvl)),
+            difficulty: problem.difficulty as "easy" | "medium" | "hard",
+          };
+          return;
+        }
+
+        saveCurrentStateToCache();
         setCurrentProblem(problem);
-        // Keep currentDifficulty in sync with the navigated problem's actual difficulty
-        // so subsequent navigate/generate calls use the correct playlist key.
         setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
         stepSettersRef.current.setHintLoading(new Set());
         restorePerProblemState(problem.id);
-        setPagination(pag ?? defaultPaginationForLevel(lvl));
+        setPagination(navPag ?? defaultPaginationForLevel(lvl));
         stepSettersRef.current.resetTracking();
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "";
@@ -804,11 +841,13 @@ export function useProblemNavigation({
         if (direction === "prev" && atFirstProblem) {
           toast.info("Already at the first example.");
         } else if (needsGeneration || direction === "next") {
+          // Use the captured lvl/diff from the start of this navigation,
+          // not the current stateSnapshot — the user may have switched levels.
+          if (stateSnapshot.current.currentLevel !== lvl) return;
           resetProblemState({ clearPagination: false });
-          const { currentDifficulty: diff2, currentLevel: lvl2, completedProblemIds: cpi2 } =
-            stateSnapshot.current;
+          const cpi = stateSnapshot.current.completedProblemIds;
           try {
-            await loadNewProblem(diff2, cpi2, lvl2);
+            await loadNewProblem(diff, cpi, lvl);
           } catch {
             toast.error("Failed to load another problem. Please try again.");
           }
