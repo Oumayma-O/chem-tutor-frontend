@@ -251,3 +251,49 @@ describe('normalizeMathString — "hint" mode', () => {
     expect(out).toContain("- Second step");
   });
 });
+
+// ─── Bug regression: pure-math globally-wrapped equation (Bug 1) ─────────────
+
+describe("fixGloballyWrappedStatement — pure-math guard (Bug 1 regression)", () => {
+  it("does NOT fragment a pure-math Arrhenius equation wrapped in $...$", () => {
+    // Root cause: interleaveMathInSegment was called on pure-math content,
+    // breaking \ln\left into "$\ln\left$" + "(" — invalid KaTeX rendered red.
+    const eq =
+      "$\\ln\\left(\\frac{2.40 \\times 10^{-3}}{6.50 \\times 10^{-4}}\\right) = \\frac{E_a}{8.314}\\left(\\frac{1}{290} - \\frac{1}{310}\\right)$";
+    const out = normalizeMathString(eq, "hint");
+    // Must remain a single valid $...$ block, not fragmented into multiple spans
+    expect(out.startsWith("$")).toBe(true);
+    expect(out.endsWith("$")).toBe(true);
+    // Key commands must stay intact (not split across adjacent $...$ blocks)
+    expect(out).toContain("\\ln\\left");
+    expect(out).toContain("\\frac");
+    expect(out).toContain("\\right");
+    // Must NOT produce adjacent $...$ blocks like "$\ln\left$($..."
+    expect(out).not.toMatch(/\$\s*\(/);
+  });
+
+  it("does NOT fragment a simple globally-wrapped equation with no prose", () => {
+    const eq = "$k_1 = 1.20 \\times 10^{-3}$";
+    const out = normalizeMathString(eq, "mixed");
+    expect(out.startsWith("$")).toBe(true);
+    expect(out.endsWith("$")).toBe(true);
+    expect(out).toContain("\\times");
+  });
+
+  it("STILL splits a globally-wrapped $...$ that contains prose words", () => {
+    // "and" is a prose word → must still be split out of math mode
+    const wrapped = "$\\mathrm{Cu} and \\mathrm{Zn}$";
+    const out = normalizeMathString(wrapped, "mixed");
+    expect(out).not.toBe(wrapped);
+    expect(out).toContain("and");
+    expect(out).toContain("\\mathrm{Cu}");
+    expect(out).toContain("\\mathrm{Zn}");
+  });
+
+  it("STILL splits globally-wrapped $...$ with 'for' connector between formulas", () => {
+    const wrapped = "$\\mathrm{H_2} for \\mathrm{O_2}$";
+    const out = normalizeMathString(wrapped, "mixed");
+    expect(out).toContain("for");
+    expect(out).not.toBe(wrapped);
+  });
+});

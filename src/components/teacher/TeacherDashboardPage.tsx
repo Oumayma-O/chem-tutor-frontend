@@ -38,7 +38,13 @@ export function TeacherDashboardPage({
 
   const [analyticsDate, setAnalyticsDate] = useState<Date | undefined>(undefined);
   const [analyticsChapter, setAnalyticsChapter] = useState("all");
+  const [analyticsLesson, setAnalyticsLesson] = useState<number | "all">("all");
   const [analyticsMode, setAnalyticsMode] = useState<"all" | "practice" | "exit-ticket">("all");
+
+  const handleAnalyticsChapterChange = (v: string) => {
+    setAnalyticsChapter(v);
+    setAnalyticsLesson("all");
+  };
 
   const [newClassName, setNewClassName] = useState("");
   const [newClassCourseType, setNewClassCourseType] = useState<string>("standard");
@@ -188,11 +194,12 @@ export function TeacherDashboardPage({
             displayStudents={displayStudents}
             selectedStudent={selectedStudent}
             onSelectStudent={setSelectedStudent}
-            profile={profile}
             analyticsDate={analyticsDate}
             onAnalyticsDateChange={setAnalyticsDate}
             analyticsChapter={analyticsChapter}
-            onAnalyticsChapterChange={setAnalyticsChapter}
+            onAnalyticsChapterChange={handleAnalyticsChapterChange}
+            analyticsLesson={analyticsLesson}
+            onAnalyticsLessonChange={setAnalyticsLesson}
             analyticsMode={analyticsMode}
             onAnalyticsModeChange={setAnalyticsMode}
           />

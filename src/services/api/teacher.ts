@@ -27,11 +27,14 @@ export interface TeacherClass {
   calculator_enabled: boolean;
   created_at: string;
   stats: ClassSummaryStats;
-  /** When the backend exposes live session, these drive timed mode UI. */
+  /** Snapshot of `classrooms.live_session` for the Exit Tickets tab. */
   timed_mode_active?: boolean;
   timed_practice_minutes?: number | null;
   timed_started_at?: string | null;
   active_exit_ticket_id?: string | null;
+  session_phase?: string | null;
+  exit_ticket_time_limit_minutes?: number | null;
+  exit_ticket_window_started_at?: string | null;
 }
 
 export interface MasterySnapshot {
@@ -58,6 +61,8 @@ export interface ExitTicketQuestion {
   option_misconception_tags?: (string | null)[] | null;
   correct_answer: string | null;
   points: number;
+  /** Physical unit for numeric answers (e.g. "g", "mol/L", "kJ/mol"). */
+  unit?: string | null;
 }
 
 export interface ExitTicketConfig {
@@ -66,6 +71,8 @@ export interface ExitTicketConfig {
   teacher_id: string;
   unit_id: string;
   lesson_index: number;
+  /** Curriculum lesson slug (e.g. "L-kinetics-zero-order"). */
+  lesson_id?: string | null;
   difficulty: string;
   time_limit_minutes: number;
   is_active: boolean;
@@ -74,6 +81,25 @@ export interface ExitTicketConfig {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+// ── Misconception analytics ──────────────────────────────────
+
+export interface MisconceptionHit {
+  tag: string;
+  count: number;
+}
+
+export interface QuestionMisconceptionSummary {
+  question_id: string;
+  prompt: string;
+  hits: MisconceptionHit[];
+}
+
+export interface MisconceptionAnalytics {
+  class_id: string;
+  ticket_id: string;
+  questions: QuestionMisconceptionSummary[];
 }
 
 export interface ExitTicketResponseItem {
@@ -128,8 +154,10 @@ export interface StudentAnalyticsOut {
 export async function getStudentAnalytics(
   classroomId: string,
   studentId: string,
+  unitId?: string,
 ): Promise<StudentAnalyticsOut> {
-  return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics`);
+  const qs = unitId && unitId !== "all" ? `?unit_id=${encodeURIComponent(unitId)}` : "";
+  return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics${qs}`);
 }
 
 export async function patchTeacherClass(
@@ -161,6 +189,7 @@ export async function generateExitTicket(body: {
   classroom_id: string;
   unit_id?: string | null;
   lesson_index?: number;
+  lesson_id?: string | null;
   difficulty?: string;
   question_count?: number;
   time_limit_minutes?: number;
@@ -170,20 +199,31 @@ export async function generateExitTicket(body: {
     classroom_id: body.classroom_id,
     unit_id: body.unit_id ?? null,
     lesson_index: body.lesson_index ?? 0,
+    lesson_id: body.lesson_id ?? null,
     difficulty: body.difficulty ?? "medium",
     question_count: body.question_count ?? 4,
     time_limit_minutes: body.time_limit_minutes ?? 10,
   });
 }
 
+export async function getMisconceptionAnalytics(
+  classId: string,
+  ticketId?: string,
+): Promise<MisconceptionAnalytics> {
+  const qs = ticketId ? `?ticket_id=${encodeURIComponent(ticketId)}` : "";
+  return get<MisconceptionAnalytics>(`/teacher/exit-tickets/${classId}/misconceptions${qs}`);
+}
+
 export async function getExitTicketResults(
   classId: string,
   page = 1,
   limit = 10,
+  filters?: { unit_id?: string; lesson_id?: string },
 ): Promise<ExitTicketsForClass> {
-  return get<ExitTicketsForClass>(
-    `/teacher/exit-tickets/${classId}?page=${page}&limit=${limit}`,
-  );
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (filters?.unit_id) params.set("unit_id", filters.unit_id);
+  if (filters?.lesson_id) params.set("lesson_id", filters.lesson_id);
+  return get<ExitTicketsForClass>(`/teacher/exit-tickets/${classId}?${params.toString()}`);
 }
 
 /** Publish generated exit ticket + optional timed practice to the class (students poll live-session). */

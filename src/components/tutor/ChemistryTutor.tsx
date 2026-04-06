@@ -383,7 +383,7 @@ export function ChemistryTutor({
 
   // ── Timed mode overlays ───────────────────────────────────────────────────
 
-  if (timed.showLaunchScreen && timed.timedPracticeMinutes && !liveSync.liveSessionLoading) {
+  if (timed.showLaunchScreen && timed.timedPracticeMinutes && !liveSessionLoading) {
     return (
       <TimedModeLaunchScreen
         practiceMinutes={timed.timedPracticeMinutes}
@@ -458,7 +458,7 @@ export function ChemistryTutor({
             />
             {showExitTicketAction && (
               <Button
-                variant="outline"
+                variant={liveSession?.session_phase === "exit_ticket" ? "default" : "outline"}
                 size="sm"
                 onClick={() => {
                   if (!nav.currentProblem) {
@@ -468,7 +468,10 @@ export function ChemistryTutor({
                   timed.setShowExitTicket(true);
                 }}
                 disabled={nav.problemLoading || !nav.currentProblem}
-                className="gap-1.5"
+                className={cn(
+                  "gap-1.5",
+                  liveSession?.session_phase === "exit_ticket" && "ring-2 ring-primary/60 shadow-sm",
+                )}
               >
                 <ClipboardCheck className="w-4 h-4" />
                 <span className="hidden sm:inline">Exit Ticket</span>

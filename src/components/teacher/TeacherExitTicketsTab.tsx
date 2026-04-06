@@ -3,6 +3,7 @@ import { Clock } from "lucide-react";
 import { ExitTicketConfigPanel } from "@/components/teacher/ExitTicketConfigPanel";
 import { ExitTicketAnalyticsPanel } from "@/components/teacher/ExitTicketAnalyticsPanel";
 import { TimedModeControls } from "@/components/teacher/TimedModeControls";
+import { ExitTicketSessionControls } from "@/components/teacher/ExitTicketSessionControls";
 import { TeacherTimedSessionMonitoring } from "@/components/teacher/TeacherTimedSessionMonitoring";
 import { Card, CardContent } from "@/components/ui/card";
 import { TabsContent } from "@/components/ui/tabs";
@@ -13,6 +14,15 @@ import type { TeacherClassRow } from "@/hooks/useTeacherDashboardData";
 type OptimisticTimedSession = {
   classId: string;
   minutes: number;
+  startedAt: string;
+  activeChapterId: string | null;
+};
+
+/** Local exit-only session until GET /teacher/classes returns session_phase + window fields. */
+type OptimisticExitTicketSession = {
+  classId: string;
+  ticketId: string;
+  timeLimitMin: number;
   startedAt: string;
   activeChapterId: string | null;
 };
@@ -31,9 +41,11 @@ export function TeacherExitTicketsTab({
   onRefetchClasses,
 }: TeacherExitTicketsTabProps) {
   const [optimisticTimed, setOptimisticTimed] = useState<OptimisticTimedSession | null>(null);
+  const [optimisticExit, setOptimisticExit] = useState<OptimisticExitTicketSession | null>(null);
 
   useEffect(() => {
     setOptimisticTimed(null);
+    setOptimisticExit(null);
   }, [selectedClassId]);
 
   useEffect(() => {
@@ -42,8 +54,19 @@ export function TeacherExitTicketsTab({
     }
   }, [selectedClass?.timed_mode_active]);
 
+  useEffect(() => {
+    if (selectedClass?.session_phase === "exit_ticket" && selectedClass?.active_exit_ticket_id) {
+      setOptimisticExit(null);
+    }
+  }, [selectedClass?.session_phase, selectedClass?.active_exit_ticket_id]);
+
   const handleTimedStopped = useCallback(() => {
     setOptimisticTimed(null);
+    onRefetchClasses();
+  }, [onRefetchClasses]);
+
+  const handleExitStopped = useCallback(() => {
+    setOptimisticExit(null);
     onRefetchClasses();
   }, [onRefetchClasses]);
 
@@ -51,6 +74,12 @@ export function TeacherExitTicketsTab({
   const timedFromOptimistic =
     optimisticTimed != null && optimisticTimed.classId === selectedClassId;
   const showTimedMonitoring = timedFromApi || timedFromOptimistic;
+
+  const exitFromApi =
+    selectedClass?.session_phase === "exit_ticket" && Boolean(selectedClass?.active_exit_ticket_id);
+  const exitFromOptimistic =
+    optimisticExit != null && optimisticExit.classId === selectedClassId && !showTimedMonitoring;
+  const showExitOnlyMonitoring = exitFromApi || exitFromOptimistic;
 
   const mergedPracticeMinutes = timedFromOptimistic
     ? optimisticTimed.minutes
@@ -61,6 +90,24 @@ export function TeacherExitTicketsTab({
   const mergedChapterId = timedFromOptimistic
     ? optimisticTimed.activeChapterId
     : (selectedClass?.active_chapter_id ?? undefined);
+
+  const mergedExitTimeLimit = exitFromOptimistic
+    ? optimisticExit.timeLimitMin
+    : (selectedClass?.exit_ticket_time_limit_minutes ?? undefined);
+  const mergedExitWindowStart = exitFromOptimistic
+    ? optimisticExit.startedAt
+    : (selectedClass?.exit_ticket_window_started_at ?? undefined);
+  const mergedExitChapterId = exitFromOptimistic
+    ? optimisticExit.activeChapterId
+    : (selectedClass?.active_chapter_id ?? undefined);
+
+  const mergedActiveExitTicketId =
+    selectedClass?.active_exit_ticket_id ?? optimisticExit?.ticketId ?? null;
+
+  /** Only hide the generate/publish wizard when the live-session UI is actually shown (not merely stale phase flags). */
+  const exitMonitoringRenderable =
+    showExitOnlyMonitoring && Boolean(mergedExitTimeLimit && mergedExitWindowStart);
+  const hideExitTicketWizard = showTimedMonitoring || exitMonitoringRenderable;
 
   return (
     <TabsContent value="exit-tickets" className="space-y-6">
@@ -83,11 +130,32 @@ export function TeacherExitTicketsTab({
             activeChapterId={mergedChapterId}
             onUpdate={handleTimedStopped}
           />
-          <TeacherTimedSessionMonitoring classId={selectedClassId} enabled />
+          <TeacherTimedSessionMonitoring
+            classId={selectedClassId}
+            enabled
+            activeExitTicketId={mergedActiveExitTicketId}
+          />
         </>
       )}
 
-      {selectedClassId !== "all" && !showTimedMonitoring && (
+      {selectedClassId !== "all" && exitMonitoringRenderable && mergedExitTimeLimit && mergedExitWindowStart && (
+        <>
+          <ExitTicketSessionControls
+            classId={selectedClassId}
+            timeLimitMinutes={mergedExitTimeLimit}
+            windowStartedAt={mergedExitWindowStart}
+            activeChapterId={mergedExitChapterId}
+            onUpdate={handleExitStopped}
+          />
+          <TeacherTimedSessionMonitoring
+            classId={selectedClassId}
+            enabled
+            activeExitTicketId={mergedActiveExitTicketId}
+          />
+        </>
+      )}
+
+      {selectedClassId !== "all" && !hideExitTicketWizard && (
         <ExitTicketConfigPanel
           classId={selectedClassId}
           courseLevel={selectedClass?.grade_level as CourseLevel | undefined}
@@ -97,6 +165,14 @@ export function TeacherExitTicketsTab({
               setOptimisticTimed({
                 classId: selectedClassId,
                 minutes: payload.minutes,
+                startedAt: new Date().toISOString(),
+                activeChapterId: payload.chapterId,
+              });
+            } else {
+              setOptimisticExit({
+                classId: selectedClassId,
+                ticketId: payload.exitTicketId,
+                timeLimitMin: payload.exitTicketTimeLimitMinutes,
                 startedAt: new Date().toISOString(),
                 activeChapterId: payload.chapterId,
               });

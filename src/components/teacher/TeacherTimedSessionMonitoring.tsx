@@ -9,12 +9,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Users, Activity } from "lucide-react";
+import { Users, Activity, Send } from "lucide-react";
 import { getLiveClassStatus, type LiveStudentEntry } from "@/services/api/presence";
+import { getExitTicketResults } from "@/services/api/teacher";
 
 interface TeacherTimedSessionMonitoringProps {
   classId: string;
   enabled: boolean;
+  /** When set, polls exit-ticket API for submission count for this ticket (stays in sync with students). */
+  activeExitTicketId?: string | null;
 }
 
 function formatStep(stepId: string | null | undefined) {
@@ -24,13 +27,29 @@ function formatStep(stepId: string | null | undefined) {
   return stepId.length > 48 ? `${stepId.slice(0, 45)}…` : stepId;
 }
 
-export function TeacherTimedSessionMonitoring({ classId, enabled }: TeacherTimedSessionMonitoringProps) {
+export function TeacherTimedSessionMonitoring({
+  classId,
+  enabled,
+  activeExitTicketId,
+}: TeacherTimedSessionMonitoringProps) {
   const { data: live = [], isLoading } = useQuery({
     queryKey: ["teacher", "live", classId],
     queryFn: () => getLiveClassStatus(classId),
     enabled: enabled && Boolean(classId),
     refetchInterval: 5000,
   });
+
+  const { data: ticketPage } = useQuery({
+    queryKey: ["teacher", "exit-tickets", classId, "live-count", activeExitTicketId],
+    queryFn: () => getExitTicketResults(classId, 1, 30),
+    enabled: enabled && Boolean(classId && activeExitTicketId),
+    refetchInterval: 4000,
+  });
+
+  const submissionCount =
+    activeExitTicketId && ticketPage?.items
+      ? ticketPage.items.find((b) => b.ticket.id === activeExitTicketId)?.responses.length ?? 0
+      : null;
 
   if (!enabled) return null;
 
@@ -41,9 +60,17 @@ export function TeacherTimedSessionMonitoring({ classId, enabled }: TeacherTimed
           <Activity className="h-5 w-5 text-primary" />
           Live monitoring
         </CardTitle>
-        <CardDescription>
-          Students on this class heartbeat from practice (same source as presence).{" "}
-          {isLoading ? "Loading…" : `${live.length} active`}
+        <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>
+            Students on this class heartbeat from practice (same source as presence).{" "}
+            {isLoading ? "Loading…" : `${live.length} active`}
+          </span>
+          {activeExitTicketId && (
+            <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+              <Send className="h-3.5 w-3.5 text-primary" />
+              {submissionCount === null ? "Loading submissions…" : `${submissionCount} submission(s) for current ticket`}
+            </span>
+          )}
         </CardDescription>
       </CardHeader>
       <CardContent>

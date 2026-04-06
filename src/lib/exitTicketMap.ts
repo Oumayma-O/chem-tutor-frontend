@@ -35,6 +35,7 @@ export function mapExitTicketConfigToUiQuestions(ticket: ExitTicketConfig): UiEx
       question_text: q.prompt,
       correct_answer: q.correct_answer || "",
       mcq_options: looksMcq ? mapApiMcqOptions(q) : undefined,
+      unit: q.unit ?? undefined,
     };
   });
 }

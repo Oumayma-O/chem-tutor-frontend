@@ -19,6 +19,10 @@ export interface TeacherClassRow {
   timed_practice_minutes: number | null;
   timed_started_at: string | null;
   active_chapter_id: string | null;
+  active_exit_ticket_id: string | null;
+  session_phase: string | null;
+  exit_ticket_time_limit_minutes: number | null;
+  exit_ticket_window_started_at: string | null;
   calculator_enabled: boolean;
   stats?: ClassSummaryStats;
 }
@@ -44,6 +48,10 @@ function mapApiTeacherClass(c: ApiTeacherClass): TeacherClassRow {
     timed_practice_minutes: c.timed_practice_minutes ?? null,
     timed_started_at: c.timed_started_at ?? null,
     active_chapter_id: c.unit_id,
+    active_exit_ticket_id: c.active_exit_ticket_id ?? null,
+    session_phase: c.session_phase ?? null,
+    exit_ticket_time_limit_minutes: c.exit_ticket_time_limit_minutes ?? null,
+    exit_ticket_window_started_at: c.exit_ticket_window_started_at ?? null,
     calculator_enabled: c.calculator_enabled ?? true,
     stats: c.stats,
   };

@@ -164,6 +164,15 @@ function consumeLatexRun(s: string, start: number): number {
 const PROSE_WORD_AFTER_MATH =
   /^(and|or|for|are|is|the|of|in|to|use|each|before|after|what|which|with|from|that|this|these|those|when|where|how|why|will|has|have|had|was|were|not|can|may|must|should|could|would|using|given|find|calculate|compute|determine|express|show|write|solve|note|assume|consider|suppose|let|both|either|nearest|per|via|contains|sample|abundances|naturally|occurring|mass|decimal|calculating|percentage|answer|formula|convert|average|atomic|isotopes|copper|abundant|following|above|below|between|among|within|during|while|until|since|because|therefore|thus|such|same|other|another|different|similar|equal|greater|less|than|more|most|least|all|some|none|any|every|only|also|even|still|again|first|second|third|last|next|previous|approximately|about|around|roughly|exactly|nearly|almost|always|never|sometimes|often|usually|typically|normally|commonly|frequently|rarely|perhaps|possibly|probably|likely|unlikely|certainly|definitely|surely|indeed|actually|really|very|quite|rather|fairly|pretty|too|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|percent|percentage|problem|question|example|solution|reaction|equation|constant|temperature|pressure|volume|molecule|atoms|molar|acid|base|gas|liquid|solid|aqueous|equilibrium|stoichiometry|yield|limiting|excess|reactant|product|initial|final|change|ratio|proportion|mean|median|range|graph|data|table|figure|value|values|units|unit|state|standard|conditions)\b/i;
 
+/**
+ * Unanchored prose-word guard for `fixGloballyWrappedStatement`.
+ * If none of these words appear in the inner content of a globally-wrapped `$...$`,
+ * it is a pure-math expression that must NOT be fragmented by `interleaveMathInSegment`.
+ * Aligns with the backend's `_PROSE_WORD_IN_TEXT` gate in `_fix_globally_wrapped_statement`.
+ */
+const _PROSE_WORD_IN_MATH =
+  /\b(?:and|or|for|are|is|the|of|in|to|use|each|before|after|what|which|with|from|that|this|given|find|calculate|contains|mass|sample|where|when|how|note|both|either)\b/i;
+
 export function interleaveMathInSegment(s: string): string {
   if (!s.trim()) return s;
   if (!/\\|[_^]/.test(s)) return s;
@@ -237,6 +246,9 @@ function fixGloballyWrappedStatement(text: string): string {
 
   if (!inner.includes("\n\n")) {
     if (!/\\[a-zA-Z]|[_^]\{/.test(inner)) return text;
+    // Guard: pure-math equations (no prose words) must not be fragmented.
+    // Aligns with backend _fix_globally_wrapped_statement prose gate.
+    if (!_PROSE_WORD_IN_MATH.test(inner)) return text;
     return interleaveMathInSegment(inner);
   }
 
@@ -260,6 +272,8 @@ function fixGloballyWrappedStatement(text: string): string {
           const s = seg.content;
           if (!s.trim()) return s;
           if (!/\\[a-zA-Z]|[_^]\{/.test(s)) return s;
+          // Guard: don't fragment pure-math segments within a paragraph.
+          if (!_PROSE_WORD_IN_MATH.test(s)) return s;
           return interleaveMathInSegment(s);
         })
         .join("");

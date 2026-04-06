@@ -34,7 +34,6 @@ export function useStudentLiveSessionTimedSync(options: {
   });
 
   const launchShownKeyRef = useRef<string | null>(null);
-  const exitTicketAutoOpenedRef = useRef<string | null>(null);
   const timedSessionOptOutKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -84,13 +83,10 @@ export function useStudentLiveSessionTimedSync(options: {
     }
 
     if (liveSession.session_phase === "exit_ticket" && id) {
-      if (exitTicketAutoOpenedRef.current !== id) {
-        exitTicketAutoOpenedRef.current = id;
-        t.setTimedModeActive(false);
-        t.setShowLaunchScreen(false);
-        t.setShowTransitionScreen(false);
-        t.setShowExitTicket(true);
-      }
+      t.setTimedModeActive(false);
+      t.setShowLaunchScreen(false);
+      t.setShowTransitionScreen(false);
+      // Do not auto-open the exit ticket overlay — student uses the Exit Ticket control when ready.
     }
 
     if (liveSession.session_phase === "idle") {
@@ -100,7 +96,6 @@ export function useStudentLiveSessionTimedSync(options: {
       t.setTimedPracticeMinutes(null);
       t.setTimedStartedAt(null);
       launchShownKeyRef.current = null;
-      exitTicketAutoOpenedRef.current = null;
     }
   }, [liveSession, isStudent]);
 

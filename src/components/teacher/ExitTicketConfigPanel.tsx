@@ -26,7 +26,13 @@ interface ExitTicketConfigPanelProps {
   classId: string;
   courseLevel?: CourseLevel;
   /** Called after a successful publish (not draft). Drives timed monitoring UI + refetch. */
-  onPublishSuccess?: (payload: { timedPractice: boolean; minutes: number; chapterId: string }) => void;
+  onPublishSuccess?: (payload: {
+    timedPractice: boolean;
+    minutes: number;
+    chapterId: string;
+    exitTicketTimeLimitMinutes: number;
+    exitTicketId: string;
+  }) => void;
   defaultChapterId?: string;
 }
 
@@ -179,6 +185,8 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
           timedPractice: timedEnabled,
           minutes: timedDuration,
           chapterId: selectedChapterId,
+          exitTicketTimeLimitMinutes: timeLimit,
+          exitTicketId: activeTicket.id,
         });
         toast.success(
           timedEnabled

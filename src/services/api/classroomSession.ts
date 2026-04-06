@@ -18,6 +18,8 @@ export interface MyClassroomLiveSession {
   lesson_index: number | null;
   /** When the API embeds the full ticket, students can load without GET /student/exit-tickets/{id}. */
   exit_ticket?: ExitTicketConfig | null;
+  exit_ticket_time_limit_minutes?: number | null;
+  exit_ticket_window_started_at?: string | null;
 }
 
 /** Identifies the current teacher-published timed + ticket block (for student opt-out / sync). */
@@ -55,6 +57,9 @@ export function normalizeLiveSession(data: unknown): MyClassroomLiveSession | nu
   const classroom_id = String(d.classroom_id ?? d.class_id ?? "");
   if (!classroom_id) return null;
   const embedded = parseEmbeddedExitTicket(d.exit_ticket);
+  const etLim = d.exit_ticket_time_limit_minutes;
+  const etLimNum = typeof etLim === "number" ? etLim : null;
+
   return {
     classroom_id,
     timed_mode_active: Boolean(d.timed_mode_active),
@@ -65,6 +70,9 @@ export function normalizeLiveSession(data: unknown): MyClassroomLiveSession | nu
     session_phase: inferPhase(d),
     unit_id: typeof d.unit_id === "string" ? d.unit_id : null,
     lesson_index: typeof d.lesson_index === "number" ? d.lesson_index : null,
+    exit_ticket_time_limit_minutes: etLimNum,
+    exit_ticket_window_started_at:
+      typeof d.exit_ticket_window_started_at === "string" ? d.exit_ticket_window_started_at : null,
     ...(embedded !== undefined ? { exit_ticket: embedded } : {}),
   };
 }
