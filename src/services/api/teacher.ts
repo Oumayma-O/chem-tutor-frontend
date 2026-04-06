@@ -185,7 +185,6 @@ export async function getClassRoster(classroomId: string): Promise<RosterStudent
 }
 
 export async function generateExitTicket(body: {
-  topic: string;
   classroom_id: string;
   unit_id?: string | null;
   lesson_index?: number;
@@ -195,7 +194,6 @@ export async function generateExitTicket(body: {
   time_limit_minutes?: number;
 }): Promise<{ ticket: ExitTicketConfig }> {
   return post("/teacher/exit-tickets/generate", {
-    topic: body.topic,
     classroom_id: body.classroom_id,
     unit_id: body.unit_id ?? null,
     lesson_index: body.lesson_index ?? 0,
@@ -257,4 +255,79 @@ export async function submitExitTicketAttempt(
   body: { answers: Record<string, string> },
 ): Promise<void> {
   await post(`/student/exit-tickets/${ticketId}/submit`, body);
+}
+
+// ── Classroom sessions (persisted history) ───────────────────
+
+export interface ClassroomSessionOut {
+  id: string;
+  classroom_id: string;
+  session_type: "timed_practice" | "exit_ticket" | "timed_practice_with_exit";
+  exit_ticket_id: string | null;
+  unit_id: string;
+  lesson_index: number;
+  timed_practice_minutes: number | null;
+  started_at: string;
+  ended_at: string | null;
+}
+
+export async function getClassroomSessions(
+  classId: string,
+  limit = 20,
+  offset = 0,
+): Promise<ClassroomSessionOut[]> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  return get<ClassroomSessionOut[]>(`/teacher/classes/${classId}/sessions?${params.toString()}`);
+}
+
+// ── Aggregate misconception analytics ────────────────────────
+
+export interface AggregateMisconceptionItem {
+  tag: string;
+  count: number;
+  pct: number;
+}
+
+export interface AggregateMisconceptionAnalytics {
+  class_id: string;
+  total_wrong: number;
+  items: AggregateMisconceptionItem[];
+}
+
+export async function getAggregateMisconceptions(
+  classId: string,
+): Promise<AggregateMisconceptionAnalytics> {
+  return get<AggregateMisconceptionAnalytics>(
+    `/teacher/exit-tickets/${classId}/misconceptions/aggregate`,
+  );
+}
+
+// ── Timed practice analytics ─────────────────────────────────
+
+export interface LevelStats {
+  count: number;
+  avg_score: number;
+}
+
+export interface StudentTimedPracticeRow {
+  student_id: string;
+  student_name: string | null;
+  levels: Record<number, LevelStats>;
+  total_count: number;
+}
+
+export interface TimedPracticeAnalytics {
+  session_id: string;
+  unit_id: string;
+  lesson_index: number;
+  rows: StudentTimedPracticeRow[];
+}
+
+export async function getTimedPracticeAnalytics(
+  classId: string,
+  sessionId: string,
+): Promise<TimedPracticeAnalytics> {
+  return get<TimedPracticeAnalytics>(
+    `/teacher/classes/${classId}/sessions/${sessionId}/practice-analytics`,
+  );
 }
