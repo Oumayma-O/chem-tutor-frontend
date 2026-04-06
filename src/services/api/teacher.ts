@@ -1,7 +1,7 @@
 /**
  * Teacher dashboard API — FastAPI /teacher/* routes.
  */
-import { get, post } from "@/lib/api/core";
+import { get, post, patch } from "@/lib/api/core";
 
 export interface CategorySnapshot {
   conceptual: number;
@@ -24,6 +24,7 @@ export interface TeacherClass {
   unit_id: string | null;
   student_count: number;
   is_active: boolean;
+  calculator_enabled: boolean;
   created_at: string;
   stats: ClassSummaryStats;
   /** When the backend exposes live session, these drive timed mode UI. */
@@ -69,6 +70,8 @@ export interface ExitTicketConfig {
   time_limit_minutes: number;
   is_active: boolean;
   questions: ExitTicketQuestion[];
+  /** Null = draft (generated but not yet published to students). */
+  published_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -79,6 +82,7 @@ export interface ExitTicketResponseItem {
   student_name: string | null;
   student_email: string | null;
   answers: Record<string, unknown>[];
+  /** Score as 0-100 percentage (e.g. 75.0 means 75%). */
   score: number | null;
   submitted_at: string;
 }
@@ -87,6 +91,7 @@ export interface ExitTicketAnalytics {
   class_id: string;
   total_sessions: number;
   total_submissions: number;
+  /** Average score as 0-100 percentage. */
   average_score: number | null;
   last_activity_at: string | null;
 }
@@ -94,10 +99,44 @@ export interface ExitTicketAnalytics {
 export interface ExitTicketsForClass {
   analytics: ExitTicketAnalytics;
   items: { ticket: ExitTicketConfig; responses: ExitTicketResponseItem[] }[];
+  page: number;
+  total_pages: number;
 }
 
 export async function getTeacherClasses(): Promise<TeacherClass[]> {
   return get<TeacherClass[]>("/teacher/classes");
+}
+
+export interface StudentAttemptOut {
+  id: string;
+  unit_id: string;
+  lesson_index: number;
+  level: number;
+  score: number | null;
+  is_complete: boolean;
+  started_at: string;
+}
+
+export interface StudentAnalyticsOut {
+  student_id: string;
+  overall_mastery: number;
+  category_scores: { conceptual: number; procedural: number; computational: number };
+  recent_attempts: StudentAttemptOut[];
+  lessons_with_data: number;
+}
+
+export async function getStudentAnalytics(
+  classroomId: string,
+  studentId: string,
+): Promise<StudentAnalyticsOut> {
+  return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics`);
+}
+
+export async function patchTeacherClass(
+  classroomId: string,
+  body: { calculator_enabled?: boolean },
+): Promise<void> {
+  await patch(`/teacher/classes/${classroomId}`, body);
 }
 
 export async function createClass(body: { name: string; unit_id?: string | null }): Promise<{
@@ -137,8 +176,14 @@ export async function generateExitTicket(body: {
   });
 }
 
-export async function getExitTicketResults(classId: string): Promise<ExitTicketsForClass> {
-  return get<ExitTicketsForClass>(`/teacher/exit-tickets/${classId}`);
+export async function getExitTicketResults(
+  classId: string,
+  page = 1,
+  limit = 10,
+): Promise<ExitTicketsForClass> {
+  return get<ExitTicketsForClass>(
+    `/teacher/exit-tickets/${classId}?page=${page}&limit=${limit}`,
+  );
 }
 
 /** Publish generated exit ticket + optional timed practice to the class (students poll live-session). */

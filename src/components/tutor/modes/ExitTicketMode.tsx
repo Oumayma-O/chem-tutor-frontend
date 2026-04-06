@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { Problem, StudentAnswer, type SolutionStep } from "@/types/chemistry";
 import { ExitTicketResult } from "@/types/cognitive";
@@ -75,6 +76,8 @@ export function ExitTicketMode({
   const [answers, setAnswers] = useState<Record<string, StudentAnswer>>({});
   /** Why the assessment closed — drives dialog copy (submit vs cancel vs time). */
   const [assessmentEndReason, setAssessmentEndReason] = useState<"submit" | "cancel" | "time" | null>(null);
+  // Prevents double-submission (e.g. timer firing while user clicks Submit simultaneously).
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     setTimeLimit(derivedLimitSec);
@@ -104,9 +107,15 @@ export function ExitTicketMode({
       setAssessmentEndReason(endReason);
       setIsComplete(true);
       setShowResults(true);
-      if (configId) {
+      if (configId && !submittedRef.current) {
+        submittedRef.current = true;
         try {
           await submitExitTicketAttempt(configId, { answers: classAnswers });
+          if (endReason === "time") {
+            toast.info("Time's up! Your answers have been automatically submitted.");
+          } else if (endReason === "cancel") {
+            toast.info("Your answers have been submitted.");
+          }
         } catch {
           /* submission optional if route missing */
         }
@@ -153,20 +162,27 @@ export function ExitTicketMode({
     calculateResult,
   ]);
 
+  // Keep a stable ref so the setInterval callback always reads the latest handleTimeUp
+  // (avoids the stale-closure bug where classAnswers/isClassMode freeze at initial values).
+  const handleTimeUpRef = useRef(handleTimeUp);
+  useEffect(() => {
+    handleTimeUpRef.current = handleTimeUp;
+  }, [handleTimeUp]);
+
   useEffect(() => {
     if (isComplete || loading) return;
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          handleTimeUp();
+          handleTimeUpRef.current();
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(timer);
-  }, [isComplete, loading, handleTimeUp]);
+  }, [isComplete, loading]);
 
   const handleClassAnswer = (questionId: string, answer: string) => {
     setClassAnswers((prev) => ({ ...prev, [questionId]: answer }));

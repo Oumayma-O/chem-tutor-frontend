@@ -14,7 +14,7 @@ export function ClassroomLiveBanner() {
     queryKey: ["student", "live-session", profile?.classroom_id],
     queryFn: getMyClassroomLiveSession,
     enabled: Boolean(isStudent && profile?.classroom_id),
-    refetchInterval: 8000,
+    refetchInterval: 15_000,
   });
 
   if (!isStudent || !session?.active_exit_ticket_id) return null;

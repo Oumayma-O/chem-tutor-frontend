@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTeacherDashboardData } from "@/hooks/useTeacherDashboardData";
+import { apiPostClassAnalytics } from "@/lib/api/analytics";
 import { StudentCognitiveProfile, ExitTicketResult } from "@/types/cognitive";
 import { AnalyticsDashboard } from "@/components/teacher/AnalyticsDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +20,7 @@ import { TeacherStudentsTab } from "@/components/teacher/TeacherStudentsTab";
 import { TeacherStandardsTab } from "@/components/teacher/TeacherStandardsTab";
 import { TeacherExitTicketsTab } from "@/components/teacher/TeacherExitTicketsTab";
 import { TeacherSettingsTab } from "@/components/teacher/TeacherSettingsTab";
+import { patchTeacherClass } from "@/services/api/teacher";
 
 interface TeacherDashboardPageProps {
   profile: StudentCognitiveProfile;
@@ -61,6 +64,18 @@ export function TeacherDashboardPage({
     deleteTeacherClass,
   } = useTeacherDashboardData({ onManagedClassCountChange });
 
+  const { data: classAnalytics, isLoading: loadingAnalytics } = useQuery({
+    queryKey: ["teacher", "analytics", selectedClassId, detectedChapterId],
+    queryFn: () =>
+      apiPostClassAnalytics({
+        class_id: selectedClassId,
+        unit_id: detectedChapterId!,
+        include_ai_insights: false,
+      }),
+    enabled: selectedClassId !== "all" && detectedChapterId !== null,
+    staleTime: 60_000,
+  });
+
   const handleCreateClass = async (): Promise<boolean> => {
     if (!newClassName.trim()) return false;
     setCreatingClass(true);
@@ -75,6 +90,12 @@ export function TeacherDashboardPage({
 
   const handleDeleteClass = async (classId: string) => {
     await deleteTeacherClass(classId);
+  };
+
+  const queryClient = useQueryClient();
+  const handleToggleCalculator = async (classId: string, enabled: boolean) => {
+    await patchTeacherClass(classId, { calculator_enabled: enabled });
+    queryClient.invalidateQueries({ queryKey: ["teacher", "classes"] });
   };
 
   return (
@@ -155,6 +176,8 @@ export function TeacherDashboardPage({
               atRiskCount={atRiskStudents.length}
               masteredCount={masteredStudents.length}
               developingCount={developingStudents.length}
+              classAnalytics={classAnalytics}
+              loadingAnalytics={loadingAnalytics}
             />
           </TabsContent>
 
@@ -174,7 +197,7 @@ export function TeacherDashboardPage({
             onAnalyticsModeChange={setAnalyticsMode}
           />
 
-          <TeacherStandardsTab />
+          <TeacherStandardsTab unitId={detectedChapterId} />
 
           <TeacherExitTicketsTab
             selectedClassId={selectedClassId}
@@ -183,7 +206,7 @@ export function TeacherDashboardPage({
             onRefetchClasses={refetchClasses}
           />
 
-          <TeacherSettingsTab classes={classes} />
+          <TeacherSettingsTab classes={classes} onToggleCalculator={handleToggleCalculator} />
         </Tabs>
       </main>
     </div>

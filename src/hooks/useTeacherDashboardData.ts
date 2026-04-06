@@ -44,7 +44,7 @@ function mapApiTeacherClass(c: ApiTeacherClass): TeacherClassRow {
     timed_practice_minutes: c.timed_practice_minutes ?? null,
     timed_started_at: c.timed_started_at ?? null,
     active_chapter_id: c.unit_id,
-    calculator_enabled: true,
+    calculator_enabled: c.calculator_enabled ?? true,
     stats: c.stats,
   };
 }
@@ -54,7 +54,13 @@ export function useTeacherDashboardData(options?: {
 }) {
   const { onManagedClassCountChange } = options ?? {};
   const queryClient = useQueryClient();
-  const [selectedClassId, setSelectedClassId] = useState<string>("all");
+  // Use a null sentinel while classes are loading so we don't flash the "all" view
+  // before we can confirm the stored class id still exists.
+  const [selectedClassId, setSelectedClassIdRaw] = useState<string | null>(null);
+  const setSelectedClassId = (id: string) => {
+    localStorage.setItem("teacher_selected_class_id", id);
+    setSelectedClassIdRaw(id);
+  };
 
   const { data: apiClasses = [], isLoading: classesLoading } = useQuery({
     queryKey: ["teacher", "classes"],
@@ -62,10 +68,12 @@ export function useTeacherDashboardData(options?: {
   });
   const classes = useMemo(() => apiClasses.map(mapApiTeacherClass), [apiClasses]);
 
+  const resolvedClassId = selectedClassId ?? "all";
+
   const { data: rosterRaw = [], isLoading: loadingStudents } = useQuery({
-    queryKey: ["teacher", "roster", selectedClassId],
-    queryFn: () => getClassRoster(selectedClassId),
-    enabled: selectedClassId !== "all",
+    queryKey: ["teacher", "roster", resolvedClassId],
+    queryFn: () => getClassRoster(resolvedClassId),
+    enabled: resolvedClassId !== "all" && selectedClassId !== null,
   });
 
   const enrolledStudents: ClassStudentRow[] = useMemo(() => {
@@ -90,15 +98,26 @@ export function useTeacherDashboardData(options?: {
     });
   }, [rosterRaw]);
 
+  // Once classes have loaded, resolve the stored id (or fall back to "all").
+  useEffect(() => {
+    if (classesLoading) return;
+    const stored = localStorage.getItem("teacher_selected_class_id") ?? "all";
+    if (stored !== "all" && !classes.some((c) => c.id === stored)) {
+      setSelectedClassId("all");
+    } else {
+      setSelectedClassIdRaw(stored);
+    }
+  }, [classesLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     onManagedClassCountChange?.(classes.length);
   }, [classes.length, onManagedClassCountChange]);
 
   const selectedClass = useMemo(
-    () => classes.find((c) => c.id === selectedClassId),
-    [classes, selectedClassId],
+    () => classes.find((c) => c.id === resolvedClassId),
+    [classes, resolvedClassId],
   );
-  const classStats = selectedClassId !== "all" ? selectedClass?.stats : undefined;
+  const classStats = resolvedClassId !== "all" ? selectedClass?.stats : undefined;
 
   const displayStudents = enrolledStudents;
 
@@ -122,9 +141,9 @@ export function useTeacherDashboardData(options?: {
   );
 
   const detectedChapterId = useMemo(() => {
-    if (selectedClassId === "all") return null;
+    if (resolvedClassId === "all") return null;
     return selectedClass?.active_chapter_id ?? null;
-  }, [selectedClassId, selectedClass]);
+  }, [resolvedClassId, selectedClass]);
 
   const refetchClasses = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["teacher", "classes"] });
@@ -135,8 +154,9 @@ export function useTeacherDashboardData(options?: {
       const trimmed = name.trim();
       if (!trimmed) return false;
       try {
-        await createClass({ name: trimmed, unit_id: null });
+        const created = await createClass({ name: trimmed, unit_id: null });
         refetchClasses();
+        setSelectedClassId(created.id);
         toast.success("Class created! Share the class code from the Class tab.");
         return true;
       } catch (err) {
@@ -151,7 +171,7 @@ export function useTeacherDashboardData(options?: {
   const deleteTeacherClass = useCallback(
     async (classId: string) => {
       try {
-        if (selectedClassId === classId) setSelectedClassId("all");
+        if (resolvedClassId === classId) setSelectedClassId("all");
         toast.info("Archive/delete for classrooms is not exposed in the API yet.");
         refetchClasses();
       } catch (err) {
@@ -159,13 +179,13 @@ export function useTeacherDashboardData(options?: {
         toast.error("Failed to delete class");
       }
     },
-    [selectedClassId, refetchClasses],
+    [resolvedClassId, refetchClasses],
   );
 
   return {
     classes,
     classesLoading,
-    selectedClassId,
+    selectedClassId: resolvedClassId,
     setSelectedClassId,
     rosterRaw,
     loadingStudents,

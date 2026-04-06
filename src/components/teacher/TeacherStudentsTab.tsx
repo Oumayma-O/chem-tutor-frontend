@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
 import { SkillRadarChart, LearningTimeline, PredictiveInsights } from "@/components/tutor/progress";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
 import { cn } from "@/lib/utils";
@@ -28,8 +29,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { StudentCognitiveProfile } from "@/types/cognitive";
+import type { StudentCognitiveProfile, SkillMastery, ProblemAttempt } from "@/types/cognitive";
 import type { ClassStudentRow, TeacherClassRow } from "@/hooks/useTeacherDashboardData";
+import { getStudentAnalytics } from "@/services/api/teacher";
 
 interface TeacherStudentsTabProps {
   selectedClassId: string;
@@ -38,7 +40,6 @@ interface TeacherStudentsTabProps {
   displayStudents: ClassStudentRow[];
   selectedStudent: string | null;
   onSelectStudent: (id: string) => void;
-  profile: StudentCognitiveProfile;
   analyticsDate: Date | undefined;
   onAnalyticsDateChange: (d: Date | undefined) => void;
   analyticsChapter: string;
@@ -54,7 +55,6 @@ export function TeacherStudentsTab({
   displayStudents,
   selectedStudent,
   onSelectStudent,
-  profile,
   analyticsDate,
   onAnalyticsDateChange,
   analyticsChapter,
@@ -175,8 +175,8 @@ export function TeacherStudentsTab({
           ) : (
             <StudentDetailPanel
               studentId={selectedStudent}
+              classroomId={selectedClassId}
               displayStudents={displayStudents}
-              profile={profile}
             />
           )}
         </div>

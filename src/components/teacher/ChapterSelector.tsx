@@ -28,6 +28,24 @@ export function ChapterSelector({ value, onValueChange, courseLevel, label = "Ch
 
   const options = filtered.length > 0 ? filtered : units.filter((u) => u.is_active);
 
+  if (!label) {
+    return (
+      <Select value={value} onValueChange={onValueChange}>
+        <SelectTrigger className="h-8 text-xs w-[160px]">
+          <SelectValue placeholder="Select chapter" />
+        </SelectTrigger>
+        <SelectContent>
+          {showAllOption && <SelectItem value="all">All Chapters</SelectItem>}
+          {options.map((u) => (
+            <SelectItem key={u.id} value={u.id}>
+              {u.icon} {u.title}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
   return (
     <div className="space-y-2">
       <Label className="flex items-center gap-1.5">

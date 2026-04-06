@@ -28,6 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ClassStudentRow } from "@/hooks/useTeacherDashboardData";
 import type { ClassSummaryStats } from "@/services/api/teacher";
+import type { ClassAnalyticsResponse } from "@/lib/api/analytics";
 
 export interface AnalyticsDashboardProps {
   selectedClassId: string;
@@ -38,6 +39,8 @@ export interface AnalyticsDashboardProps {
   atRiskCount: number;
   masteredCount: number;
   developingCount: number;
+  classAnalytics?: ClassAnalyticsResponse;
+  loadingAnalytics?: boolean;
 }
 
 function barColor(mastery: number) {
@@ -55,17 +58,21 @@ export function AnalyticsDashboard({
   atRiskCount,
   masteredCount,
   developingCount,
+  classAnalytics,
+  loadingAnalytics,
 }: AnalyticsDashboardProps) {
   const [activeTab, setActiveTab] = useState<"engagement" | "performance" | "misconceptions">("engagement");
 
   const categoryChartData = useMemo(() => {
     const c = classStats?.category_breakdown;
     if (!c) return [];
-    return [
+    const rows = [
       { topic: "Conceptual", mastery: Math.round(c.conceptual * 100) },
       { topic: "Procedural", mastery: Math.round(c.procedural * 100) },
       { topic: "Computational", mastery: Math.round(c.computational * 100) },
     ];
+    // All zeros means no attempt data — treat as empty so the empty state renders
+    return rows.every((r) => r.mastery === 0) ? [] : rows;
   }, [classStats]);
 
   const weakTopicRows = useMemo(() => {
@@ -88,7 +95,7 @@ export function AnalyticsDashboard({
       {
         label: "Students in class",
         value: String(totalStudents),
-        sub: classStats ? "From class summary" : "From roster",
+        sub: "Enrolled students",
         icon: Users,
         accent: "text-blue-600",
         bg: "bg-blue-50",
@@ -188,7 +195,7 @@ export function AnalyticsDashboard({
           <div className="border-b border-slate-100 px-6 py-4">
             <h3 className="text-base font-semibold text-slate-800">Student roster</h3>
             <p className="mt-0.5 text-sm text-slate-500">
-              Mastery and practice counts from the class roster API. Session time and last login are not exposed yet.
+              Mastery progress and practice activity for each enrolled student.
             </p>
           </div>
           <Table>
@@ -233,7 +240,7 @@ export function AnalyticsDashboard({
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
             <h3 className="mb-1 text-base font-semibold text-slate-800">Class mastery by category</h3>
-            <p className="mb-5 text-sm text-slate-500">Aggregated from the teacher class summary API.</p>
+            <p className="mb-5 text-sm text-slate-500">Average mastery per skill category across the class.</p>
             {categoryChartData.length === 0 ? (
               <p className="py-8 text-center text-sm text-slate-500">No category breakdown for this class yet.</p>
             ) : (
@@ -276,7 +283,7 @@ export function AnalyticsDashboard({
 
           <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-1 text-base font-semibold text-slate-800">Weak areas (roster)</h3>
-            <p className="mb-5 text-sm text-slate-500">Categories below 50% for each student, aggregated.</p>
+            <p className="mb-5 text-sm text-slate-500">Skill categories below 50% mastery, counted across all students.</p>
             <div className="flex flex-1 flex-col justify-center space-y-4">
               {weakTopicRows.length === 0 ? (
                 <p className="text-center text-sm text-slate-500">No weak categories flagged.</p>
@@ -304,18 +311,118 @@ export function AnalyticsDashboard({
       )}
 
       {activeTab === "misconceptions" && (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-6 py-4">
-            <AlertTriangle className="h-5 w-5 text-amber-500" />
-            <div>
-              <h3 className="text-base font-semibold text-slate-800">Misconception analytics</h3>
-              <p className="mt-0.5 text-sm text-slate-500">
-                Hint-level misconception tagging is not available from the API yet. When it is, ranked patterns will
-                appear here.
-              </p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Top misconception tags */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-1 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+              <h3 className="text-base font-semibold text-slate-800">Top misconceptions</h3>
             </div>
+            <p className="mb-5 text-sm text-slate-500">Most common misconception tags logged during hints and step validation.</p>
+            {loadingAnalytics ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Loading…</span>
+              </div>
+            ) : !classAnalytics || classAnalytics.top_misconceptions.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500">No misconception data for this class yet.</p>
+            ) : (
+              <ol className="space-y-3">
+                {classAnalytics.top_misconceptions.map((tag, i) => (
+                  <li key={tag} className="flex items-center gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 truncate text-sm font-medium text-slate-700">{tag}</span>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
-          <div className="px-6 py-10 text-center text-sm text-slate-500">No misconception data for this class.</div>
+
+          {/* Error category frequency */}
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-1 text-base font-semibold text-slate-800">Error categories</h3>
+            <p className="mb-5 text-sm text-slate-500">Frequency of each error type logged across the class.</p>
+            {loadingAnalytics ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Loading…</span>
+              </div>
+            ) : !classAnalytics || Object.keys(classAnalytics.error_frequency).length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-500">No error data for this class yet.</p>
+            ) : (
+              (() => {
+                const entries = Object.entries(classAnalytics.error_frequency).sort((a, b) => b[1] - a[1]);
+                const maxCount = entries[0]?.[1] ?? 1;
+                return (
+                  <div className="space-y-4">
+                    {entries.map(([category, count]) => (
+                      <div key={category}>
+                        <div className="mb-1.5 flex items-center justify-between">
+                          <span className="text-sm font-medium capitalize text-slate-700">{category}</span>
+                          <span className="text-sm font-bold tabular-nums text-slate-800">{count}</span>
+                        </div>
+                        <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-rose-400 transition-all"
+                            style={{ width: `${Math.min(100, (count / maxCount) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()
+            )}
+          </div>
+
+          {/* Per-student misconception summary */}
+          {classAnalytics && classAnalytics.students.some((s) => s.top_misconceptions.length > 0) && (
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+              <div className="border-b border-slate-100 px-6 py-4">
+                <h3 className="text-base font-semibold text-slate-800">Per-student misconceptions</h3>
+                <p className="mt-0.5 text-sm text-slate-500">Top 3 misconception tags per student with logged errors.</p>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50/60">
+                    <TableHead className="font-medium text-slate-500">Student ID</TableHead>
+                    <TableHead className="font-medium text-slate-500">Top misconceptions</TableHead>
+                    <TableHead className="text-right font-medium text-slate-500">At risk</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {classAnalytics.students
+                    .filter((s) => s.top_misconceptions.length > 0)
+                    .map((s) => (
+                      <TableRow key={s.student_id} className="hover:bg-slate-50/50">
+                        <TableCell className="font-mono text-xs text-slate-500">{s.student_id}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {s.top_misconceptions.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-inset ring-amber-200"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {s.is_at_risk ? (
+                            <span className="text-xs font-semibold text-rose-600">At risk</span>
+                          ) : (
+                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </div>
       )}
     </div>

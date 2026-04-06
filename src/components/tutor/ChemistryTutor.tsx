@@ -352,7 +352,7 @@ export function ChemistryTutor({
 
   const timed = useTutorTimedMode();
 
-  const { liveSession, showExitTicketAction, dismissExitTicketOverlays, prefetchedExitTicket } =
+  const { liveSession, liveSessionLoading, showExitTicketAction, dismissExitTicketOverlays, prefetchedExitTicket } =
     useStudentLiveSessionTimedSync({
       isStudent: Boolean(isStudent),
       classroomId: profile?.classroom_id,
@@ -383,7 +383,7 @@ export function ChemistryTutor({
 
   // ── Timed mode overlays ───────────────────────────────────────────────────
 
-  if (timed.showLaunchScreen && timed.timedPracticeMinutes) {
+  if (timed.showLaunchScreen && timed.timedPracticeMinutes && !liveSync.liveSessionLoading) {
     return (
       <TimedModeLaunchScreen
         practiceMinutes={timed.timedPracticeMinutes}

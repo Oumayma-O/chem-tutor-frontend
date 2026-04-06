@@ -1,4 +1,5 @@
-import { Trash2, Users } from "lucide-react";
+import { useState } from "react";
+import { Trash2, Users, Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,15 @@ interface TeacherSelectedClassBannerProps {
 }
 
 export function TeacherSelectedClassBanner({ selectedClass, onDeleteClass }: TeacherSelectedClassBannerProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    void navigator.clipboard.writeText(selectedClass.class_code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   return (
     <div className="mb-6 p-4 bg-secondary/40 rounded-lg flex items-center justify-between">
       <div className="flex items-center gap-3">
@@ -34,9 +44,19 @@ export function TeacherSelectedClassBanner({ selectedClass, onDeleteClass }: Tea
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <div className="text-right">
+        <div className="text-center">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Class Code</span>
-          <span className="font-mono font-bold text-primary text-lg tracking-widest">{selectedClass.class_code}</span>
+          <div className="flex items-center justify-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="Copy class code"
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+            <span className="font-mono font-bold text-primary text-lg tracking-widest">{selectedClass.class_code}</span>
+          </div>
         </div>
         <Badge variant="secondary">{selectedClass.subject}</Badge>
         <AlertDialog>

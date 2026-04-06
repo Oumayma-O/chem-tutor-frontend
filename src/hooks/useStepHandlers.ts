@@ -12,7 +12,6 @@ import { validateMultiInputStep as validateMultiInputStepApi } from "@/lib/valid
 import { isStepAnswerAttempted } from "@/lib/masteryTransforms";
 import { buildMathExpression, canonicalDragDropFromParts } from "@/lib/equationDragDrop";
 import { formatStructuredAnswerForThinkingTracker } from "@/lib/thinkingTrackerFormat";
-import { evaluateExpression, isExpression } from "@/lib/mathEval";
 import { toast } from "sonner";
 import { PerProblemState } from "@/hooks/useProblemNavigation";
 import { useStepHints } from "@/hooks/useStepHints";
@@ -143,13 +142,9 @@ export function useStepHandlers({
       const isFirstAttempt = !currentAnswer?.attempts || currentAnswer.attempts === 0;
       const hadHintForStep = Boolean(hints[stepId]);
 
-      if (calculatorEnabled && isExpression(studentText)) {
-        const evaluated = evaluateExpression(studentText);
-        if (evaluated !== null) {
-          const rounded = Math.round(evaluated * 1e10) / 1e10;
-          studentText = String(rounded);
-        }
-      }
+      // Expression evaluation is handled entirely by the backend.
+      // Sending the raw expression preserves the student's notation and lets
+      // the server apply correct operator-precedence rules (e.g. N*10^E grouping).
 
       setAnswers((prev) => ({
         ...prev,

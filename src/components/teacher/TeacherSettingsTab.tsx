@@ -5,9 +5,10 @@ import type { TeacherClassRow } from "@/hooks/useTeacherDashboardData";
 
 interface TeacherSettingsTabProps {
   classes: TeacherClassRow[];
+  onToggleCalculator: (classId: string, enabled: boolean) => void;
 }
 
-export function TeacherSettingsTab({ classes }: TeacherSettingsTabProps) {
+export function TeacherSettingsTab({ classes, onToggleCalculator }: TeacherSettingsTabProps) {
   return (
     <TabsContent value="settings" className="space-y-6">
       <Card>
@@ -27,8 +28,7 @@ export function TeacherSettingsTab({ classes }: TeacherSettingsTabProps) {
                   <span className="text-xs text-muted-foreground">{c.calculator_enabled ? "Enabled" : "Disabled"}</span>
                   <Switch
                     checked={c.calculator_enabled}
-                    disabled
-                    title="Per-class calculator toggles require a teacher API endpoint (e.g. PATCH /teacher/classes/:id)."
+                    onCheckedChange={(checked) => onToggleCalculator(c.id, checked)}
                   />
                 </div>
               </div>
