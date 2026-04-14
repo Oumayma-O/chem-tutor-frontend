@@ -20,6 +20,12 @@ export interface MyClassroomLiveSession {
   exit_ticket?: ExitTicketConfig | null;
   exit_ticket_time_limit_minutes?: number | null;
   exit_ticket_window_started_at?: string | null;
+  /** Class setting: 3-strikes reveal + session cap; used when not returned on problem payloads. */
+  allow_answer_reveal?: boolean;
+  /** Server cap for reveals per lesson (optional; problem delivery may also send this). `null` = unlimited. */
+  max_answer_reveals_per_lesson?: number | null;
+  /** Unique Level 1 worked examples required before Level 2. */
+  min_level1_examples_for_level2?: number;
 }
 
 /** Identifies the current teacher-published timed + ticket block (for student opt-out / sync). */
@@ -60,6 +66,26 @@ export function normalizeLiveSession(data: unknown): MyClassroomLiveSession | nu
   const etLim = d.exit_ticket_time_limit_minutes;
   const etLimNum = typeof etLim === "number" ? etLim : null;
 
+  const allowReveal = d.allow_answer_reveal;
+  const allow_answer_reveal =
+    typeof allowReveal === "boolean" ? allowReveal : undefined;
+
+  const maxRaw = d.max_answer_reveals_per_lesson;
+  let max_answer_reveals_per_lesson: number | null | undefined;
+  if (maxRaw === null) {
+    max_answer_reveals_per_lesson = null;
+  } else if (typeof maxRaw === "number" && Number.isFinite(maxRaw) && maxRaw >= 1) {
+    max_answer_reveals_per_lesson = Math.floor(maxRaw);
+  } else {
+    max_answer_reveals_per_lesson = undefined;
+  }
+
+  const minL1Raw = d.min_level1_examples_for_level2;
+  const min_level1_examples_for_level2 =
+    typeof minL1Raw === "number" && Number.isFinite(minL1Raw) && minL1Raw >= 1
+      ? Math.floor(minL1Raw)
+      : undefined;
+
   return {
     classroom_id,
     timed_mode_active: Boolean(d.timed_mode_active),
@@ -73,6 +99,11 @@ export function normalizeLiveSession(data: unknown): MyClassroomLiveSession | nu
     exit_ticket_time_limit_minutes: etLimNum,
     exit_ticket_window_started_at:
       typeof d.exit_ticket_window_started_at === "string" ? d.exit_ticket_window_started_at : null,
+    ...(allow_answer_reveal !== undefined ? { allow_answer_reveal } : {}),
+    ...(max_answer_reveals_per_lesson !== undefined
+      ? { max_answer_reveals_per_lesson }
+      : {}),
+    ...(min_level1_examples_for_level2 !== undefined ? { min_level1_examples_for_level2 } : {}),
     ...(embedded !== undefined ? { exit_ticket: embedded } : {}),
   };
 }

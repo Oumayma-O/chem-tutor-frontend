@@ -29,6 +29,8 @@ import {
 } from "./stepAnswerStyles";
 import { MathFieldInput, type MathFieldInputHandle } from "./MathFieldInput";
 import { parseDraft, saveDraft } from "./draftPersistence";
+import { stripLatex, serializeCorrectFields } from "@/lib/multiInputCorrectAnswer";
+import { RevealHelpSection } from "./RevealHelpSection";
 
 type FieldValues = Record<string, { value: string; unit: string }>;
 
@@ -46,21 +48,6 @@ function fieldHasUnit(v: InputField) {
   return Boolean(v.unit?.trim());
 }
 
-/** Strip LaTeX wrappers so the backend receives a plain numeric expression or clean unit string.
- *  "$3.60 \\times 10^{-4}$" → "3.60e-4",  "J/(mol \\cdot K)" → "J/(mol K)" */
-function stripLatex(raw: string): string {
-  return raw
-    .replace(/\u2212/g, "-")                                             // unicode minus → ASCII hyphen
-    .replace(/^\$+|\$+$/g, "")                                           // strip $...$
-    .replace(/\s*\\times\s*10\s*\^\{?\s*([+-]?\d+)\s*\}?/gi, "e$1")    // \times 10^{n} → eN
-    .replace(/\s*\\cdot\s*10\s*\^\{?\s*([+-]?\d+)\s*\}?/gi, "e$1")     // \cdot 10^{n} → eN
-    .replace(/\\(?:text|mathrm)\{([^{}]*)\}/g, "$1")                    // \text{x} → x (keep content)
-    .replace(/\\[a-zA-Z]+/g, "")                                         // remove remaining LaTeX cmds
-    .replace(/[{}]/g, "")                                                 // stray braces
-    .replace(/\s+/g, " ")                                                 // collapse multiple spaces
-    .trim();
-}
-
 /** Serialize student field values as JSON for backend check_multi_input.
  *  Format: {"Label": {"value": "...", "unit": "..."}, ...} */
 function serializeFields(variables: InputField[], fieldValues: FieldValues): string {
@@ -69,19 +56,6 @@ function serializeFields(variables: InputField[], fieldValues: FieldValues): str
     obj[v.label] = {
       value: fieldValues[v.label]?.value?.trim() ?? "",
       unit: fieldValues[v.label]?.unit?.trim() ?? "",
-    };
-  }
-  return JSON.stringify(obj);
-}
-
-/** Serialize correct answers as JSON for backend check_multi_input.
- *  LaTeX is stripped from both values and units (e.g. "s^{-1}" → "s^-1"). */
-function serializeCorrect(variables: InputField[]): string {
-  const obj: Record<string, { value: string; unit: string }> = {};
-  for (const v of variables) {
-    obj[v.label] = {
-      value: stripLatex(v.value),
-      unit: stripLatex(v.unit ?? ""),
     };
   }
   return JSON.stringify(obj);
@@ -105,6 +79,8 @@ interface MultiInputProps {
   onRequestHint: () => void;
   draft?: string;
   onDraftChange?: (draft: string) => void;
+  revealAnswerText?: string | null;
+  revealLimitReached?: boolean;
 }
 
 export function MultiInput({
@@ -123,6 +99,8 @@ export function MultiInput({
   onRequestHint,
   draft,
   onDraftChange,
+  revealAnswerText,
+  revealLimitReached,
 }: MultiInputProps) {
   const { fields: initialFields, hasAttempted: initAttempted, fieldErrors: initErrors } =
     parseDraft<DraftPayload>(draft, (raw) =>
@@ -143,6 +121,8 @@ export function MultiInput({
   const [hintPanelOpen, setHintPanelOpen] = useState(false);
 
   const mathRefs = useRef<Map<string, MathFieldInputHandle>>(new Map());
+  /** Skip initial effect — avoid persisting default draft back to parent on mount. */
+  const skipDraftPersistRef = useRef(true);
 
   useEffect(() => {
     if (!showHint && !hintLoading) setHintPanelOpen(false);
@@ -158,19 +138,24 @@ export function MultiInput({
     [onDraftChange],
   );
 
+  /** Sync draft to parent after local edits/check — not inside nested setState (avoids updating parent during render). */
+  useEffect(() => {
+    if (skipDraftPersistRef.current) {
+      skipDraftPersistRef.current = false;
+      return;
+    }
+    persist(values, hasAttempted, fieldErrors);
+  }, [values, hasAttempted, fieldErrors, persist]);
+
   const handleChange = useCallback((name: string, field: "value" | "unit", val: string) => {
-    setValues((prev) => {
-      const next = { ...prev, [name]: { ...prev[name], [field]: val } };
-      setFieldErrors((prevErr) => {
-        const nextErr = { ...prevErr };
-        delete nextErr[name];
-        persist(next, hasAttempted, nextErr);
-        return nextErr;
-      });
-      return next;
+    setValues((prev) => ({ ...prev, [name]: { ...prev[name], [field]: val } }));
+    setFieldErrors((prevErr) => {
+      const nextErr = { ...prevErr };
+      delete nextErr[name];
+      return nextErr;
     });
     setIsIncorrect(false);
-  }, [hasAttempted, persist]);
+  }, []);
 
   const insertAtCursor = useCallback(
     (type: 'cmd' | 'write', value: string) => {
@@ -191,7 +176,7 @@ export function MultiInput({
     setIsChecking(true);
     try {
       const studentAnswer = serializeFields(variables, values);
-      const correctAnswer = serializeCorrect(variables);
+      const correctAnswer = serializeCorrectFields(variables);
       const { isCorrect, feedback } = await onValidate(studentAnswer, correctAnswer);
 
       // Mark all fields as errors when backend says incorrect; clear all on correct.
@@ -213,7 +198,6 @@ export function MultiInput({
 
       setHasAttempted(true);
       setFieldErrors(errors);
-      persist(values, true, errors);
 
       if (isCorrect) {
         onComplete(true);
@@ -393,6 +377,12 @@ export function MultiInput({
               />
             </div>
           )}
+
+          <RevealHelpSection
+            completed={isComplete}
+            revealLimitReached={revealLimitReached}
+            revealAnswerText={revealAnswerText}
+          />
         </div>
       </div>
     </StepCard>

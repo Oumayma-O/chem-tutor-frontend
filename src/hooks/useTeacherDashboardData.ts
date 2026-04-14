@@ -10,6 +10,7 @@ import {
 } from "@/services/api/teacher";
 import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface TeacherClassRow {
   id: string;
@@ -26,6 +27,12 @@ export interface TeacherClassRow {
   exit_ticket_time_limit_minutes: number | null;
   exit_ticket_window_started_at: string | null;
   calculator_enabled: boolean;
+  /** Mirrors `classrooms.allow_answer_reveal`; default true when API omits field. */
+  allow_answer_reveal: boolean;
+  /**
+   * Mirrors `classrooms.max_answer_reveals_per_lesson`. `null` = unlimited; omitted from API → 3.
+   */
+  max_answer_reveals_per_lesson: number | null;
   stats?: ClassSummaryStats;
 }
 
@@ -36,6 +43,7 @@ export interface ClassStudentRow {
   trend: "up" | "down" | "stable";
   problems: number;
   weakTopics: string[];
+  /** Milliseconds since epoch; 0 if unknown. */
   lastActive: number;
 }
 
@@ -55,6 +63,9 @@ function mapApiTeacherClass(c: ApiTeacherClass): TeacherClassRow {
     exit_ticket_time_limit_minutes: c.exit_ticket_time_limit_minutes ?? null,
     exit_ticket_window_started_at: c.exit_ticket_window_started_at ?? null,
     calculator_enabled: c.calculator_enabled ?? true,
+    allow_answer_reveal: c.allow_answer_reveal ?? true,
+    max_answer_reveals_per_lesson:
+      c.max_answer_reveals_per_lesson === undefined ? 3 : c.max_answer_reveals_per_lesson,
     stats: c.stats,
   };
 }
@@ -63,7 +74,9 @@ export function useTeacherDashboardData(options?: {
   onManagedClassCountChange?: (count: number) => void;
 }) {
   const { onManagedClassCountChange } = options ?? {};
+  const { user } = useAuth();
   const queryClient = useQueryClient();
+  const userId = user?.id ?? "";
   // Use a null sentinel while classes are loading so we don't flash the "all" view
   // before we can confirm the stored class id still exists.
   const [selectedClassId, setSelectedClassIdRaw] = useState<string | null>(null);
@@ -73,8 +86,9 @@ export function useTeacherDashboardData(options?: {
   };
 
   const { data: apiClasses = [], isLoading: classesLoading } = useQuery({
-    queryKey: teacherQueryKeys.classes(),
+    queryKey: teacherQueryKeys.classes(userId),
     queryFn: getTeacherClasses,
+    enabled: Boolean(userId),
   });
   const classes = useMemo(() => apiClasses.map(mapApiTeacherClass), [apiClasses]);
 
@@ -96,6 +110,11 @@ export function useTeacherDashboardData(options?: {
         if (cs.procedural < 0.5) weak.push("procedural");
         if (cs.computational < 0.5) weak.push("computational");
       }
+      let lastActive = 0;
+      if (r.last_activity_at) {
+        const t = Date.parse(r.last_activity_at);
+        if (!Number.isNaN(t)) lastActive = t;
+      }
       return {
         id: r.student_id,
         name: r.name,
@@ -103,7 +122,7 @@ export function useTeacherDashboardData(options?: {
         trend: "stable" as const,
         problems: r.mastery?.lessons_with_data ?? 0,
         weakTopics: weak,
-        lastActive: Date.now(),
+        lastActive,
       };
     });
   }, [rosterRaw]);
@@ -154,7 +173,7 @@ export function useTeacherDashboardData(options?: {
   }, [resolvedClassId, selectedClass]);
 
   const refetchClasses = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classes() });
+    void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classesRoot() });
   }, [queryClient]);
 
   const createTeacherClass = useCallback(
@@ -179,8 +198,8 @@ export function useTeacherDashboardData(options?: {
   const deleteTeacherClass = useCallback(
     async (classId: string) => {
       try {
-        if (resolvedClassId === classId) setSelectedClassId("all");
         await deleteClassroom(classId);
+        if (resolvedClassId === classId) setSelectedClassId("all");
         toast.success("Class deleted.");
         refetchClasses();
       } catch (err) {

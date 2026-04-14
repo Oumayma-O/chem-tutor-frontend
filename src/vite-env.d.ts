@@ -1,14 +1,12 @@
 /// <reference types="vite/client" />
 
-import type { MathfieldElement } from "mathlive/types/mathfield-element";
+interface ImportMetaEnv {
+  /** Max answer reveals per lesson (positive integer; default 6). */
+  readonly VITE_TUTOR_MAX_ANSWER_REVEALS_PER_LESSON?: string;
+  /** Min unique Level 1 worked examples before Level 2 (positive integer; default 2). */
+  readonly VITE_TUTOR_MIN_LEVEL1_EXAMPLES_FOR_LEVEL2?: string;
+}
 
-declare module "react" {
-  namespace JSX {
-    interface IntrinsicElements {
-      "math-field": React.DetailedHTMLProps<
-        React.HTMLAttributes<MathfieldElement>,
-        MathfieldElement
-      >;
-    }
-  }
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
 }

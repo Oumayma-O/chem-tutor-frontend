@@ -39,9 +39,24 @@ export interface AdminTeacherAccount {
   user_id: string;
   display_name: string;
   email: string;
-  grade_level: string | null;
+  district: string | null;
+  school: string | null;
+  total_students: number;
+  total_classes: number;
+  is_online: boolean;
+  is_active: boolean;
   created_at: string;
   classes: AdminTeacherClassRow[];
+}
+
+export interface SchoolAdminAccount {
+  user_id: string;
+  name: string;
+  email: string;
+  district: string | null;
+  school: string | null;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface CuratedProblem {
@@ -132,4 +147,136 @@ export async function updateChapter(
 
 export async function deleteChapter(unitId: string): Promise<void> {
   await del(`/admin/units/${unitId}`);
+}
+
+// ── Teacher CRUD (admin/superadmin) ──────────────────────────────────────────
+
+export async function createTeacher(data: {
+  email: string;
+  password: string;
+  full_name: string;
+  district?: string;
+  school?: string;
+}): Promise<unknown> {
+  return post<unknown>("/admin/create-teacher", data);
+}
+
+export async function deleteTeacher(teacherId: string): Promise<void> {
+  await del(`/admin/teachers/${teacherId}`);
+}
+
+export async function patchTeacher(
+  teacherId: string,
+  data: { name?: string; is_active?: boolean; district?: string; school?: string },
+): Promise<void> {
+  await patch<unknown>(`/admin/teachers/${teacherId}`, data);
+}
+
+// ── School-admin CRUD (superadmin) ───────────────────────────────────────────
+
+export async function getSchoolAdmins(): Promise<SchoolAdminAccount[]> {
+  return get<SchoolAdminAccount[]>("/superadmin/school-admins");
+}
+
+export async function createSchoolAdmin(data: {
+  email: string;
+  password: string;
+  full_name: string;
+  district: string;
+  school: string;
+}): Promise<unknown> {
+  return post<unknown>("/superadmin/create-school-admin", data);
+}
+
+export async function deleteSchoolAdmin(adminId: string): Promise<void> {
+  await del(`/superadmin/school-admins/${adminId}`);
+}
+
+export async function patchSchoolAdmin(
+  adminId: string,
+  data: { name?: string; district?: string; school?: string; is_active?: boolean },
+): Promise<void> {
+  await patch<unknown>(`/superadmin/school-admins/${adminId}`, data);
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────────
+
+export interface AdminStats {
+  total_teachers: number;
+  total_classes: number;
+  total_students: number;
+}
+
+export interface SuperadminStats {
+  total_admins: number;
+  total_teachers: number;
+  total_classes: number;
+  total_students: number;
+  total_districts: number;
+  total_schools: number;
+}
+
+/** School-scoped stats (admin role only). */
+export async function getSchoolAdminStats(): Promise<AdminStats> {
+  return get<AdminStats>("/admin/stats");
+}
+
+/** Platform-wide stats (superadmin only). */
+export async function getSuperadminStats(): Promise<SuperadminStats> {
+  return get<SuperadminStats>("/superadmin/stats");
+}
+
+// ── Engagement analytics ─────────────────────────────────────────────────────
+
+export interface DailyMetric {
+  date: string;
+  logins: number;
+  minutes: number;
+}
+
+export interface TeacherEngagementRow {
+  teacher_id: string;
+  teacher_name: string;
+  email: string;
+  school: string | null;
+  district: string | null;
+  total_logins: number;
+  total_minutes: number;
+  daily: DailyMetric[];
+}
+
+export interface ClassQuestionsMetric {
+  classroom_id: string;
+  class_name: string;
+  teacher_id: string;
+  teacher_name: string;
+  question_count: number;
+}
+
+export interface EngagementAnalytics {
+  scope: string;
+  target: string;
+  timeframe: string;
+  since: string;
+  teachers: TeacherEngagementRow[];
+  questions_by_class: ClassQuestionsMetric[];
+  total_logins: number;
+  total_minutes: number;
+  total_questions_assigned: number;
+}
+
+export async function getEngagementAnalytics(params: {
+  scope: "teacher" | "school" | "district";
+  target: string;
+  timeframe: "last_7_days" | "last_30_days" | "last_90_days";
+  isSuperAdmin: boolean;
+}): Promise<EngagementAnalytics> {
+  const { isSuperAdmin, ...rest } = params;
+  const sp = new URLSearchParams({
+    scope: rest.scope,
+    target: rest.target,
+    timeframe: rest.timeframe,
+  });
+  const base = isSuperAdmin ? "/superadmin" : "/admin";
+  return get<EngagementAnalytics>(`${base}/analytics/engagement?${sp.toString()}`);
 }

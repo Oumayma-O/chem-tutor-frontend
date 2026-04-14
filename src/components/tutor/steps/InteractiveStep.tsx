@@ -15,6 +15,7 @@ import {
   STEP_ANSWER_OUTLINE_ERROR,
 } from "./stepAnswerStyles";
 import { MathFieldInput, type MathFieldInputHandle } from "./MathFieldInput";
+import { RevealHelpSection } from "./RevealHelpSection";
 
 interface InteractiveStepProps {
   step: SolutionStep;
@@ -27,6 +28,10 @@ interface InteractiveStepProps {
   checkingAnswer?: boolean;
   isLocked?: boolean;
   onRequestHint: (stepId: string) => void;
+  /** Shown after 3 wrong checks when teacher allows and session reveal budget remains. */
+  revealAnswerText?: string | null;
+  /** When true, session reveal budget is exhausted — show L1 hint instead of the answer. */
+  revealLimitReached?: boolean;
 }
 
 export function InteractiveStep({
@@ -40,6 +45,8 @@ export function InteractiveStep({
   checkingAnswer,
   isLocked,
   onRequestHint,
+  revealAnswerText,
+  revealLimitReached,
 }: InteractiveStepProps) {
   const isCorrect = answer?.is_correct === true;
   const isIncorrect = answer?.is_correct === false;
@@ -197,6 +204,12 @@ export function InteractiveStep({
             onHintPanelOpenChange={setHintPanelOpen}
           />
         )}
+
+        <RevealHelpSection
+          completed={isCorrect}
+          revealLimitReached={revealLimitReached}
+          revealAnswerText={revealAnswerText}
+        />
       </div>
     </StepCard>
   );

@@ -8,6 +8,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   MutableRefObject,
   Dispatch,
@@ -28,6 +29,7 @@ import {
   updateTutorSessionLevelOnly,
   writeTutorSessionSnapshot,
 } from "@/lib/tutorSessionStorage";
+import { getFallbackMinLevel1ExamplesForLevel2 } from "@/config/tutorReveal";
 
 // ── Shared types (exported for use in ChemistryTutor.tsx) ───────────────────
 
@@ -128,6 +130,10 @@ interface UseProblemNavigationOptions {
   onRestoreMasteryScore?: (score: number) => void;
   /** Called during localStorage restore when level3 was previously unlocked. */
   onRestoreHasCompletedLevel2?: () => void;
+  /** Joined class — sent with problem generate/navigate for `allow_answer_reveal`. */
+  classroomId?: string;
+  /** From GET /classrooms/me/live-session when problem payloads omit the field. */
+  liveSessionMinLevel1ExamplesForLevel2?: number;
 }
 
 // ── Hook ────────────────────────────────────────────────────────────────────
@@ -149,9 +155,17 @@ export function useProblemNavigation({
   onAttemptStart,
   onRestoreMasteryScore,
   onRestoreHasCompletedLevel2,
+  classroomId,
+  liveSessionMinLevel1ExamplesForLevel2,
 }: UseProblemNavigationOptions) {
   const [currentProblem, setCurrentProblem] = useState<Problem | null>(null);
-  const [currentLevel, setCurrentLevel] = useState<Level>(1);
+  const [currentLevel, setCurrentLevel] = useState<Level>(() => {
+    const key = getTutorSessionStorageKey(userId, unitId, lessonIndex);
+    if (!key) return 1;
+    const snapshot = readTutorSessionSnapshot(key);
+    const lvl = snapshot?.currentLevel;
+    return lvl === 1 || lvl === 2 || lvl === 3 ? lvl : 1;
+  });
   const [pagination, setPagination] = useState<ProblemPagination | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [currentDifficulty, setCurrentDifficulty] = useState<"easy" | "medium" | "hard">("medium");
@@ -182,11 +196,75 @@ export function useProblemNavigation({
   const seenLevel1IdsRef = useRef<string[]>([]);
   // Level 1: cache of problems in order so Prev/Next show the correct example (avoids backend returning wrong/duplicate).
   const level1ProblemsRef = useRef<Problem[]>([]);
+  // Level 2 & 3: ordered history of problems seen this session — enables Prev/Next across "See Another" calls.
+  const level2ProblemsRef = useRef<Problem[]>([]);
+  const level3ProblemsRef = useRef<Problem[]>([]);
   // Background generation state for Level 1 "See Another" — true while a bg fetch is in flight.
   const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
   const backgroundGenRef = useRef(false);
   /** Bumped when step answers/drafts are cleared so widgets remount (local state matches parent). */
   const [stepRemountKey, setStepRemountKey] = useState(0);
+  /** Last problem-delivery `allow_answer_reveal` from API (undefined = not yet loaded). */
+  const [allowAnswerReveal, setAllowAnswerReveal] = useState<boolean | undefined>(undefined);
+  /** Last problem-delivery `max_answer_reveals_per_lesson` from API (undefined = not yet loaded). */
+  const [maxAnswerRevealsPerLesson, setMaxAnswerRevealsPerLesson] = useState<number | undefined>(
+    undefined,
+  );
+  /** Last problem-delivery `min_level1_examples_for_level2` when live session did not send it. */
+  const [minLevel1ExamplesForLevel2Nav, setMinLevel1ExamplesForLevel2Nav] = useState<number | undefined>(
+    undefined,
+  );
+  const minLevel1ExamplesForLevel2 = useMemo(() => {
+    const fromApi = liveSessionMinLevel1ExamplesForLevel2 ?? minLevel1ExamplesForLevel2Nav;
+    if (typeof fromApi === "number" && Number.isFinite(fromApi) && fromApi >= 1) {
+      return Math.floor(fromApi);
+    }
+    return getFallbackMinLevel1ExamplesForLevel2();
+  }, [liveSessionMinLevel1ExamplesForLevel2, minLevel1ExamplesForLevel2Nav]);
+  const effectiveMinLevel1ForL2Ref = useRef(minLevel1ExamplesForLevel2);
+  useLayoutEffect(() => {
+    effectiveMinLevel1ForL2Ref.current = minLevel1ExamplesForLevel2;
+  }, [minLevel1ExamplesForLevel2]);
+
+  /** Unique Level 1 example problem IDs viewed (must reach `minLevel1ExamplesForLevel2` to unlock Level 2). Kept in sync with `seenLevel1IdsRef`. */
+  const [viewedLevel1Ids, setViewedLevel1Ids] = useState<string[]>([]);
+  /** Gate for Level 2 tab — true after enough L1 views, or restored session already on L2+. */
+  const [level1ExposureSatisfied, setLevel1ExposureSatisfied] = useState(() => {
+    const key = getTutorSessionStorageKey(userId, unitId, lessonIndex);
+    if (!key) return false;
+    const snapshot = readTutorSessionSnapshot(key);
+    return snapshot?.level1ExposureSatisfied === true || (snapshot?.currentLevel ?? 1) >= 2;
+  });
+  const level1ExposureSatisfiedRef = useRef(false);
+  useLayoutEffect(() => {
+    level1ExposureSatisfiedRef.current = level1ExposureSatisfied;
+  }, [level1ExposureSatisfied]);
+
+  /** Register the active Level 1 problem as viewed (deduped). Keeps `seenLevel1IdsRef` aligned for exclude logic.
+   *  Declared before the exposure gate so the same layout pass sees an updated `seenLevel1IdsRef` for Level 2 unlock. */
+  useLayoutEffect(() => {
+    if (currentLevel !== 1 || !currentProblem?.id) return;
+    const id = currentProblem.id;
+    setViewedLevel1Ids((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      seenLevel1IdsRef.current = next;
+      return next;
+    });
+  }, [currentLevel, currentProblem?.id]);
+
+  // Keep Level 2 gate aligned with server-derived threshold (e.g. live session loads after first paint).
+  // Uses `seenLevel1IdsRef` (not just React state length) so this matches the register effect in the same layout pass.
+  // On Level 2+, never demote — student is already past the gate for tab/UI consistency.
+  useLayoutEffect(() => {
+    if (currentLevel >= 2) {
+      setLevel1ExposureSatisfied((prev) => (prev ? prev : true));
+      return;
+    }
+    setLevel1ExposureSatisfied(
+      seenLevel1IdsRef.current.length >= minLevel1ExamplesForLevel2,
+    );
+  }, [currentLevel, currentProblem?.id, minLevel1ExamplesForLevel2]);
 
   /** Clears answers/hints/structured completion and remounts step widgets (equation builder, multi-input, math fields). */
   const clearAllStepState = useCallback(() => {
@@ -226,13 +304,14 @@ export function useProblemNavigation({
   // ── Problem generation ────────────────────────────────────────────────────
 
   const { generate: generateProblem } = useGeneratedProblem({
-  unitId,
-  lessonIndex,
-  lessonName,
+    unitId,
+    lessonIndex,
+    lessonName,
     interests,
     gradeLevel,
     masteryScore,
     userId,
+    classId: classroomId,
   });
 
   const startAttemptForProblem = useCallback(
@@ -265,6 +344,15 @@ export function useProblemNavigation({
         prefetchPromiseRef.current = null;
         const promise = generateProblem(difficulty, excludeIds, levelToPrefetch)
           .then((result) => {
+            if (result.allow_answer_reveal !== undefined) {
+              setAllowAnswerReveal(result.allow_answer_reveal);
+            }
+            if (result.max_answer_reveals_per_lesson !== undefined) {
+              setMaxAnswerRevealsPerLesson(result.max_answer_reveals_per_lesson);
+            }
+            if (result.min_level1_examples_for_level2 !== undefined) {
+              setMinLevel1ExamplesForLevel2Nav(result.min_level1_examples_for_level2);
+            }
             prefetchedProblem.current = result.problem;
             prefetchedLevel.current = levelToPrefetch;
             // Eagerly populate levelCacheRef so handleLevelChange finds the problem via the
@@ -303,6 +391,9 @@ export function useProblemNavigation({
   const prefetchNextLevelIfNeeded = useCallback(
     (difficulty: "easy" | "medium" | "hard", level: number) => {
       if (level >= 3) return;
+      // Don't prefetch Level 2 until the user has seen enough Level 1 examples to unlock it.
+      // Before that threshold, prefetching L2 wastes a generation call the user can't use yet.
+      if (level === 1 && seenLevel1IdsRef.current.length < effectiveMinLevel1ForL2Ref.current) return;
       const nextLevel = level + 1;
       const nextAlreadyReady =
         prefetchedLevel.current === nextLevel ||
@@ -323,9 +414,27 @@ export function useProblemNavigation({
       prefetchedProblem.current = null;
       prefetchedLevel.current = 0;
       setCurrentProblem(p);
-      setPagination(defaultPaginationForLevel(level as Level));
+      if (level === 1) {
+        setPagination(defaultPaginationForLevel(level as Level));
+        if (level1ProblemsRef.current.length === 0) level1ProblemsRef.current[0] = p;
+      } else {
+        // L2/L3: seed history ref and derive pagination.
+        const historyRef = level === 2 ? level2ProblemsRef : level3ProblemsRef;
+        if (!historyRef.current.find((pr) => pr.id === p.id)) {
+          historyRef.current = [...historyRef.current, p];
+        }
+        const total = historyRef.current.length;
+        const idx = total - 1;
+        setPagination({
+          current_index: idx,
+          total,
+          max_problems: total,
+          has_prev: idx > 0,
+          has_next: false,
+          at_limit: false,
+        });
+      }
       setCurrentDifficulty(p.difficulty as "easy" | "medium" | "hard");
-      if (level === 1 && level1ProblemsRef.current.length === 0) level1ProblemsRef.current[0] = p;
       setProblemLoading(false);
       startAttemptForProblem(p, difficulty, level);
       // Prefetch next level opportunistically to reduce transition latency.
@@ -401,7 +510,22 @@ export function useProblemNavigation({
       }
       setProblemLoading(true);
       try {
-        const { problem, pagination: pag } = await generateProblem(difficulty, excludeIds, level, false, forceRegenerate);
+        const {
+          problem,
+          pagination: pag,
+          allow_answer_reveal: arFromGen,
+          max_answer_reveals_per_lesson: maxFromGen,
+          min_level1_examples_for_level2: minL1FromGen,
+        } = await generateProblem(
+          difficulty,
+          excludeIds,
+          level,
+          false,
+          forceRegenerate,
+        );
+        if (arFromGen !== undefined) setAllowAnswerReveal(arFromGen);
+        if (maxFromGen !== undefined) setMaxAnswerRevealsPerLesson(maxFromGen);
+        if (minL1FromGen !== undefined) setMinLevel1ExamplesForLevel2Nav(minL1FromGen);
 
         // Guard: if the user switched levels while we were awaiting the API, don't
         // overwrite the now-active level's problem/pagination/difficulty.
@@ -411,7 +535,21 @@ export function useProblemNavigation({
           if (level === 1) {
             setPagination(makeLevel1Pagination(0, 1));
           } else {
-            setPagination(pag ?? defaultPaginationForLevel(level as Level));
+            // L2/L3: append to history ref and derive pagination from it.
+            const historyRef = level === 2 ? level2ProblemsRef : level3ProblemsRef;
+            if (!historyRef.current.find((p) => p.id === problem.id)) {
+              historyRef.current = [...historyRef.current, problem];
+            }
+            const total = historyRef.current.length;
+            const idx = total - 1;
+            setPagination({
+              current_index: idx,
+              total,
+              max_problems: total,
+              has_prev: idx > 0,
+              has_next: false,
+              at_limit: false,
+            });
           }
           setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
         } else {
@@ -466,13 +604,24 @@ export function useProblemNavigation({
   );
 
   // ── Init: reset guard on chapter/topic change ────────────────────────────
+  // Align with `getTutorSessionStorageKey(userId, unitId, lessonIndex)` plus `lessonName`
+  // (generation context). If deps drift from the restore effect, `hasInitializedRef` can stay
+  // false with no re-run, or stale L1 policy can leak across lessons.
 
   useEffect(() => {
     hasInitializedRef.current = false;
     seenLevel1IdsRef.current = [];
     level1ProblemsRef.current = [];
-  }, [unitId, lessonName]);
+    level2ProblemsRef.current = [];
+    level3ProblemsRef.current = [];
+    setAllowAnswerReveal(undefined);
+    setMaxAnswerRevealsPerLesson(undefined);
+    setMinLevel1ExamplesForLevel2Nav(undefined);
+    setViewedLevel1Ids([]);
+    setLevel1ExposureSatisfied(false);
+  }, [unitId, lessonIndex, lessonName]);
 
+  // ── Level 1 example-2 silent prefetch ────────────────────────────────────
   // ── Init: restore from localStorage or load fresh ─────────────────────────
   // Cross-session / cross-device restore should use backend playlist (e.g. resume endpoint
   // returning current level + current problem from playlist) + minimal answer storage, not a full state blob.
@@ -490,6 +639,9 @@ export function useProblemNavigation({
         masteryScore?: number;
         hasCompletedLevel2?: boolean;
         levelSolved?: Partial<Record<Level, number>>;
+        viewedLevel1Ids?: string[];
+        level1ExposureSatisfied?: boolean;
+        minLevel1ExamplesForLevel2?: number;
       } | null;
       const lvl = parsed?.currentLevel;
       const cache = parsed?.levelCache;
@@ -501,6 +653,13 @@ export function useProblemNavigation({
           hasInitializedRef.current = true;
           levelCacheRef.current = { ...cache };
           if (parsed.perProblemCache) perProblemCacheRef.current = parsed.perProblemCache;
+          if (
+            typeof parsed.minLevel1ExamplesForLevel2 === "number" &&
+            Number.isFinite(parsed.minLevel1ExamplesForLevel2) &&
+            parsed.minLevel1ExamplesForLevel2 >= 1
+          ) {
+            setMinLevel1ExamplesForLevel2Nav(Math.floor(parsed.minLevel1ExamplesForLevel2));
+          }
           setCompletedProblemIds(parsed.completedProblemIds ?? []);
           setCurrentLevel(lvl as Level);
           if (parsed.levelSolved) {
@@ -510,13 +669,25 @@ export function useProblemNavigation({
               3: parsed.levelSolved[3] ?? 0,
             });
           }
+          // Always restore viewed L1 IDs — needed to keep L2 unlocked on any level.
+          if (parsed.viewedLevel1Ids?.length) {
+            seenLevel1IdsRef.current = [...parsed.viewedLevel1Ids];
+            setViewedLevel1Ids([...parsed.viewedLevel1Ids]);
+          }
         };
 
         // Shared: compute and apply Level-1 client-side pagination from a cache entry.
+        // Uses the max of cached total, restored problems array, and seen-IDs count so that
+        // "Example X of Y" in the nav bar stays consistent with "Worked examples viewed: Y/min".
         const applyLevel1PaginationFromEntry = () => {
           const cachedTotal = entry.pagination?.total ?? 1;
-          const curIdx = entry.pagination?.current_index ?? 0;
-          setPagination(makeLevel1Pagination(curIdx, cachedTotal));
+          const n = Math.max(
+            cachedTotal,
+            level1ProblemsRef.current.filter(Boolean).length,
+            seenLevel1IdsRef.current.length,
+          );
+          const curIdx = Math.min(entry.pagination?.current_index ?? 0, n - 1);
+          setPagination(makeLevel1Pagination(curIdx, n));
         };
 
         if (cachedProblemHasBrokenMultiInput(entry.problem)) {
@@ -527,6 +698,12 @@ export function useProblemNavigation({
             level1ProblemsRef.current = [];
             applyLevel1PaginationFromEntry();
           } else {
+            // Seed L2/L3 history ref so Prev navigation works immediately after a page reload.
+            if (lvl === 2 && level2ProblemsRef.current.length === 0) {
+              level2ProblemsRef.current = [entry.problem];
+            } else if (lvl === 3 && level3ProblemsRef.current.length === 0) {
+              level3ProblemsRef.current = [entry.problem];
+            }
             setPagination(entry.pagination ?? defaultPaginationForLevel(lvl as Level));
           }
           if (typeof parsed.masteryScore === "number") onRestoreMasteryScore?.(parsed.masteryScore);
@@ -539,10 +716,29 @@ export function useProblemNavigation({
         } else {
           applyCommonCacheInit();
           setCurrentProblem(entry.problem);
-          // Seed level1ProblemsRef so Prev/Next works after a page reload (refs are reset on mount).
-          if (lvl === 1 && entry.problem && level1ProblemsRef.current.length === 0) {
-            level1ProblemsRef.current[0] = entry.problem;
+          // Restore the full L1 problems array so Prev/Next works entirely from local cache
+          // after a page reload — avoids calling apiNavigateProblem with a stale backend index.
+          if (lvl === 1) {
+            if (parsed.level1Problems?.length) {
+              level1ProblemsRef.current = [...parsed.level1Problems];
+            } else if (entry.problem && level1ProblemsRef.current.length === 0) {
+              // Fallback: seed at the correct index (not always [0]) to avoid wrong-problem-on-Prev.
+              const curIdx = entry.pagination?.current_index ?? 0;
+              if (level1ProblemsRef.current.length <= curIdx) level1ProblemsRef.current.length = curIdx + 1;
+              level1ProblemsRef.current[curIdx] = entry.problem;
+            }
           }
+          const needL1 =
+            typeof parsed.minLevel1ExamplesForLevel2 === "number" &&
+            Number.isFinite(parsed.minLevel1ExamplesForLevel2) &&
+            parsed.minLevel1ExamplesForLevel2 >= 1
+              ? Math.floor(parsed.minLevel1ExamplesForLevel2)
+              : getFallbackMinLevel1ExamplesForLevel2();
+          const exposureOk =
+            parsed.level1ExposureSatisfied === true ||
+            (lvl != null && lvl >= 2) ||
+            (parsed.viewedLevel1Ids?.length ?? 0) >= needL1;
+          if (exposureOk) setLevel1ExposureSatisfied(true);
           const perProblem = parsed.perProblemCache?.[entry.problem.id];
           stepSettersRef.current.setAnswers(perProblem?.answers ?? entry.answers ?? {});
           stepSettersRef.current.setHints(perProblem?.hints ?? entry.hints ?? {});
@@ -557,6 +753,12 @@ export function useProblemNavigation({
             // Recompute Level 1 pagination locally — cached entry may have backend's max_problems: 5.
             applyLevel1PaginationFromEntry();
           } else {
+            // Seed L2/L3 history ref so Prev navigation works immediately after a page reload.
+            if (lvl === 2 && level2ProblemsRef.current.length === 0) {
+              level2ProblemsRef.current = [entry.problem];
+            } else if (lvl === 3 && level3ProblemsRef.current.length === 0) {
+              level3ProblemsRef.current = [entry.problem];
+            }
             setPagination(entry.pagination ?? defaultPaginationForLevel(lvl as Level));
           }
           if (typeof parsed.masteryScore === "number") onRestoreMasteryScore?.(parsed.masteryScore);
@@ -574,7 +776,7 @@ export function useProblemNavigation({
     return () => {
       persistOnUnmountRef.current();
     };
-  }, [loadNewProblem, unitId, lessonIndex, userId, clearAllStepState]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadNewProblem, unitId, lessonIndex, lessonName, userId, clearAllStepState]);
 
   // ── Cache & persistence ───────────────────────────────────────────────────
 
@@ -597,7 +799,12 @@ export function useProblemNavigation({
         }
         const { answers: a, hints: h, structuredStepComplete: s } = stepStateRef.current;
         const { thinkingSteps: ts, classifiedErrors: ce } = cognitiveStateRef.current;
-        perProblemCacheRef.current[p.id] = { answers: a, hints: h, structuredStepComplete: s };
+        // Deep copy to prevent reference sharing with React state that gets cleared on reset.
+        perProblemCacheRef.current[p.id] = {
+          answers: { ...a },
+          hints: { ...h },
+          structuredStepComplete: { ...s },
+        };
         levelCacheRef.current[lvl] = {
           problem: p,
           answers: a,
@@ -618,6 +825,14 @@ export function useProblemNavigation({
             masteryScore: masteryScoreRef.current,
             hasCompletedLevel2: hasCompletedLevel2Ref.current,
             levelSolved: levelSolvedRef.current,
+            viewedLevel1Ids: seenLevel1IdsRef.current,
+            minLevel1ExamplesForLevel2: effectiveMinLevel1ForL2Ref.current,
+            level1ExposureSatisfied:
+              level1ExposureSatisfiedRef.current ||
+              seenLevel1IdsRef.current.length >= effectiveMinLevel1ForL2Ref.current,
+            // Persist the full L1 problems array so Prev/Next works after page reload
+            // without falling back to apiNavigateProblem (which uses stale backend index).
+            level1Problems: level1ProblemsRef.current.filter(Boolean) as Problem[],
           },
         );
       } catch {
@@ -671,12 +886,21 @@ export function useProblemNavigation({
         const cachedTotal = entry.pagination?.total ?? 1;
         const n = Math.max(liveCount, cachedTotal, 1);
         const curIdx = Math.min(entry.pagination?.current_index ?? 0, n - 1);
-        // Seed level1ProblemsRef[0] from cache in case it was cleared by a page reload.
+        // Seed level1ProblemsRef from cache in case it was cleared by a page reload.
+        // Use the actual current_index so the problem lands in the correct slot.
         if (level1ProblemsRef.current.length === 0) {
-          level1ProblemsRef.current[0] = entry.problem;
+          const idx = entry.pagination?.current_index ?? 0;
+          if (level1ProblemsRef.current.length <= idx) level1ProblemsRef.current.length = idx + 1;
+          level1ProblemsRef.current[idx] = entry.problem;
         }
         setPagination(makeLevel1Pagination(curIdx, n));
       } else {
+        // Seed L2/L3 history ref from the cache entry so Prev navigation works after a page reload.
+        if (level === 2 && level2ProblemsRef.current.length === 0) {
+          level2ProblemsRef.current = [entry.problem];
+        } else if (level === 3 && level3ProblemsRef.current.length === 0) {
+          level3ProblemsRef.current = [entry.problem];
+        }
         setPagination(entry.pagination ?? defaultPaginationForLevel(level));
       }
 
@@ -710,9 +934,9 @@ export function useProblemNavigation({
     const lvl = stateSnapshot.current.currentLevel;
     if (!p) return;
 
-    const empty: PerProblemState = { answers: {}, hints: {}, structuredStepComplete: {} };
-    perProblemCacheRef.current[p.id] = empty;
-
+    // Only clear the level cache entry's step state (so the UI shows a clean slate),
+    // but PRESERVE perProblemCacheRef — the student's answers for this problem are still valid
+    // and needed for "Previous" navigation.
     const entry = levelCacheRef.current[lvl];
     if (entry?.problem?.id === p.id) {
       levelCacheRef.current[lvl] = {
@@ -737,6 +961,11 @@ export function useProblemNavigation({
         masteryScore: masteryScoreRef.current,
         hasCompletedLevel2: hasCompletedLevel2Ref.current,
         levelSolved: levelSolvedRef.current,
+        viewedLevel1Ids: seenLevel1IdsRef.current,
+        minLevel1ExamplesForLevel2: effectiveMinLevel1ForL2Ref.current,
+        level1ExposureSatisfied:
+          level1ExposureSatisfiedRef.current ||
+          seenLevel1IdsRef.current.length >= effectiveMinLevel1ForL2Ref.current,
       });
     } catch {
       /* quota / private mode */
@@ -787,6 +1016,33 @@ export function useProblemNavigation({
           return;
         }
       }
+      // Levels 2/3: use local history ref for Prev/Next — never hit the backend.
+      if (lvl === 2 || lvl === 3) {
+        const historyRef = lvl === 2 ? level2ProblemsRef : level3ProblemsRef;
+        const curIdx = pag?.current_index ?? 0;
+        const targetIdx = direction === "next" ? curIdx + 1 : curIdx - 1;
+        const cached = historyRef.current[targetIdx];
+        if (cached != null && targetIdx >= 0 && targetIdx < historyRef.current.length) {
+          setIsNavigating(true);
+          saveCurrentStateToCache();
+          setCurrentProblem(cached);
+          restorePerProblemState(cached.id);
+          setPagination({
+            current_index: targetIdx,
+            total: historyRef.current.length,
+            max_problems: historyRef.current.length,
+            has_prev: targetIdx > 0,
+            has_next: targetIdx + 1 < historyRef.current.length,
+            at_limit: false,
+          });
+          stepSettersRef.current.setHintLoading(new Set());
+          stepSettersRef.current.resetTracking();
+          setIsNavigating(false);
+        } else if (direction === "prev") {
+          toast.info("Already at the first example.");
+        }
+        return;
+      }
       setIsNavigating(true);
       try {
         const data = await apiNavigateProblem({
@@ -796,8 +1052,18 @@ export function useProblemNavigation({
           level: lvl,
           difficulty: diff,
           direction,
+          class_id: classroomId,
         });
-        const { problem, pagination: navPag } = parseProblemOutput(data);
+        const {
+          problem,
+          pagination: navPag,
+          allow_answer_reveal: arNav,
+          max_answer_reveals_per_lesson: maxNav,
+          min_level1_examples_for_level2: minL1Nav,
+        } = parseProblemOutput(data);
+        if (arNav !== undefined) setAllowAnswerReveal(arNav);
+        if (maxNav !== undefined) setMaxAnswerRevealsPerLesson(maxNav);
+        if (minL1Nav !== undefined) setMinLevel1ExamplesForLevel2Nav(minL1Nav);
 
         // Always populate Level 1 local cache regardless of active level.
         if (lvl === 1 && problem && navPag) {
@@ -840,7 +1106,14 @@ export function useProblemNavigation({
 
         if (direction === "prev" && atFirstProblem) {
           toast.info("Already at the first example.");
+        } else if (lvl === 1 && direction === "next" && needsGeneration) {
+          // L1: backend playlist exhausted (stale current_index after client-side navigation).
+          // Do NOT silently generate a new problem — that discards the user's saved example.
+          // The local cache (level1ProblemsRef) should have served this before reaching here;
+          // reaching this branch means localStorage was cleared. Let the user decide.
+          toast.info("No more saved examples. Click 'See Another Worked Example' to generate a new one.");
         } else if (needsGeneration || direction === "next") {
+          // L2/L3: generate the next problem in the sequence.
           // Use the captured lvl/diff from the start of this navigation,
           // not the current stateSnapshot — the user may have switched levels.
           if (stateSnapshot.current.currentLevel !== lvl) return;
@@ -877,6 +1150,7 @@ export function useProblemNavigation({
       if (cur?.id && !seenLevel1IdsRef.current.includes(cur.id)) {
         seenLevel1IdsRef.current = [...seenLevel1IdsRef.current, cur.id];
       }
+
       // Exclude ALL previously seen Level 1 examples (not just the current one)
       const excludeIds = [...new Set([...seenLevel1IdsRef.current])];
 
@@ -889,12 +1163,23 @@ export function useProblemNavigation({
           const newProblem = result.problem;
           if (!newProblem?.id) return;
 
+          if (result.allow_answer_reveal !== undefined) {
+            setAllowAnswerReveal(result.allow_answer_reveal);
+          }
+          if (result.max_answer_reveals_per_lesson !== undefined) {
+            setMaxAnswerRevealsPerLesson(result.max_answer_reveals_per_lesson);
+          }
+          if (result.min_level1_examples_for_level2 !== undefined) {
+            setMinLevel1ExamplesForLevel2Nav(result.min_level1_examples_for_level2);
+          }
+
           // seenLevel1IdsRef + level1ProblemsRef are the source of truth for Level 1 pagination.
           // restoreFromCache recomputes pagination from these refs when the user returns to Level 1,
           // so we do NOT need to update levelCacheRef here.
           if (!seenLevel1IdsRef.current.includes(newProblem.id)) {
             seenLevel1IdsRef.current = [...seenLevel1IdsRef.current, newProblem.id];
           }
+          setViewedLevel1Ids([...seenLevel1IdsRef.current]);
           const n = seenLevel1IdsRef.current.length;
           if (level1ProblemsRef.current.length < n) level1ProblemsRef.current.length = n;
           level1ProblemsRef.current[n - 1] = newProblem;
@@ -908,6 +1193,10 @@ export function useProblemNavigation({
             setPagination(makeLevel1Pagination(n - 1, n));
             startAttemptForProblem(newProblem, diff, 1);
           }
+          // Now that the user has seen enough L1 examples, kick off L2 prefetch.
+          if (n >= effectiveMinLevel1ForL2Ref.current) {
+            prefetchNextLevelIfNeeded(diff, 1);
+          }
         })
         .catch(() => {
           toast.error("Failed to generate additional example. Please try again.");
@@ -920,46 +1209,102 @@ export function useProblemNavigation({
       return; // Stay on current problem — don't block or reset
     }
 
-    // Levels 2/3: navigate within playlist if ahead, otherwise generate new
+    // Levels 2/3: navigate within local history if ahead, otherwise generate new and append
     const excludeIds = [...cpi];
     if (cur?.id) excludeIds.push(cur.id);
 
     const snap = stateSnapshot.current.pagination;
-    const hasRealNext = snap && snap.has_next && snap.current_index + 1 < snap.total;
-    if (hasRealNext) {
-      handleNavigate("next");
+    const historyRef = lvl === 2 ? level2ProblemsRef : level3ProblemsRef;
+
+    // Seed history from current problem on first "See Another" call
+    if (historyRef.current.length === 0 && cur) {
+      historyRef.current = [cur];
+    }
+
+    // Navigate forward within already-loaded history
+    if (snap && snap.current_index + 1 < historyRef.current.length) {
+      const nextIdx = snap.current_index + 1;
+      const cached = historyRef.current[nextIdx];
+      setCurrentProblem(cached);
+      restorePerProblemState(cached.id);
+      setPagination({
+        ...snap,
+        current_index: nextIdx,
+        total: historyRef.current.length,
+        has_prev: true,
+        has_next: nextIdx + 1 < historyRef.current.length,
+        at_limit: false,
+      });
+      stepSettersRef.current.resetTracking();
       return;
     }
+
+    // No more history — generate a new problem and append it
     saveCurrentStateToCache();
     resetProblemState({ clearPagination: false });
-    loadNewProblem(diff, excludeIds, lvl);
-  }, [handleNavigate, saveCurrentStateToCache, loadNewProblem, resetProblemState, generateProblem, startAttemptForProblem]);
+    const newProblem = await loadNewProblem(diff, excludeIds, lvl);
+    if (!newProblem) return;
+
+    // Append to history (deduplicate)
+    if (!historyRef.current.find((p) => p.id === newProblem.id)) {
+      historyRef.current = [...historyRef.current, newProblem];
+    }
+    const newTotal = historyRef.current.length;
+    const newIdx = newTotal - 1;
+    setPagination({
+      current_index: newIdx,
+      total: newTotal,
+      max_problems: snap?.max_problems ?? newTotal,
+      has_prev: newIdx > 0,
+      has_next: false,
+      at_limit: false,
+    });
+  }, [handleNavigate, saveCurrentStateToCache, loadNewProblem, resetProblemState, generateProblem, startAttemptForProblem, restorePerProblemState, prefetchNextLevelIfNeeded]);
 
   const handleLevelChange = useCallback(
-    (level: Level) => {
-      if (level === 3 && !hasCompletedLevel2Ref.current) return;
+    (level: Level): boolean => {
+      if (level === 3 && !hasCompletedLevel2Ref.current) return false;
+      // Use seen ids + threshold refs — `level1ExposureSatisfied` state can lag one frame behind
+      // after the last Level 1 view registers (layout effect order).
+      if (level === 2) {
+        const need = effectiveMinLevel1ForL2Ref.current;
+        if (seenLevel1IdsRef.current.length < need) {
+          toast.info(
+            `View at least ${need} worked examples in Level 1 to unlock Level 2 Practice.`,
+          );
+          return false;
+        }
+        if (!level1ExposureSatisfiedRef.current) {
+          setLevel1ExposureSatisfied(true);
+        }
+      }
       saveCurrentStateToCache();
       const cached = levelCacheRef.current[level];
       if (cached) {
         restoreFromCache(cached, level);
-        return;
+        return true;
       }
       setCurrentLevel(level);
       setCurrentProblem(null);
       setProblemLoading(true);
       resetProblemState();
       setPagination(defaultPaginationForLevel(level));
+      // Reset L2/L3 history when switching to that level fresh (no cache)
+      if (level === 2) level2ProblemsRef.current = [];
+      if (level === 3) level3ProblemsRef.current = [];
       // Level 3 default difficulty is "medium" — backend recommendations override this
       // in handleContinueAfterProgression via the backendDiff path.
       const { completedProblemIds: cpi } = stateSnapshot.current;
       loadNewProblem("medium", cpi, level);
+      return true;
     },
     [saveCurrentStateToCache, restoreFromCache, loadNewProblem, resetProblemState], // refs are stable
   );
 
   const handleStartFadedExample = useCallback(() => {
-    handleLevelChange(2);
-    toast.success("Let's try a faded example!");
+    if (handleLevelChange(2)) {
+      toast.success("Let's try a faded example!");
+    }
   }, [handleLevelChange]);
 
   /**
@@ -974,7 +1319,25 @@ export function useProblemNavigation({
     resetProblemState({ clearPagination: false });
     // Clear the level cache entry so the new problem isn't overwritten by stale data on unmount
     delete levelCacheRef.current[lvl];
-    await loadNewProblem(diff, [], lvl, true);
+    const newProblem = await loadNewProblem(diff, [], lvl, true);
+    if (!newProblem) return;
+    // Keep L2/L3 history ref in sync so Prev navigation works after a force-regenerate.
+    if (lvl === 2 || lvl === 3) {
+      const historyRef = lvl === 2 ? level2ProblemsRef : level3ProblemsRef;
+      if (!historyRef.current.find((p) => p.id === newProblem.id)) {
+        historyRef.current = [...historyRef.current, newProblem];
+      }
+      const newTotal = historyRef.current.length;
+      const newIdx = newTotal - 1;
+      setPagination({
+        current_index: newIdx,
+        total: newTotal,
+        max_problems: newTotal,
+        has_prev: newIdx > 0,
+        has_next: false,
+        at_limit: false,
+      });
+    }
   }, [saveCurrentStateToCache, loadNewProblem, resetProblemState]);
 
   // ── Side effects ──────────────────────────────────────────────────────────
@@ -1016,5 +1379,10 @@ export function useProblemNavigation({
     handleLevelChange,
     handleStartFadedExample,
     handleForceRegenerate,
+    allowAnswerReveal,
+    maxAnswerRevealsPerLesson,
+    minLevel1ExamplesForLevel2,
+    viewedLevel1Ids,
+    level1ExposureSatisfied,
   };
 }

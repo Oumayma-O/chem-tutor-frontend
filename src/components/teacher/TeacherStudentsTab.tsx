@@ -1,13 +1,15 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow, isToday, isYesterday } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
-import { SkillRadarChart } from "@/components/tutor/progress";
+import { PredictiveInsights, SkillRadarChart } from "@/components/tutor/progress";
+import { studentAttemptsToPredictiveShape } from "@/lib/predictiveFromMastery";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
 import { cn } from "@/lib/utils";
 import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import { CourseLevel } from "@/data/units";
 import { useUnits } from "@/hooks/useUnits";
 import {
+  ArrowLeft,
   TrendingUp,
   TrendingDown,
   Minus,
@@ -21,6 +23,9 @@ import {
   XCircle,
   Layers,
   ClipboardCheck,
+  Timer,
+  Lightbulb,
+  Eye,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +62,7 @@ interface TeacherStudentsTabProps {
   enrolledStudents: ClassStudentRow[];
   selectedStudent: string | null;
   onSelectStudent: (id: string) => void;
+  onClearStudent: () => void;
   analyticsDate: Date | undefined;
   onAnalyticsDateChange: (d: Date | undefined) => void;
   analyticsChapter: string;
@@ -74,6 +80,7 @@ export function TeacherStudentsTab({
   enrolledStudents,
   selectedStudent,
   onSelectStudent,
+  onClearStudent,
   analyticsDate,
   onAnalyticsDateChange,
   analyticsChapter,
@@ -92,6 +99,21 @@ export function TeacherStudentsTab({
 
   return (
     <TabsContent value="students" className="space-y-6">
+      {selectedStudent && (
+        <div className="flex items-center">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="gap-2 -ml-2 h-9 text-muted-foreground hover:text-foreground"
+            onClick={onClearStudent}
+          >
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            Back to all students
+          </Button>
+        </div>
+      )}
+
       {selectedClassId !== "all" && (
         <div className="flex flex-wrap items-center gap-3 p-3 bg-secondary/30 rounded-lg">
           <ChapterSelector
@@ -210,6 +232,12 @@ export function TeacherStudentsTab({
                       </span>
                     ))}
                   </div>
+                )}
+                {student.lastActive > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                    Last active{" "}
+                    {formatDistanceToNow(new Date(student.lastActive), { addSuffix: true })}
+                  </p>
                 )}
               </button>
             );
@@ -498,6 +526,16 @@ function StudentDetailPanel({
     return weak;
   }, [headlineScorePct, analytics, analyticsLesson]);
 
+  const predictiveAttempts = useMemo(
+    () =>
+      studentAttemptsToPredictiveShape(
+        [...finishedPractice].sort(
+          (a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime(),
+        ),
+      ),
+    [finishedPractice],
+  );
+
   const filteredStrengths = useMemo(() => {
     if (!analytics?.category_scores || analyticsLesson !== "all") {
       return headlineScorePct >= 75 ? ["All areas strong"] : [];
@@ -561,7 +599,14 @@ function StudentDetailPanel({
             <User className="w-5 h-5 text-primary" />
             {student.name}
           </CardTitle>
-          <CardDescription>{scopeText}</CardDescription>
+          <CardDescription>
+            {scopeText}
+            {student.lastActive > 0 && (
+              <span className="block mt-1 text-muted-foreground">
+                Last active: {format(new Date(student.lastActive), "MMM d, yyyy 'at' h:mm a")}
+              </span>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -700,6 +745,18 @@ function StudentDetailPanel({
         </Card>
       )}
 
+      {needPractice &&
+        !isLoading &&
+        (skillMap.length > 0 || predictiveAttempts.length > 0) && (
+          <PredictiveInsights
+            masteryScore={headlineScorePct}
+            skillMap={skillMap}
+            recentAttempts={predictiveAttempts}
+            errorPatterns={[]}
+            studentName={student.name}
+          />
+        )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">
@@ -739,59 +796,94 @@ function StudentDetailPanel({
                     : "No submitted attempts in the recent sample yet."}
             </p>
           ) : (
-            <div className="space-y-2">
-              {unifiedRows.map((row, i) => {
-                if (row.kind === "practice") {
-                  const a = row.attempt;
-                  const scorePct = a.score != null ? Math.round(a.score * 100) : null;
+            <div className="space-y-1">
+              {(() => {
+                // Group rows by date for timeline feed
+                let lastGroup = "";
+                return unifiedRows.map((row, i) => {
+                  const dateStr = row.kind === "practice" ? row.attempt.started_at : row.response.submitted_at;
+                  const d = new Date(dateStr);
+                  const group = isToday(d) ? "Today" : isYesterday(d) ? "Yesterday" : format(d, "MMMM d, yyyy");
+                  const showGroup = group !== lastGroup;
+                  lastGroup = group;
+
+                  if (row.kind === "practice") {
+                    const a = row.attempt;
+                    const scorePct = a.score != null ? Math.round(a.score * 100) : null;
+                    const passed = scorePct != null && isAssessmentPassingPercent(scorePct);
+                    return (
+                      <div key={a.id}>
+                        {showGroup && (
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4 mb-2 border-b pb-1 first:mt-0">{group}</div>
+                        )}
+                        <div className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/30 text-xs">
+                          <span className="text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                          {passed
+                            ? <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
+                            : <XCircle className="w-3.5 h-3.5 text-yellow-500 shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <span className="text-foreground font-medium truncate block">{unitTitle(a.unit_id)}</span>
+                            <span className="text-muted-foreground">
+                              Practice · Lesson {a.lesson_index + 1} · {format(d, "MMM d")}
+                            </span>
+                          </div>
+                          {/* Metrics — always show so teacher sees the full picture */}
+                          <div className="flex items-center gap-3 shrink-0 text-xs text-slate-500">
+                            <span className="flex items-center gap-1" title="Time spent">
+                              <Timer className="w-3 h-3" />
+                              {a.time_spent_s != null && a.time_spent_s > 0
+                                ? a.time_spent_s >= 60 ? `${Math.floor(a.time_spent_s / 60)}m ${a.time_spent_s % 60}s` : `${a.time_spent_s}s`
+                                : "—"}
+                            </span>
+                            <span className="flex items-center gap-1" title="Hints used">
+                              <Lightbulb className="w-3 h-3" />{a.hints_used ?? 0}
+                            </span>
+                            <span className="flex items-center gap-1" title="Reveals used">
+                              <Eye className="w-3 h-3" />{a.reveals_used ?? 0}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <Layers className="w-3 h-3 text-muted-foreground" />
+                            <span className="text-muted-foreground">L{a.level}</span>
+                          </div>
+                          <span className={cn("font-semibold w-10 text-right", scorePct == null ? "text-muted-foreground" : passed ? "text-success" : "text-yellow-600")}>
+                            {scorePct != null ? `${scorePct}%` : "—"}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  const { response, ticket } = row;
+                  const scorePct = response.score != null ? Math.round(response.score) : null;
                   const passed = scorePct != null && isAssessmentPassingPercent(scorePct);
                   return (
-                    <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/30 text-xs">
-                      <span className="text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                      {passed
-                        ? <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
-                        : <XCircle className="w-3.5 h-3.5 text-yellow-500 shrink-0" />}
-                      <div className="flex-1 min-w-0">
-                        <span className="text-foreground font-medium truncate block">{unitTitle(a.unit_id)}</span>
-                        <span className="text-muted-foreground">
-                          Practice · Lesson {a.lesson_index + 1} · {format(new Date(a.started_at), "MMM d")}
+                    <div key={response.id}>
+                      {showGroup && (
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-4 mb-2 border-b pb-1 first:mt-0">{group}</div>
+                      )}
+                      <div className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/30 text-xs">
+                        <span className="text-muted-foreground w-4 shrink-0">{i + 1}</span>
+                        {passed
+                          ? <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
+                          : <XCircle className="w-3.5 h-3.5 text-yellow-500 shrink-0" />}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-foreground font-medium truncate block">{unitTitle(ticket.unit_id)}</span>
+                          <span className="text-muted-foreground">
+                            Exit ticket · Lesson {ticket.lesson_index + 1} · {format(d, "MMM d")}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <ClipboardCheck className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-muted-foreground">ET</span>
+                        </div>
+                        <span className={cn("font-semibold w-10 text-right", scorePct == null ? "text-muted-foreground" : passed ? "text-success" : "text-yellow-600")}>
+                          {scorePct != null ? `${scorePct}%` : "—"}
                         </span>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <Layers className="w-3 h-3 text-muted-foreground" />
-                        <span className="text-muted-foreground">L{a.level}</span>
-                      </div>
-                      <span className={cn("font-semibold w-10 text-right", scorePct == null ? "text-muted-foreground" : passed ? "text-success" : "text-yellow-600")}>
-                        {scorePct != null ? `${scorePct}%` : "—"}
-                      </span>
                     </div>
                   );
-                }
-                const { response, ticket } = row;
-                const scorePct = response.score != null ? Math.round(response.score) : null;
-                const passed = scorePct != null && isAssessmentPassingPercent(scorePct);
-                return (
-                  <div key={response.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-secondary/30 text-xs">
-                    <span className="text-muted-foreground w-4 shrink-0">{i + 1}</span>
-                    {passed
-                      ? <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
-                      : <XCircle className="w-3.5 h-3.5 text-yellow-500 shrink-0" />}
-                    <div className="flex-1 min-w-0">
-                      <span className="text-foreground font-medium truncate block">{unitTitle(ticket.unit_id)}</span>
-                      <span className="text-muted-foreground">
-                        Exit ticket · Lesson {ticket.lesson_index + 1} · {format(new Date(response.submitted_at), "MMM d")}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <ClipboardCheck className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-muted-foreground">ET</span>
-                    </div>
-                    <span className={cn("font-semibold w-10 text-right", scorePct == null ? "text-muted-foreground" : passed ? "text-success" : "text-yellow-600")}>
-                      {scorePct != null ? `${scorePct}%` : "—"}
-                    </span>
-                  </div>
-                );
-              })}
+                });
+              })()}
             </div>
           )}
         </CardContent>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Wand2, Clock, ChevronRight, ChevronLeft, Send, Save, RefreshCw, Pencil, Trash2 } from "lucide-react";
+import { Loader2, Wand2, Clock, ChevronRight, ChevronLeft, Send, Save, RefreshCw, Pencil, Trash2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ChapterSelector } from "./ChapterSelector";
@@ -54,6 +54,12 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
   const { units } = useUnits();
   // Step state
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
+  const topRef = useRef<HTMLDivElement>(null);
+
+  const goToStep = useCallback((step: WizardStep) => {
+    setCurrentStep(step);
+    setTimeout(() => topRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 0);
+  }, []);
 
   // Step 1: Chapter & Lesson
   const [selectedChapterId, setSelectedChapterId] = useState(defaultChapterId || "");
@@ -118,7 +124,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
       });
       setQuestions(mapped);
       setActiveTicket(res.ticket);
-      setCurrentStep(4);
+      goToStep(4);
       void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.exitTickets.byClass(classId) });
       toast.success("Exit ticket generated and saved.");
     } catch (err) {
@@ -177,7 +183,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
           unit_id: selectedChapterId,
           lesson_index: selectedLessonIndex,
         });
-        void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classes() });
+        void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classesRoot() });
         void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.exitTickets.byClass(classId) });
         onPublishSuccess?.({
           timedPractice: timedEnabled,
@@ -196,7 +202,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
           "Draft noted locally. The ticket is already stored from Generate; publish when your class is ready.",
         );
       }
-      setCurrentStep(1);
+      goToStep(1);
       setQuestions([]);
       setActiveTicket(null);
     } catch (err) {
@@ -223,37 +229,59 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
   ]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Clock className="w-5 h-5 text-primary" />
-          Exit Ticket Configuration
-        </CardTitle>
-        <CardDescription>Step-by-step setup for your class assessment.</CardDescription>
-        {/* Step indicators */}
-        <div className="flex items-center gap-1 mt-3">
+    <Card className="border-t-4 border-t-indigo-500 shadow-sm overflow-hidden">
+      <CardHeader ref={topRef} className="scroll-mt-32 bg-gradient-to-br from-indigo-50/60 to-transparent pb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+            <Wand2 className="w-4.5 h-4.5 text-indigo-600" />
+          </div>
+          <div>
+            <CardTitle className="text-base font-semibold text-slate-900">
+              Exit Ticket Configuration
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500 mt-0.5">
+              Step-by-step setup for your class assessment.
+            </CardDescription>
+          </div>
+        </div>
+
+        {/* Step indicators — progress stepper */}
+        <div className="flex items-center mt-5">
           {stepLabels.map((label, i) => {
             const step = (i + 1) as WizardStep;
             const isActive = currentStep === step;
             const isCompleted = currentStep > step;
+            const isLast = i === stepLabels.length - 1;
             return (
-              <div key={label} className="flex items-center gap-1">
+              <div key={label} className={cn("flex items-center", !isLast && "flex-1")}>
                 <button
-                  onClick={() => { if (isCompleted) setCurrentStep(step); }}
+                  onClick={() => { if (isCompleted) goToStep(step); }}
                   disabled={!isCompleted}
-                  className={cn(
-                    "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors",
-                    isActive && "bg-primary text-primary-foreground",
-                    isCompleted && "bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer",
-                    !isActive && !isCompleted && "bg-secondary text-muted-foreground"
-                  )}
+                  className="flex flex-col items-center gap-1.5 group focus:outline-none"
                 >
-                  <span className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] border border-current">
-                    {isCompleted ? "✓" : step}
+                  <span className={cn(
+                    "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-200 shadow-sm",
+                    isActive && "bg-indigo-600 text-white shadow-indigo-200 shadow-md ring-4 ring-indigo-100",
+                    isCompleted && "bg-emerald-500 text-white group-hover:bg-emerald-600",
+                    !isActive && !isCompleted && "bg-slate-200 text-slate-400"
+                  )}>
+                    {isCompleted ? <Check className="w-3.5 h-3.5" /> : step}
                   </span>
-                  <span className="hidden sm:inline">{label}</span>
+                  <span className={cn(
+                    "text-[9px] font-semibold tracking-wide hidden sm:block whitespace-nowrap uppercase",
+                    isActive && "text-indigo-700",
+                    isCompleted && "text-emerald-600",
+                    !isActive && !isCompleted && "text-slate-400"
+                  )}>{label}</span>
                 </button>
-                {i < stepLabels.length - 1 && <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                {!isLast && (
+                  <div className="flex-1 h-0.5 mx-2 rounded-full bg-slate-200 overflow-hidden">
+                    <div className={cn(
+                      "h-full rounded-full transition-all duration-500",
+                      isCompleted ? "bg-emerald-400 w-full" : "w-0"
+                    )} />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -269,7 +297,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
             setSelectedLessonIndex={setSelectedLessonIndex}
             courseLevel={courseLevel}
             selectedChapter={selectedChapter}
-            onNext={() => setCurrentStep(2)}
+            onNext={() => goToStep(2)}
           />
         )}
 
@@ -280,8 +308,8 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
             setTimedEnabled={setTimedEnabled}
             timedDuration={timedDuration}
             setTimedDuration={setTimedDuration}
-            onBack={() => setCurrentStep(1)}
-            onNext={() => setCurrentStep(3)}
+            onBack={() => goToStep(1)}
+            onNext={() => goToStep(3)}
           />
         )}
 
@@ -293,7 +321,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
             timeLimit={timeLimit} setTimeLimit={setTimeLimit}
             format={format} setFormat={setFormat}
             generating={generating}
-            onBack={() => setCurrentStep(2)}
+            onBack={() => goToStep(2)}
             onGenerate={handleGenerate}
           />
         )}
@@ -311,9 +339,9 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
             onDeleteQuestion={handleDeleteQuestion}
             onEditField={handleEditField}
             onEditMcqOption={handleEditMcqOption}
-            onRegenerateAll={() => { setCurrentStep(3); }}
-            onBack={() => setCurrentStep(3)}
-            onNext={() => setCurrentStep(5)}
+            onRegenerateAll={() => { goToStep(3); }}
+            onBack={() => goToStep(3)}
+            onNext={() => goToStep(5)}
           />
         )}
 
@@ -329,7 +357,7 @@ export function ExitTicketConfigPanel({ classId, courseLevel, onPublishSuccess, 
             timedEnabled={timedEnabled}
             timedDuration={timedDuration}
             saving={saving}
-            onBack={() => setCurrentStep(4)}
+            onBack={() => goToStep(4)}
             onPublish={handlePublish}
           />
         )}
@@ -393,10 +421,23 @@ function Step2TimedPractice({ timedEnabled, setTimedEnabled, timedDuration, setT
 }) {
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg">
-        <div>
-          <span className="text-sm font-medium text-foreground">Enable Timed Practice Mode</span>
-          <p className="text-xs text-muted-foreground">Students practice under a timer before the exit ticket</p>
+      <div className={cn(
+        "flex items-center justify-between p-4 rounded-xl border transition-all duration-200",
+        timedEnabled
+          ? "bg-indigo-50 border-indigo-200"
+          : "bg-slate-50 border-slate-200"
+      )}>
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+            timedEnabled ? "bg-indigo-100" : "bg-slate-200"
+          )}>
+            <Clock className={cn("w-4 h-4", timedEnabled ? "text-indigo-600" : "text-slate-400")} />
+          </div>
+          <div>
+            <span className="text-sm font-medium text-foreground">Enable Timed Practice Mode</span>
+            <p className="text-xs text-muted-foreground">Students practice under a timer before the exit ticket</p>
+          </div>
         </div>
         <Switch checked={timedEnabled} onCheckedChange={setTimedEnabled} />
       </div>

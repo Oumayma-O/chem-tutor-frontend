@@ -17,11 +17,17 @@ interface UseGeneratedProblemOptions {
   gradeLevel: string | null;
   masteryScore: number;
   userId?: string;
+  /** When set, backend includes `allow_answer_reveal` on problem delivery. */
+  classId?: string;
 }
 
 export interface GenerateResult {
   problem: Problem;
   pagination: ProblemPagination | null;
+  allow_answer_reveal?: boolean;
+  /** Server policy; omitted when backend does not send the field. */
+  max_answer_reveals_per_lesson?: number;
+  min_level1_examples_for_level2?: number;
 }
 
 /** Sanitize API strings: mangled middle-dot units + \cdotK KaTeX pitfall. */
@@ -120,7 +126,25 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
         }
       : null;
 
-  return { problem, pagination };
+  const maxRaw = data.max_answer_reveals_per_lesson;
+  const max_answer_reveals_per_lesson =
+    typeof maxRaw === "number" && Number.isFinite(maxRaw) && maxRaw >= 1
+      ? Math.floor(maxRaw)
+      : undefined;
+
+  const minL1Raw = data.min_level1_examples_for_level2;
+  const min_level1_examples_for_level2 =
+    typeof minL1Raw === "number" && Number.isFinite(minL1Raw) && minL1Raw >= 1
+      ? Math.floor(minL1Raw)
+      : undefined;
+
+  return {
+    problem,
+    pagination,
+    allow_answer_reveal: data.allow_answer_reveal,
+    ...(max_answer_reveals_per_lesson !== undefined ? { max_answer_reveals_per_lesson } : {}),
+    ...(min_level1_examples_for_level2 !== undefined ? { min_level1_examples_for_level2 } : {}),
+  };
 }
 
 export function useGeneratedProblem({
@@ -130,6 +154,7 @@ export function useGeneratedProblem({
   interests,
   gradeLevel,
   userId,
+  classId,
 }: UseGeneratedProblemOptions) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,6 +206,7 @@ export function useGeneratedProblem({
           interests: interests || [],
           grade_level: gradeLevel,
           user_id: userId,
+          class_id: classId,
           exclude_ids: excludeIds.length > 0 ? excludeIds : undefined,
           force_regenerate: forceRegenerate || undefined,
         });
@@ -219,7 +245,7 @@ export function useGeneratedProblem({
         setIsLoading(false);
       }
     },
-    [unitId, lessonIndex, lessonName, interests, gradeLevel, userId],
+    [unitId, lessonIndex, lessonName, interests, gradeLevel, userId, classId],
   );
 
   return { generate, isLoading, error };

@@ -5,7 +5,11 @@
 export const teacherQueryKeys = {
   all: ["teacher"] as const,
 
-  classes: () => ["teacher", "classes"] as const,
+  /** Prefix for invalidateQueries — all cached class lists for every user session. */
+  classesRoot: () => ["teacher", "classes"] as const,
+
+  /** Per-logged-in-user class list (GET /teacher/classes). Prevents cache bleed on shared browser. */
+  classes: (userId: string) => ["teacher", "classes", userId] as const,
 
   roster: (classId: string) => ["teacher", "roster", classId] as const,
 
@@ -20,8 +24,15 @@ export const teacherQueryKeys = {
     /** Prefix for invalidateQueries — matches all exit-ticket queries for a class. */
     byClass: (classId: string) => ["teacher", "exit-tickets", classId] as const,
 
-    list: (classId: string, page: number, limit: number, unitId: string, lessonId: string) =>
-      ["teacher", "exit-tickets", classId, page, limit, unitId, lessonId] as const,
+    list: (
+      classId: string,
+      page: number,
+      limit: number,
+      unitId: string,
+      lessonId: string,
+      /** `"all"` | window days e.g. `"7"` — must match GET query `days`. */
+      days: string,
+    ) => ["teacher", "exit-tickets", classId, page, limit, unitId, lessonId, days] as const,
 
     studentPanel: (classId: string) => ["teacher", "exit-tickets", classId, "student-panel"] as const,
 

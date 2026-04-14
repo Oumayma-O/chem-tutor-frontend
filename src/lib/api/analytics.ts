@@ -2,7 +2,7 @@
  * Teacher class analytics — matches FastAPI POST /analytics/classes.
  * (Insights live in `ai_insights` on the response; there is no /analytics/class-insights route.)
  */
-import { post } from "./core";
+import { get, post } from "./core";
 
 export interface ClassAnalyticsRequest {
   class_id: string;
@@ -46,4 +46,66 @@ export async function apiPostClassAnalytics(
   body: ClassAnalyticsRequest,
 ): Promise<ClassAnalyticsResponse> {
   return post<ClassAnalyticsResponse>("/analytics/classes", body);
+}
+
+// ── Standards mastery types ──────────────────────────────────────────────────
+
+export interface StudentStandardScore {
+  student_id: string;
+  mastery_score: number;
+}
+
+export interface StandardMasteryItem {
+  standard_code: string;
+  standard_title: string | null;
+  framework: string;
+  class_avg: number;
+  at_risk_count: number;
+  student_scores: StudentStandardScore[];
+}
+
+export interface ClassStandardsMasteryResponse {
+  class_id: string;
+  unit_id: string | null;
+  standards: StandardMasteryItem[];
+}
+
+export interface StudentStandardMasteryItem {
+  standard_code: string;
+  standard_title: string | null;
+  framework: string;
+  mastery_score: number;
+  lesson_count: number;
+  is_mastered: boolean;
+}
+
+export interface StudentStandardsMasteryResponse {
+  student_id: string;
+  standards: StudentStandardMasteryItem[];
+}
+
+// ── Standards mastery query keys ─────────────────────────────────────────────
+
+export const classStandardsQueryKey = (classId: string, unitId?: string | null) =>
+  ["analytics", "class-standards", classId, unitId ?? null] as const;
+
+export const studentStandardsQueryKey = (studentId: string) =>
+  ["analytics", "student-standards", studentId] as const;
+
+// ── Standards mastery API calls ───────────────────────────────────────────────
+
+export async function apiGetClassStandardsMastery(
+  classId: string,
+  unitId?: string | null,
+): Promise<ClassStandardsMasteryResponse> {
+  const qs = unitId ? `?unit_id=${encodeURIComponent(unitId)}` : "";
+  return get<ClassStandardsMasteryResponse>(`/analytics/classes/${classId}/standards${qs}`);
+}
+
+export async function apiGetStudentStandardsMastery(
+  studentId: string,
+  classId?: string | null,
+): Promise<StudentStandardsMasteryResponse> {
+  const qs = classId ? `?class_id=${encodeURIComponent(classId)}` : "";
+  return get<StudentStandardsMasteryResponse>(`/analytics/students/${studentId}/standards${qs}`);
 }

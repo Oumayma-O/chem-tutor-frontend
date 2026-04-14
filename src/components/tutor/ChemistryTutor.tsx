@@ -25,6 +25,7 @@ import { ExitTicketMode, TimedModeLaunchScreen, TimedModeTransitionScreen } from
 import { ToolsWidget } from "@/components/tutor/widgets";
 import { useAdaptiveProgression } from "@/hooks/useAdaptiveProgression";
 import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
+import { useTutorAnswerReveal } from "@/hooks/useTutorAnswerReveal";
 import { useTutorMasterySync } from "@/hooks/useTutorMasterySync";
 import { useTutorProgression } from "@/hooks/useTutorProgression";
 import { useTutorTimedMode } from "@/hooks/useTutorTimedMode";
@@ -52,6 +53,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
 interface ChemistryTutorProps {
@@ -76,6 +86,7 @@ interface ChemistryTutorProps {
  * - useStepHandlers: answers, hints, validation, reset
  * - useCognitiveTracking: thinking steps, classification, skill map
  * - useAdaptiveProgression: checkProgression for advance/stay
+ * - useTutorAnswerReveal: 3-strikes reveal + session cap + `getInteractiveReveal` for steps
  * This component wires hooks, handles progression modal/exit ticket, and renders layout.
  */
 export function ChemistryTutor({
@@ -115,6 +126,9 @@ export function ChemistryTutor({
   // ── UI / modal state ──────────────────────────────────────────────────────
   const [exitTicketResults, setExitTicketResults] = useState<ExitTicketResult[]>([]);
   const [calculatorEnabled] = useState(true);
+  /** Shown once per lesson after the student’s first answer reveal (policy notice). */
+  const [revealBudgetInfoOpen, setRevealBudgetInfoOpen] = useState(false);
+  const revealBudgetModalLessonKeyRef = useRef<string | null>(null);
 
   // Persists submitted class exit-ticket answers so re-opening shows review mode.
   const exitTicketSubmittedRef = useRef<{
@@ -167,6 +181,19 @@ export function ChemistryTutor({
     setClassifiedErrors: restoreClassifiedErrors,
   } = useCognitiveTracking();
 
+  const { profile, isStudent } = useAuth();
+
+  const timed = useTutorTimedMode();
+
+  const { liveSession, liveSessionLoading, showExitTicketAction, sessionMatchesLesson, dismissExitTicketOverlays, prefetchedExitTicket } =
+    useStudentLiveSessionTimedSync({
+      isStudent: Boolean(isStudent),
+      classroomId: profile?.classroom_id,
+      timed,
+      unitId,
+      lessonIndex,
+    });
+
   // ── Problem navigation hook ───────────────────────────────────────────────
   const nav = useProblemNavigation({
     unitId,
@@ -175,6 +202,7 @@ export function ChemistryTutor({
     userId,
     interests,
     gradeLevel,
+    classroomId: profile?.classroom_id,
     masteryScore,
     masteryScoreRef,
     hasCompletedLevel2Ref,
@@ -185,7 +213,28 @@ export function ChemistryTutor({
     onAttemptStart: setCurrentAttemptId,
     onRestoreMasteryScore: (s) => setMasteryScore(s),
     onRestoreHasCompletedLevel2: () => setHasCompletedLevel2(true),
+    liveSessionMinLevel1ExamplesForLevel2: liveSession?.min_level1_examples_for_level2,
   });
+
+  const tutorAnswerReveal = useTutorAnswerReveal({
+    unitId,
+    lessonIndex,
+    problemId: nav.currentProblem?.id,
+    currentLevel: nav.currentLevel,
+    navAllowAnswerReveal: nav.allowAnswerReveal,
+    liveSessionAllowAnswerReveal: liveSession?.allow_answer_reveal,
+    navMaxAnswerRevealsPerLesson: nav.maxAnswerRevealsPerLesson,
+    liveSessionMaxAnswerRevealsPerLesson: liveSession?.max_answer_reveals_per_lesson,
+  });
+  const { getInteractiveReveal, totalRevealsUsed, maxAnswerRevealsPerLesson } = tutorAnswerReveal;
+
+  useEffect(() => {
+    if (totalRevealsUsed !== 1) return;
+    const key = `${unitId}:${lessonIndex}`;
+    if (revealBudgetModalLessonKeyRef.current === key) return;
+    revealBudgetModalLessonKeyRef.current = key;
+    setRevealBudgetInfoOpen(true);
+  }, [totalRevealsUsed, unitId, lessonIndex]);
 
   // ── Reference card (fiche de cours) — React Query handles caching/dedup ──
   // The prefetch fired from UnitLandingPage may already be in-flight; useQuery
@@ -213,9 +262,8 @@ export function ChemistryTutor({
     classifyErrors,
     resetTracking,
     onMarkInProgress,
+    onCheckAnswerResult: (stepId, isCorrect) => tutorAnswerReveal.recordCheckResult(stepId, isCorrect),
   });
-
-  const { profile, isStudent } = useAuth();
   const queryClient = useQueryClient();
   const heartbeatStepId = useMemo(() => {
     const prob = nav.currentProblem;
@@ -270,6 +318,22 @@ export function ChemistryTutor({
   const displaySteps = useMemo(() => (problem ? problem.steps : []), [problem]);
   const interactiveStepIds = steps.interactiveSteps.map((s) => s.id);
   const isLevel3Locked = !hasCompletedLevel2;
+  const isLevel2Locked = !nav.level1ExposureSatisfied;
+  const prevViewedL1CountRef = useRef(0);
+
+  useEffect(() => {
+    prevViewedL1CountRef.current = 0;
+  }, [unitId, lessonIndex, currentTopicName]);
+
+  useEffect(() => {
+    const prev = prevViewedL1CountRef.current;
+    const len = nav.viewedLevel1Ids.length;
+    const min = nav.minLevel1ExamplesForLevel2;
+    if (prev === min - 1 && len >= min && nav.currentLevel === 1) {
+      toast.success("Level 2 unlocked! Open the Level 2 tab when you're ready for faded practice.");
+    }
+    prevViewedL1CountRef.current = len;
+  }, [nav.viewedLevel1Ids, nav.currentLevel, nav.minLevel1ExamplesForLevel2]);
 
   const completedSteps = steps.interactiveSteps.filter((s) =>
     isStepAnswerCorrect(steps.answers, steps.structuredStepComplete, s.id),
@@ -306,6 +370,7 @@ export function ChemistryTutor({
     setBackendCategoryScores,
     setMasteryScore,
     onMasteryLevel2Completions: mergeLevel2CompletionsFromMastery,
+    consumeWasRevealedForSave: tutorAnswerReveal.consumeWasRevealedForSave,
   });
 
   // ── Side effects ──────────────────────────────────────────────────────────
@@ -360,17 +425,9 @@ export function ChemistryTutor({
       levelCacheRef: nav.levelCacheRef,
       setCurrentLevel: nav.setCurrentLevel,
       loadNewProblem: nav.loadNewProblem,
+      canAccessLevel2: nav.level1ExposureSatisfied,
     },
   });
-
-  const timed = useTutorTimedMode();
-
-  const { liveSession, liveSessionLoading, showExitTicketAction, dismissExitTicketOverlays, prefetchedExitTicket } =
-    useStudentLiveSessionTimedSync({
-      isStudent: Boolean(isStudent),
-      classroomId: profile?.classroom_id,
-      timed,
-    });
 
   useEffect(() => {
     setMasteryLevel2Completions(null);
@@ -472,6 +529,32 @@ export function ChemistryTutor({
 
   return (
     <div className="bg-background">
+      <AlertDialog open={revealBudgetInfoOpen} onOpenChange={setRevealBudgetInfoOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Answer reveal limit</AlertDialogTitle>
+            <AlertDialogDescription className="text-left space-y-2">
+              <span className="block">
+                You can use “Reveal answer” up to{" "}
+                <span className="font-medium text-foreground">{maxAnswerRevealsPerLesson}</span> times
+                per lesson (this limit resets when you open a different lesson). Each reveal counts when
+                you reach three incorrect checks on a step.
+              </span>
+              <span className="block text-muted-foreground">
+                You have used 1 of {maxAnswerRevealsPerLesson} reveals in this lesson —{" "}
+                <span className="font-medium text-foreground">
+                  {Math.max(0, maxAnswerRevealsPerLesson - 1)} remaining
+                </span>
+                .
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction type="button">OK</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Timed mode countdown banner */}
       {timed.timedModeActive && timed.timeRemaining !== null && (
         <div className="bg-primary/10 border-b border-primary/30 px-4 py-2 flex items-center justify-center gap-3">
@@ -511,10 +594,12 @@ export function ChemistryTutor({
             <LevelSelector
               currentLevel={nav.currentLevel}
               onLevelChange={nav.handleLevelChange}
+              isLevel2Locked={isLevel2Locked}
+              minLevel1ExamplesForLevel2={nav.minLevel1ExamplesForLevel2}
               isLevel3Locked={isLevel3Locked}
               masteryScore={masteryScore}
             />
-            {(showExitTicketAction || submittedForActiveTicket) && (
+            {(showExitTicketAction || (submittedForActiveTicket && sessionMatchesLesson)) && (
               <Button
                 variant={
                   submittedForActiveTicket
@@ -525,16 +610,12 @@ export function ChemistryTutor({
                 }
                 size="sm"
                 onClick={() => {
-                  if (!submittedForActiveTicket && !nav.currentProblem) {
-                    toast.info("Wait for the problem to load, then try again.");
-                    return;
-                  }
                   if (resolvedExitTicketId && !timed.timedExitTicketConfigId) {
                     timed.setTimedExitTicketConfigId(resolvedExitTicketId);
                   }
                   timed.setShowExitTicket(true);
                 }}
-                disabled={!submittedForActiveTicket && (nav.problemLoading || !nav.currentProblem)}
+                disabled={false}
                 className={cn(
                   "gap-1.5",
                   submittedForActiveTicket && "border-border bg-background text-foreground shadow-sm",
@@ -598,6 +679,14 @@ export function ChemistryTutor({
                     <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
+                {nav.currentLevel === 1 && (
+                  <p className="text-xs text-muted-foreground text-center px-2">
+                    Worked examples viewed: {nav.viewedLevel1Ids.length}/{nav.minLevel1ExamplesForLevel2}
+                    {nav.viewedLevel1Ids.length < nav.minLevel1ExamplesForLevel2
+                      ? ` — view ${nav.minLevel1ExamplesForLevel2 - nav.viewedLevel1Ids.length} more to unlock Level 2.`
+                      : " — Level 2 is unlocked."}
+                  </p>
+                )}
               </div>
             )}
 
@@ -636,6 +725,7 @@ export function ChemistryTutor({
                           typeof stepOrId === "string" ? stepOrId : stepOrId.id,
                         )
                       }
+                      getInteractiveReveal={getInteractiveReveal}
                     />
                   </div>
                 </div>

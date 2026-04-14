@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,12 +15,12 @@ import { useTeacherLivePresence } from "@/hooks/useTeacherLivePresence";
 import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import type { LiveStudentEntry } from "@/services/api/presence";
 import { getExitTicketResults } from "@/services/api/teacher";
-import { refetchIntervalWhileActive, teacherQueryNoRetry } from "@/lib/teacherQueryOptions";
+import { teacherQueryNoRetry } from "@/lib/teacherQueryOptions";
 
 interface TeacherTimedSessionMonitoringProps {
   classId: string;
   enabled: boolean;
-  /** When set, polls exit-ticket API for submission count for this ticket (stays in sync with students). */
+  /** When set, shows submission count for this ticket from the SSE-backed cache. */
   activeExitTicketId?: string | null;
 }
 
@@ -39,12 +39,14 @@ export function TeacherTimedSessionMonitoring({
   enabled,
   activeExitTicketId,
 }: TeacherTimedSessionMonitoringProps) {
+  // SSE keeps the exit-ticket cache up to date — no polling needed here.
   useTeacherExitTicketsSSE({
     classId,
     page: MONITOR_EXIT_TICKET_PAGE,
     limit: MONITOR_EXIT_TICKET_LIMIT,
     unitId: "",
     lessonId: "",
+    days: "all",
     enabled: Boolean(enabled && classId && activeExitTicketId),
   });
 
@@ -53,6 +55,7 @@ export function TeacherTimedSessionMonitoring({
     enabled: enabled && Boolean(classId),
   });
 
+  // Read from the SSE-populated cache; no refetchInterval — SSE pushes updates.
   const { data: ticketPage } = useQuery({
     queryKey: teacherQueryKeys.exitTickets.list(
       classId,
@@ -60,16 +63,16 @@ export function TeacherTimedSessionMonitoring({
       MONITOR_EXIT_TICKET_LIMIT,
       "",
       "",
+      "all",
     ),
     queryFn: () => getExitTicketResults(classId, MONITOR_EXIT_TICKET_PAGE, MONITOR_EXIT_TICKET_LIMIT),
     enabled: enabled && Boolean(classId && activeExitTicketId),
     ...teacherQueryNoRetry,
-    refetchInterval: refetchIntervalWhileActive(4_000, Boolean(enabled && classId && activeExitTicketId)),
   });
 
   const submissionCount =
     activeExitTicketId && ticketPage?.items
-      ? ticketPage.items.find((b) => b.ticket.id === activeExitTicketId)?.responses.length ?? 0
+      ? (ticketPage.items.find((b) => b.ticket.id === activeExitTicketId)?.responses.length ?? 0)
       : null;
 
   if (!enabled) return null;
@@ -84,12 +87,12 @@ export function TeacherTimedSessionMonitoring({
         <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span>
             Students on this class heartbeat from practice (same source as presence).{" "}
-            {isLoading ? "Loading…" : `${live.length} active`}
+            {isLoading ? "Loading..." : `${live.length} active`}
           </span>
           {activeExitTicketId && (
             <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
               <Send className="h-3.5 w-3.5 text-primary" />
-              {submissionCount === null ? "Loading submissions…" : `${submissionCount} submission(s) for current ticket`}
+              {submissionCount === null ? "Loading submissions..." : `${submissionCount} submission(s) for current ticket`}
             </span>
           )}
         </CardDescription>

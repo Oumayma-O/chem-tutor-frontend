@@ -47,6 +47,8 @@ interface Params {
     levelCacheRef: React.MutableRefObject<Partial<Record<1 | 2 | 3, unknown>>>;
     setCurrentLevel: (level: 1 | 2 | 3) => void;
     loadNewProblem: (diff: "easy" | "medium" | "hard", exclude: string[], level: number) => Promise<unknown>;
+    /** True when the student has viewed enough unique Level 1 examples (required before Level 2). */
+    canAccessLevel2: boolean;
   };
 }
 
@@ -173,6 +175,13 @@ export function useTutorProgression({
     }
 
     const nextExcludeIds = [...nav.completedProblemIds, nav.currentProblem.id];
+
+    if (nav.currentLevel === 1 && !nav.canAccessLevel2) {
+      toast.info("View at least 2 worked examples in Level 1 to unlock Level 2 Practice.");
+      setShowProgressionModal(false);
+      return;
+    }
+
     prepareNextProblemTransition(nextExcludeIds);
     const advancingToLevel3 = isLevel2To3Advance(progressionResult, nav.currentLevel);
     if (!advancingToLevel3) delete nav.levelCacheRef.current[nav.currentLevel as 1 | 2 | 3];

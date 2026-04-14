@@ -1,5 +1,7 @@
 import React from "react";
 import { InputField, SolutionStep } from "@/types/chemistry";
+import { capitalizeFirst } from "@/lib/capitalizeFirst";
+import { equationPartToInlineMathString } from "@/lib/equationDragDrop";
 import { StepBadge } from "./StepBadge";
 import { formatMathContent, MathText } from "@/lib/mathDisplay";
 import { combineMultiInputFieldLatex } from "@/lib/mathNormalize";
@@ -7,16 +9,6 @@ import { ExplanationToggle } from "./ExplanationToggle";
 
 interface GivenStepProps {
   step: SolutionStep;
-}
-
-function capitalizeFirst(text: string): string {
-  if (!text) return text;
-  const leadingWs = text.match(/^\s*/)?.[0] ?? "";
-  const rest = text.slice(leadingWs.length);
-  if (!rest) return text;
-  const first = rest[0];
-  if (/[a-z]/.test(first)) return `${leadingWs}${first.toUpperCase()}${rest.slice(1)}`;
-  return text;
 }
 
 function formatInputFields(fields: InputField[]): React.ReactNode {
@@ -79,17 +71,12 @@ export function GivenStep({ step }: GivenStepProps) {
     formatInputFields(step.input_fields!)
   ) : hasEquationParts ? (
     <p className="equation text-foreground font-medium leading-relaxed">
-      {step.equation_parts!.map((part, i) => {
-        const cleaned = part.replace(/\$/g, "");
-        // Wrap in $...$ only if the part contains LaTeX notation (commands, ^ or _)
-        const mathPart = /\\[a-zA-Z]|[_^]/.test(cleaned) ? `$${cleaned}$` : cleaned;
-        return (
-          <React.Fragment key={i}>
-            {i > 0 && " "}
-            <MathText>{mathPart}</MathText>
-          </React.Fragment>
-        );
-      })}
+      {step.equation_parts!.map((part, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && " "}
+          <MathText>{equationPartToInlineMathString(part)}</MathText>
+        </React.Fragment>
+      ))}
     </p>
   ) : answerText ? (
     <p className="equation text-foreground font-medium">

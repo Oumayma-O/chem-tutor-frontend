@@ -44,7 +44,7 @@ export function LiveSessionPanel({ classId, totalStudents, onStudentClick }: Liv
             No student activity yet. Students send a heartbeat while in a lesson (about every 30s).
           </p>
         ) : (
-          <div className="space-y-1.5 max-h-64 overflow-y-auto">
+          <div className="max-h-[200px] overflow-y-auto pr-2 space-y-1.5">
             {[...onlineStudents, ...offlineStudents].map((student) => {
               const isOnline = now - new Date(student.last_seen_at).getTime() < onlineThreshold;
               return (

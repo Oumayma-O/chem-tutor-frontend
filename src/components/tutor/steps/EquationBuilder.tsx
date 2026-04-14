@@ -7,6 +7,7 @@ import { StepHeader } from "./StepHeader";
 import { CorrectFeedback } from "./CorrectFeedback";
 import { StepErrorFeedback } from "./StepErrorFeedback";
 import { MathText } from "@/lib/mathDisplay";
+import { RevealHelpSection } from "./RevealHelpSection";
 import { STEP_ANSWER_TEXT } from "./stepAnswerStyles";
 import { parseDraft, saveDraft } from "./draftPersistence";
 
@@ -32,6 +33,8 @@ interface EquationBuilderProps {
   onRequestHint: () => void;
   draft?: string;
   onDraftChange?: (draft: string) => void;
+  revealAnswerText?: string | null;
+  revealLimitReached?: boolean;
 }
 
 export function EquationBuilder({
@@ -50,6 +53,8 @@ export function EquationBuilder({
   onRequestHint,
   draft,
   onDraftChange,
+  revealAnswerText,
+  revealLimitReached,
 }: EquationBuilderProps) {
   const { slots: initSlots, isIncorrect: initIncorrect } = parseDraft<DraftPayload>(draft,
     (raw) => Array.isArray(raw) ? { slots: raw as string[] } : null,
@@ -116,6 +121,7 @@ export function EquationBuilder({
 
   const handleCheck = useCallback(async () => {
     if (slots.length === 0 || isValidating || isComplete) return;
+    onCheckStart?.();
     setIsValidating(true);
     try {
       const correct = await onValidate(slots);
@@ -216,6 +222,12 @@ export function EquationBuilder({
             onHintPanelOpenChange={setHintPanelOpen}
           />
         )}
+
+        <RevealHelpSection
+          completed={isComplete}
+          revealLimitReached={revealLimitReached}
+          revealAnswerText={revealAnswerText}
+        />
       </div>
     </StepCard>
   );

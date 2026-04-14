@@ -27,6 +27,8 @@ interface Params {
   setMasteryScore: React.Dispatch<React.SetStateAction<number>>;
   /** Fired when mastery snapshot includes optional backend `level_2_completions`. */
   onMasteryLevel2Completions?: (count: number) => void;
+  /** When true, next save-step skips mastery inflation (answer was revealed). */
+  consumeWasRevealedForSave?: () => boolean;
 }
 
 export function useTutorMasterySync({
@@ -44,6 +46,7 @@ export function useTutorMasterySync({
   setBackendCategoryScores,
   setMasteryScore,
   onMasteryLevel2Completions,
+  consumeWasRevealedForSave,
 }: Params) {
   const lastSavedStepLogKeyRef = useRef<string>("");
 
@@ -92,7 +95,13 @@ export function useTutorMasterySync({
       });
     }
 
-    apiSaveStep({ attempt_id: currentAttemptId, step_log: attempted })
+    /** One-shot flag from answer-reveal hook; consumed here so each save sends at most one `was_revealed`. */
+    const wasRevealed = consumeWasRevealedForSave?.() ?? false;
+    apiSaveStep({
+      attempt_id: currentAttemptId,
+      step_log: attempted,
+      was_revealed: wasRevealed,
+    })
       .then((res) => applyMasterySnapshot(res.mastery ?? {}))
       .catch(() => {});
   }, [
@@ -104,6 +113,7 @@ export function useTutorMasterySync({
     answers,
     structuredStepComplete,
     applyMasterySnapshot,
+    consumeWasRevealedForSave,
   ]);
 
   const persistLevel3Unlock = useCallback(async () => {

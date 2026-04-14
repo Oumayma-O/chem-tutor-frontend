@@ -21,6 +21,20 @@ export function canonicalDragDropFromParts(parts: string[] | null | undefined): 
   return buildMathExpression(parts);
 }
 
+/**
+ * Strip outer `$` and wrap in `$...$` when the token looks like LaTeX (commands, sub/sup).
+ * Shared by GivenStep rendering and answer-reveal copy.
+ */
+export function equationPartToInlineMathString(part: string): string {
+  const cleaned = part.replace(/\$/g, "");
+  return /\\[a-zA-Z]|[_^]/.test(cleaned) ? `$${cleaned}$` : cleaned;
+}
+
+/** Space-joined tokens for one MathText/string line (same order as GivenStep). */
+export function joinEquationPartsForDisplayString(parts: string[]): string {
+  return parts.map(equationPartToInlineMathString).join(" ");
+}
+
 function fisherYatesShuffle<T>(items: T[], random: () => number): T[] {
   const arr = [...items];
   for (let i = arr.length - 1; i > 0; i--) {

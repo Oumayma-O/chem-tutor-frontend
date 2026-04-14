@@ -1,4 +1,4 @@
-import { post, get, request } from "./core";
+import { post, get, request, put } from "./core";
 
 export interface AuthTokenResponse {
   access_token: string;
@@ -21,6 +21,8 @@ export interface MeResponse {
   classroom_id: string | null;
   classroom_name: string | null;
   classroom_code: string | null;
+  district: string | null;
+  school: string | null;
 }
 
 export async function apiRegister(body: {
@@ -54,4 +56,12 @@ export async function apiUpdateProfile(body: {
   interests?: string[];
 }): Promise<MeResponse> {
   return request<MeResponse>("PATCH", "/auth/profile", body);
+}
+
+export async function apiUpdateAccount(body: {
+  email?: string;
+  current_password?: string;
+  new_password?: string;
+}): Promise<MeResponse> {
+  return put<MeResponse>("/auth/me", body);
 }

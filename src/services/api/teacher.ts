@@ -25,6 +25,13 @@ export interface TeacherClass {
   student_count: number;
   is_active: boolean;
   calculator_enabled: boolean;
+  /** When true, students may reveal answers after 3 wrong attempts (session-capped); mastery skips revealed steps. */
+  allow_answer_reveal?: boolean;
+  /**
+   * Max answer reveals per lesson for this class. Omitted by older APIs — treat as 3.
+   * `null` means unlimited (no per-lesson cap).
+   */
+  max_answer_reveals_per_lesson?: number | null;
   created_at: string;
   stats: ClassSummaryStats;
   /** Snapshot of `classrooms.live_session` for the Exit Tickets tab. */
@@ -50,6 +57,8 @@ export interface RosterStudent {
   joined_at: string;
   mastery: MasterySnapshot;
   at_risk: boolean;
+  /** ISO timestamp: latest of practice attempts and session heartbeats. */
+  last_activity_at?: string | null;
 }
 
 export interface ExitTicketQuestion {
@@ -102,15 +111,37 @@ export interface MisconceptionAnalytics {
   questions: QuestionMisconceptionSummary[];
 }
 
+/** One row in `ExitTicketResponseItem.answers` — mirrors student submit payload + server fields. */
+export interface ExitTicketAnswerRow {
+  question_id?: string;
+  id?: string;
+  answer?: string;
+  value?: string;
+  /**
+   * When present, this is the per-question result persisted from the student flow
+   * (`gradeClassQuestions` + submit). Teacher UI should prefer this over re-grading.
+   */
+  is_correct?: boolean | null;
+}
+
 export interface ExitTicketResponseItem {
   id: string;
   student_id: string;
   student_name: string | null;
   student_email: string | null;
-  answers: Record<string, unknown>[];
-  /** Score as 0-100 percentage (e.g. 75.0 means 75%). */
+  answers: ExitTicketAnswerRow[];
+  /** Score as 0-100 percentage (e.g. 75.0 means 75%). Prefer server value from student submit. */
   score: number | null;
   submitted_at: string;
+}
+
+/** Body for POST `/student/exit-tickets/{id}/submit` — backend should persist `results` + `score_percent`. */
+export interface SubmitExitTicketBody {
+  answers: Record<string, string>;
+  /** Per-question correctness from the same grading as the student UI (`gradeClassQuestions`). */
+  results?: Record<string, boolean>;
+  /** Overall score 0–100 from that grading. */
+  score_percent?: number;
 }
 
 export interface ExitTicketAnalytics {
@@ -141,6 +172,10 @@ export interface StudentAttemptOut {
   score: number | null;
   is_complete: boolean;
   started_at: string;
+  completed_at: string | null;
+  time_spent_s: number | null;
+  hints_used: number;
+  reveals_used: number;
 }
 
 export interface StudentAnalyticsOut {
@@ -149,6 +184,7 @@ export interface StudentAnalyticsOut {
   category_scores: { conceptual: number; procedural: number; computational: number };
   recent_attempts: StudentAttemptOut[];
   lessons_with_data: number;
+  total_attempts?: number;
 }
 
 export async function getStudentAnalytics(
@@ -164,11 +200,20 @@ export async function deleteClassroom(classroomId: string): Promise<void> {
   await del(`/classrooms/${classroomId}`);
 }
 
-export async function patchTeacherClass(
-  classroomId: string,
-  body: { calculator_enabled?: boolean },
-): Promise<void> {
+/** PATCH body for `PATCH /teacher/classes/{id}` — class settings toggles. */
+export interface ClassSettingsPatch {
+  calculator_enabled?: boolean;
+  allow_answer_reveal?: boolean;
+  /** Omit = no change. Set to `null` for unlimited reveals per lesson. */
+  max_answer_reveals_per_lesson?: number | null;
+}
+
+export async function updateClassSettings(classroomId: string, body: ClassSettingsPatch): Promise<void> {
   await patch(`/teacher/classes/${classroomId}`, body);
+}
+
+export async function patchTeacherClass(classroomId: string, body: ClassSettingsPatch): Promise<void> {
+  return updateClassSettings(classroomId, body);
 }
 
 export async function createClass(body: { name: string; unit_id?: string | null }): Promise<{
@@ -222,11 +267,12 @@ export async function getExitTicketResults(
   classId: string,
   page = 1,
   limit = 10,
-  filters?: { unit_id?: string; lesson_id?: string },
+  filters?: { unit_id?: string; lesson_id?: string; days?: number },
 ): Promise<ExitTicketsForClass> {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (filters?.unit_id) params.set("unit_id", filters.unit_id);
   if (filters?.lesson_id) params.set("lesson_id", filters.lesson_id);
+  if (filters?.days != null && filters.days > 0) params.set("days", String(filters.days));
   return get<ExitTicketsForClass>(`/teacher/exit-tickets/${classId}?${params.toString()}`);
 }
 
@@ -256,10 +302,7 @@ export async function getExitTicketForStudent(ticketId: string): Promise<ExitTic
   return get<ExitTicketConfig>(`/student/exit-tickets/${ticketId}`);
 }
 
-export async function submitExitTicketAttempt(
-  ticketId: string,
-  body: { answers: Record<string, string> },
-): Promise<void> {
+export async function submitExitTicketAttempt(ticketId: string, body: SubmitExitTicketBody): Promise<void> {
   await post(`/student/exit-tickets/${ticketId}/submit`, body);
 }
 

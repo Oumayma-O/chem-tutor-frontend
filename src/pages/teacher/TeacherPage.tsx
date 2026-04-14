@@ -1,16 +1,15 @@
 import { useState } from "react";
 import { TeacherDashboardPage } from "@/components/teacher/TeacherDashboardPage";
-import { useCognitiveTracking } from "@/hooks/useCognitiveTracking";
 import { DashboardShell } from "@/components/layout/DashboardShell";
+import { useActivityHeartbeat } from "@/hooks/useActivityHeartbeat";
 
 export default function TeacherPage() {
-  const { getCognitiveProfile } = useCognitiveTracking();
-  const profile = getCognitiveProfile();
   const [managedClassCount, setManagedClassCount] = useState(0);
+  useActivityHeartbeat();
 
   return (
     <DashboardShell managedClassCount={managedClassCount}>
-      <TeacherDashboardPage profile={profile} onManagedClassCountChange={setManagedClassCount} />
+      <TeacherDashboardPage onManagedClassCountChange={setManagedClassCount} />
     </DashboardShell>
   );
 }

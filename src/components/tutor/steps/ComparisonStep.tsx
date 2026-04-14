@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { formatMathContent } from "@/lib/mathDisplay";
+import { RevealHelpSection } from "./RevealHelpSection";
 import {
   Select,
   SelectContent,
@@ -59,6 +60,8 @@ export function ComparisonStep({
   onRequestHint,
   draft,
   onDraftChange,
+  revealAnswerText,
+  revealLimitReached,
 }: ComparisonStepProps) {
   const { selected: initSelected, hasAttempted: initAttempted, isIncorrect: initIncorrect } =
     parseDraft<DraftPayload>(draft, (raw) =>
@@ -175,6 +178,12 @@ export function ComparisonStep({
             onHintPanelOpenChange={setHintPanelOpen}
           />
         )}
+
+        <RevealHelpSection
+          completed={isComplete}
+          revealLimitReached={revealLimitReached}
+          revealAnswerText={revealAnswerText}
+        />
       </div>
     </StepCard>
   );

@@ -70,6 +70,8 @@ export async function apiCompleteAttempt(body: {
 export async function apiSaveStep(body: {
   attempt_id: string;
   step_log: unknown[];
+  /** When true, backend must persist the step log but skip mastery updates for this save (answer was revealed). */
+  was_revealed?: boolean;
 }): Promise<SaveStepResponse> {
   return post<SaveStepResponse>("/mastery/attempts/save-step", body);
 }

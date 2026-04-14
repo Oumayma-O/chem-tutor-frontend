@@ -34,6 +34,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { BeakerMascot } from "@/components/tutor/widgets";
+import { StudentSkillTree } from "@/components/tutor/progress/StudentSkillTree";
 import {
   PROFILE_INTEREST_OPTIONS,
   STUDENT_PROFILE_COURSE_OPTIONS,
@@ -379,6 +380,19 @@ export default function StudentProfilePage() {
                 )}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Standards skill tree */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 uppercase tracking-wide">
+              <BookCheck className="w-4 h-4 text-primary" />
+              My Standards
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <StudentSkillTree studentId={user.id} />
           </CardContent>
         </Card>
 

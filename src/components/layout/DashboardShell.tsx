@@ -1,6 +1,6 @@
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 import { UserAccountMenu } from "@/components/layout/UserAccountMenu";
+import { BeakerMascot } from "@/components/tutor/widgets";
 import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardShellProps {
@@ -9,45 +9,32 @@ interface DashboardShellProps {
   managedClassCount?: number;
 }
 
+function shellSubtitle(role: string | null | undefined): string {
+  if (role === "superadmin") return "Super Admin";
+  if (role === "admin") return "Admin Dashboard";
+  return "Teacher Dashboard";
+}
+
 /**
  * Authenticated teacher/admin shell: primary links on the left, account menu on the right.
- * Admin is not linked here — use /admin directly or future role-gated UI.
  */
 export function DashboardShell({ children, managedClassCount = 0 }: DashboardShellProps) {
-  const { pathname } = useLocation();
-  const { isAdmin } = useAuth();
-
-  const navLink = (to: string, label: string) => {
-    const active = pathname === to || pathname.startsWith(`${to}/`);
-    return (
-      <Link
-        to={to}
-        className={cn(
-          "text-sm font-medium transition-colors hover:text-foreground",
-          active ? "text-foreground" : "text-muted-foreground",
-        )}
-      >
-        {label}
-      </Link>
-    );
-  };
+  const { role } = useAuth();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      <header className="border-b border-border bg-card/90 backdrop-blur-sm sticky top-0 z-30">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-8 min-w-0">
+      <header className="border-b border-border bg-card sticky top-0 z-30">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
             <Link
               to="/"
-              className="text-sm font-bold text-foreground tracking-tight shrink-0 hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity shrink-0"
             >
-              Catalyst
+              <BeakerMascot pose="idle" size={28} />
+              <span className="text-sm font-bold text-foreground hidden sm:inline">Catalyst</span>
             </Link>
-            <nav className="flex items-center gap-6" aria-label="Main">
-              {navLink("/teacher/dashboard", "Dashboard")}
-              {isAdmin && navLink("/admin", "Admin")}
-              {navLink("/", "Home")}
-            </nav>
+            <span className="text-muted-foreground select-none">|</span>
+            <span className="text-sm font-medium text-muted-foreground">{shellSubtitle(role)}</span>
           </div>
           <UserAccountMenu variant="teacher" managedClassCount={managedClassCount} />
         </div>

@@ -20,7 +20,9 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Editor
-.vscode/*
+.cursor
+.kiro
+.vscode
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea/
@@ -39,3 +41,6 @@ coverage/
 # Misc
 *.tsbuildinfo
 .cache/
+
+#Planning
+backend-reference-step2

@@ -21,8 +21,7 @@ import {
   BookOpen,
   GraduationCap,
   UserCircle,
-  LayoutDashboard,
-  Shield,
+  Settings,
 } from "lucide-react";
 
 function initialsFromName(name: string): string {
@@ -41,13 +40,17 @@ export interface UserAccountMenuProps {
 
 export function UserAccountMenu({ variant, managedClassCount = 0 }: UserAccountMenuProps) {
   const navigate = useNavigate();
-  const { profile, user, role, signOut, isAdmin, isTeacher, refreshProfile } = useAuth();
+  const { profile, user, role, signOut, refreshProfile } = useAuth();
   const [showJoinClass, setShowJoinClass] = useState(false);
   const [open, setOpen] = useState(false);
   const [stats, setStats] = useState({ completed: 0, started: 0 });
 
   const initials = profile?.display_name ? initialsFromName(profile.display_name) : "?";
-  const roleLabel = role === "admin" ? "Admin" : role === "teacher" ? "Teacher" : "Student";
+  const roleLabel =
+    role === "superadmin" ? "Super Admin" :
+    role === "admin" ? "School Admin" :
+    role === "teacher" ? "Teacher" : "Student";
+  const isStaffAdmin = role === "admin" || role === "superadmin";
 
   useEffect(() => {
     if (!user || variant !== "student") return;
@@ -105,31 +108,42 @@ export function UserAccountMenu({ variant, managedClassCount = 0 }: UserAccountM
                 </div>
               </div>
 
-              <div className="px-4 py-2.5 flex items-center gap-4 border-b border-border">
-                {variant === "student" ? (
-                  <>
-                    <div className="flex items-center gap-1.5">
-                      <Trophy className="w-3.5 h-3.5 text-amber-500" />
-                      <span className="text-xs font-medium text-foreground">{stats.completed}</span>
-                      <span className="text-[10px] text-muted-foreground">completed</span>
-                    </div>
-                    <div className="h-3.5 w-px bg-border" />
-                    <div className="flex items-center gap-1.5">
-                      <BookOpen className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-xs font-medium text-foreground">{stats.started}</span>
-                      <span className="text-[10px] text-muted-foreground">in progress</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-1.5 w-full">
-                    <GraduationCap className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span className="text-xs font-medium text-foreground">Classes managed</span>
-                    <span className="text-xs text-muted-foreground ml-auto tabular-nums">
-                      {managedClassCount}
-                    </span>
-                  </div>
-                )}
-              </div>
+              {!isStaffAdmin && (
+                <div className="px-4 py-2.5 flex items-center gap-4 border-b border-border">
+                  {variant === "student" ? (
+                    <>
+                      <div className="flex items-center gap-1.5">
+                        <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-xs font-medium text-foreground">{stats.completed}</span>
+                        <span className="text-[10px] text-muted-foreground">completed</span>
+                      </div>
+                      <div className="h-3.5 w-px bg-border" />
+                      <div className="flex items-center gap-1.5">
+                        <BookOpen className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-xs font-medium text-foreground">{stats.started}</span>
+                        <span className="text-[10px] text-muted-foreground">in progress</span>
+                      </div>
+                    </>
+                  ) : variant === "teacher" ? (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 w-full text-left rounded-md px-1 -mx-1 py-0.5 hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => {
+                        navigate({ pathname: "/", search: "" });
+                        setOpen(false);
+                      }}
+                      title="Open Class overview"
+                      aria-label="Open Class tab on Teacher Dashboard"
+                    >
+                      <GraduationCap className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span className="text-xs font-medium text-foreground">Classes managed</span>
+                      <span className="text-xs text-muted-foreground ml-auto tabular-nums">
+                        {managedClassCount}
+                      </span>
+                    </button>
+                  ) : null}
+                </div>
+              )}
 
               {variant === "student" && profile.classroom_name && (
                 <div className="px-4 py-2.5 border-b border-border bg-muted/20">
@@ -140,55 +154,42 @@ export function UserAccountMenu({ variant, managedClassCount = 0 }: UserAccountM
           )}
 
           <div className="py-1">
+            {variant === "student" && (
+              <>
+                <DropdownMenuItem
+                  onClick={() => {
+                    navigate("/profile");
+                    setOpen(false);
+                  }}
+                  className="gap-2.5 cursor-pointer px-4 py-2"
+                >
+                  <UserCircle className="w-4 h-4 text-muted-foreground" />
+                  My Profile
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    void refreshProfile();
+                    setShowJoinClass(true);
+                    setOpen(false);
+                  }}
+                  className="gap-2.5 cursor-pointer px-4 py-2"
+                >
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  {profile?.classroom_name ? "Change classroom" : "Join classroom"}
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuItem
               onClick={() => {
-                navigate("/profile");
+                navigate("/settings");
                 setOpen(false);
               }}
               className="gap-2.5 cursor-pointer px-4 py-2"
             >
-              <UserCircle className="w-4 h-4 text-muted-foreground" />
-              My Profile
+              <Settings className="w-4 h-4 text-muted-foreground" />
+              Account Settings
             </DropdownMenuItem>
-            {isTeacher && (
-              <DropdownMenuItem
-                onClick={() => {
-                  navigate("/teacher/dashboard");
-                  setOpen(false);
-                }}
-                className="gap-2.5 cursor-pointer px-4 py-2"
-              >
-                <LayoutDashboard className="w-4 h-4 text-muted-foreground" />
-                Teacher Dashboard
-              </DropdownMenuItem>
-            )}
-            {isAdmin && (
-              <DropdownMenuItem
-                onClick={() => {
-                  navigate("/admin");
-                  setOpen(false);
-                }}
-                className="gap-2.5 cursor-pointer px-4 py-2"
-              >
-                <Shield className="w-4 h-4 text-muted-foreground" />
-                Admin Panel
-              </DropdownMenuItem>
-            )}
-            {variant === "student" && (
-              <DropdownMenuItem
-                onClick={() => {
-                  void refreshProfile();
-                  setShowJoinClass(true);
-                  setOpen(false);
-                }}
-                className="gap-2.5 cursor-pointer px-4 py-2"
-              >
-                <Users className="w-4 h-4 text-muted-foreground" />
-                {profile?.classroom_name ? "Change classroom" : "Join classroom"}
-              </DropdownMenuItem>
-            )}
           </div>
-
           <DropdownMenuSeparator className="my-0" />
 
           <div className="p-1">

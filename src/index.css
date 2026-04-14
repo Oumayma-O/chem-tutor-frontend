@@ -368,3 +368,18 @@ math-field.ml-field-readonly {
 .tiptap-answer-editor sub {
   bottom: -0.25em;
 }
+
+/* ── Subtle scrollbar for history panels ── */
+.history-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.history-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.history-scroll::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--border));
+  border-radius: 9999px;
+}
+.history-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: hsl(var(--muted-foreground) / 0.4);
+}

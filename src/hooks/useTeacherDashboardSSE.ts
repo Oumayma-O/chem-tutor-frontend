@@ -13,6 +13,7 @@ function exitTicketsStreamUrl(
   limit: number,
   unitId: string,
   lessonId: string,
+  days: string,
   token: string,
 ): string {
   const params = new URLSearchParams({
@@ -22,6 +23,7 @@ function exitTicketsStreamUrl(
   });
   if (unitId) params.set("unit_id", unitId);
   if (lessonId) params.set("lesson_id", lessonId);
+  if (days && days !== "all") params.set("days", days);
   return `${API_URL}/teacher/exit-tickets/${classId}/stream?${params.toString()}`;
 }
 
@@ -64,11 +66,13 @@ export function useTeacherExitTicketsSSE(options: {
   limit: number;
   unitId: string;
   lessonId: string;
+  /** `"all"` or day window e.g. `"30"` — must match {@link teacherQueryKeys.exitTickets.list}. */
+  days: string;
   enabled: boolean;
 }) {
-  const { classId, page, limit, unitId, lessonId, enabled } = options;
+  const { classId, page, limit, unitId, lessonId, days, enabled } = options;
   const queryClient = useQueryClient();
-  const reconnectKey = `${classId ?? ""}-${page}-${limit}-${unitId}-${lessonId}`;
+  const reconnectKey = `${classId ?? ""}-${page}-${limit}-${unitId}-${lessonId}-${days}`;
 
   useEventSourceConnection({
     enabled: Boolean(enabled && classId && API_URL),
@@ -76,14 +80,14 @@ export function useTeacherExitTicketsSSE(options: {
     getUrl: () => {
       const token = getStoredToken();
       if (!token || !classId) return null;
-      return exitTicketsStreamUrl(classId, page, limit, unitId, lessonId, token);
+      return exitTicketsStreamUrl(classId, page, limit, unitId, lessonId, days, token);
     },
     onMessage: (data) => {
       try {
         const parsed = JSON.parse(data) as ExitTicketsForClass;
         if (parsed && typeof parsed === "object" && classId) {
           queryClient.setQueryData(
-            teacherQueryKeys.exitTickets.list(classId, page, limit, unitId, lessonId),
+            teacherQueryKeys.exitTickets.list(classId, page, limit, unitId, lessonId, days),
             parsed,
           );
         }

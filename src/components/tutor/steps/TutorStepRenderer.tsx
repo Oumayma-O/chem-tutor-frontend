@@ -28,6 +28,11 @@ interface TutorStepRendererProps {
   handleRequestHint: (stepId: string) => void;
   handleAnswerChange: (stepId: string, value: string) => void;
   handleCheckAnswer: (stepOrId: string | SolutionStep) => Promise<void>;
+  /** Optional reveal line after 3 wrong checks (3-strikes + session cap); all non-given step UIs. */
+  getInteractiveReveal?: (step: SolutionStep) => {
+    revealAnswerText: string | null;
+    revealLimitReached: boolean;
+  };
 }
 
 export function TutorStepRenderer({
@@ -45,6 +50,7 @@ export function TutorStepRenderer({
   handleRequestHint,
   handleAnswerChange,
   handleCheckAnswer,
+  getInteractiveReveal,
 }: TutorStepRendererProps) {
   return (
     <>
@@ -60,6 +66,7 @@ export function TutorStepRenderer({
         }
 
         const hint = buildStepHintBundle(step.id, hints, hintLoading, handleRequestHint);
+        const reveal = getInteractiveReveal?.(step);
 
         if (step.type === "drag_drop" && step.equation_parts) {
           const display = step.equation_parts_display;
@@ -86,6 +93,8 @@ export function TutorStepRenderer({
               {...hint}
               draft={answers[step.id]?.answer}
               onDraftChange={(d) => handleAnswerChange(step.id, d)}
+              revealAnswerText={reveal?.revealAnswerText ?? null}
+              revealLimitReached={reveal?.revealLimitReached ?? false}
             />
           );
         }
@@ -108,6 +117,8 @@ export function TutorStepRenderer({
               {...hint}
               draft={answers[step.id]?.answer}
               onDraftChange={(d) => handleAnswerChange(step.id, d)}
+              revealAnswerText={reveal?.revealAnswerText ?? null}
+              revealLimitReached={reveal?.revealLimitReached ?? false}
             />
           );
         }
@@ -133,6 +144,8 @@ export function TutorStepRenderer({
               {...hint}
               draft={answers[step.id]?.answer}
               onDraftChange={(d) => handleAnswerChange(step.id, d)}
+              revealAnswerText={reveal?.revealAnswerText ?? null}
+              revealLimitReached={reveal?.revealLimitReached ?? false}
             />
           );
         }
@@ -152,6 +165,8 @@ export function TutorStepRenderer({
             checkingAnswer={checkingAnswer.has(step.id)}
             isLocked={isLocked}
             onRequestHint={handleRequestHint}
+            revealAnswerText={reveal?.revealAnswerText ?? null}
+            revealLimitReached={reveal?.revealLimitReached ?? false}
           />
         );
       })}

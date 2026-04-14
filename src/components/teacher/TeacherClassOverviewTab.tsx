@@ -1,23 +1,20 @@
+import { useMemo } from "react";
 import { PredictiveInsights } from "@/components/tutor/progress";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
+import { skillMapFromCategoryBreakdown } from "@/lib/predictiveFromMastery";
 import { LiveSessionPanel } from "@/components/teacher/LiveSessionPanel";
-import { SessionHistory } from "@/components/teacher/SessionHistory";
 import { cn } from "@/lib/utils";
 import { CourseLevel } from "@/data/units";
 import {
   AlertTriangle,
   Award,
-  BookOpen,
   CheckCircle,
   Clock,
-  Settings,
   Target,
   Users,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TabsContent } from "@/components/ui/tabs";
-import type { TeacherDashboardProfile } from "@/types/teacherDashboard";
 import type { ClassSummaryStats } from "@/services/api/teacher";
 import type { ClassStudentRow, TeacherClassRow } from "@/hooks/useTeacherDashboardData";
 
@@ -33,8 +30,6 @@ interface TeacherClassOverviewTabProps {
   developingStudents: ClassStudentRow[];
   atRiskStudents: ClassStudentRow[];
   onStudentClick: (studentId: string) => void;
-  profile: TeacherDashboardProfile;
-  onOpenManageClasses: () => void;
 }
 
 export function TeacherClassOverviewTab({
@@ -49,27 +44,29 @@ export function TeacherClassOverviewTab({
   developingStudents,
   atRiskStudents,
   onStudentClick,
-  profile,
-  onOpenManageClasses,
 }: TeacherClassOverviewTabProps) {
+  const classInsightSkillMap = useMemo(() => {
+    const cb = classStats?.category_breakdown;
+    const n = classStats?.total_students ?? enrolledStudents.length;
+    if (!cb && enrolledStudents.length === 0) return [];
+    if (cb) return skillMapFromCategoryBreakdown(cb, n);
+    return skillMapFromCategoryBreakdown(
+      {
+        conceptual: 0,
+        procedural: 0,
+        computational: 0,
+      },
+      n,
+    );
+  }, [classStats, enrolledStudents.length]);
+
   return (
     <TabsContent value="class" className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Class overview</h2>
-          <p className="text-sm text-muted-foreground">
-            Create and manage your classes, then pick analytics by class in the header.
-          </p>
-        </div>
-        <Button
-          type="button"
-          variant="secondary"
-          className="shrink-0 gap-2"
-          onClick={onOpenManageClasses}
-        >
-          <Settings className="w-4 h-4" />
-          Manage classes
-        </Button>
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">Class overview</h2>
+        <p className="text-sm text-muted-foreground">
+          Create and manage your classes, then pick analytics by class in the header.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -94,53 +91,53 @@ export function TeacherClassOverviewTab({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Target className="w-4 h-4" />
-              Class Avg Mastery
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {(classStats || enrolledStudents.length > 0) ? `${classMastery}%` : "–"}
+        <Card className="overflow-hidden hover:shadow-md transition-shadow duration-200">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-blue-100 flex items-center justify-center shrink-0 shadow-sm">
+              <Target className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Class Avg Mastery</p>
+              <p className="text-2xl font-bold tabular-nums text-slate-900">
+                {(classStats || enrolledStudents.length > 0) ? `${classMastery}%` : "–"}
+              </p>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Total Students
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              {classStats?.total_students ?? enrolledStudents.length}
+        <Card className="overflow-hidden hover:shadow-md transition-shadow duration-200">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-violet-100 flex items-center justify-center shrink-0 shadow-sm">
+              <Users className="w-5 h-5 text-violet-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Total Students</p>
+              <p className="text-2xl font-bold tabular-nums text-slate-900">
+                {classStats?.total_students ?? enrolledStudents.length}
+              </p>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-success" />
-              Mastered (≥75%)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-success">{masteredStudents.length}</div>
+        <Card className="overflow-hidden hover:shadow-md transition-shadow duration-200">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 shadow-sm">
+              <CheckCircle className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Mastered (≥75%)</p>
+              <p className="text-2xl font-bold tabular-nums text-emerald-600">{masteredStudents.length}</p>
+            </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-destructive" />
-              At Risk (&lt;50%)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-destructive">
-              {classStats?.at_risk_count ?? atRiskStudents.length}
+        <Card className="overflow-hidden hover:shadow-md transition-shadow duration-200">
+          <CardContent className="p-5 flex items-center gap-4">
+            <div className="w-11 h-11 rounded-xl bg-red-100 flex items-center justify-center shrink-0 shadow-sm">
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">At Risk (&lt;50%)</p>
+              <p className="text-2xl font-bold tabular-nums text-red-600">
+                {classStats?.at_risk_count ?? atRiskStudents.length}
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -193,10 +190,6 @@ export function TeacherClassOverviewTab({
           </CardContent>
         </Card>
       </div>
-
-      {selectedClassId !== "all" && (
-        <SessionHistory classId={selectedClassId} />
-      )}
 
       {enrolledStudents.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -259,10 +252,10 @@ export function TeacherClassOverviewTab({
 
       <PredictiveInsights
         masteryScore={classMastery}
-        skillMap={profile.skillMap}
-        recentAttempts={profile.recentAttempts}
-        errorPatterns={profile.errorPatterns}
-        studentName="Class Average"
+        skillMap={classInsightSkillMap}
+        recentAttempts={[]}
+        errorPatterns={[]}
+        studentName="Class average"
       />
     </TabsContent>
   );

@@ -41,6 +41,16 @@ export interface ProblemDeliveryResponse {
   has_prev: boolean;
   has_next: boolean;
   at_limit: boolean;
+  /** When present, mirrors the joined class’s `allow_answer_reveal` setting (backend may omit if no class). */
+  allow_answer_reveal?: boolean;
+  /**
+   * Max answer reveals per lesson (after 3 wrong checks per step). Server-owned policy.
+   * Backend should return this on `/problems/generate`, `/problems/navigate`, and optionally live-session.
+   */
+  /** Omitted when unknown; `null` = unlimited per lesson. */
+  max_answer_reveals_per_lesson?: number | null;
+  /** Unique Level 1 examples required before Level 2 (class policy). */
+  min_level1_examples_for_level2?: number;
 }
 
 export interface ValidationOutput {
@@ -73,6 +83,8 @@ export async function apiGenerateProblemV2(body: {
   interests?: string[];
   grade_level?: string | null;
   user_id?: string;
+  /** When set, backend includes `allow_answer_reveal` for this classroom on the response. */
+  class_id?: string;
   focus_areas?: string[];
   problem_style?: string;
   lesson_context?: LessonContext;
@@ -157,6 +169,7 @@ export async function apiNavigateProblem(body: {
   level: number;
   difficulty: string;
   direction: "prev" | "next";
+  class_id?: string;
 }): Promise<ProblemDeliveryResponse> {
   return post<ProblemDeliveryResponse>("/problems/navigate", body);
 }

@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback, createElement, type ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   apiLogin,
   apiMe,
   apiRegister,
   apiUpdateProfile,
-  clearStoredToken,
+  clearAllUserAndCache,
   getStoredToken,
   setStoredToken,
   type MeResponse,
@@ -41,7 +42,7 @@ export function getStoredProfile(): CachedProfile | null {
   } catch { return null; }
 }
 
-export type AppRole = "student" | "teacher" | "admin";
+export type AppRole = "student" | "teacher" | "admin" | "superadmin";
 
 interface ProfileState {
   display_name: string;
@@ -53,6 +54,8 @@ interface ProfileState {
   classroom_name: string | null;
   classroom_code: string | null;
   classroom_id: string | null;
+  district: string | null;
+  school: string | null;
 }
 
 interface AuthState {
@@ -71,10 +74,6 @@ interface AuthContextValue extends AuthState {
     password: string,
     role: AppRole,
     displayName: string,
-    gradeLevel?: string,
-    grade?: string,
-    course?: string,
-    className?: string,
     interests?: string[],
   ) => Promise<SignInResult>;
   signOut: () => void;
@@ -83,6 +82,7 @@ interface AuthContextValue extends AuthState {
   isStudent: boolean;
   isTeacher: boolean;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   isAuthenticated: boolean;
 }
 
@@ -97,12 +97,15 @@ function meToProfile(me: MeResponse): ProfileState {
     classroom_name: me.classroom_name ?? null,
     classroom_code: me.classroom_code ?? null,
     classroom_id: me.classroom_id ?? null,
+    district: me.district ?? null,
+    school: me.school ?? null,
   };
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [state, setState] = useState<AuthState>({
     user: null,
     role: null,
@@ -114,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveProfileCache(me);
     setState({
       user: { id: me.user_id, email: me.email },
-      role: (me.role === "admin" ? "admin" : me.role === "teacher" ? "teacher" : "student") as AppRole,
+      role: (me.role === "superadmin" ? "superadmin" : me.role === "admin" ? "admin" : me.role === "teacher" ? "teacher" : "student") as AppRole,
       profile: meToProfile(me),
       loading: false,
     });
@@ -129,10 +132,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     apiMe()
       .then(applyMe)
       .catch(() => {
-        clearStoredToken();
+        clearAllUserAndCache();
+        clearProfileCache();
+        try { localStorage.removeItem("teacher_selected_class_id"); } catch { /* ignore */ }
+        queryClient.clear();
         setState({ user: null, role: null, profile: null, loading: false });
       });
-  }, [applyMe]);
+  }, [applyMe, queryClient]);
 
   const signIn = useCallback(async (email: string, password: string): Promise<SignInResult> => {
     try {
@@ -156,10 +162,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string,
     role: AppRole,
     displayName: string,
-    gradeLevel?: string,
-    grade?: string,
-    course?: string,
-    className?: string,
     interests?: string[],
   ): Promise<SignInResult> => {
     try {
@@ -168,10 +170,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         role,
         name: displayName,
-        grade_level: gradeLevel || null,
-        grade: grade || null,
-        course: course || null,
-        class_name: role === "teacher" ? null : className ?? null,
         interests: interests || [],
       });
       setStoredToken(res.access_token);
@@ -187,10 +185,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyMe]);
 
   const signOut = useCallback(() => {
-    clearStoredToken();
+    clearAllUserAndCache();
     clearProfileCache();
+    try { localStorage.removeItem("teacher_selected_class_id"); } catch { /* ignore */ }
+    queryClient.clear();
     setState({ user: null, role: null, profile: null, loading: false });
-  }, []);
+  }, [queryClient]);
 
   const refreshProfile = useCallback(async () => {
     const me = await apiMe();
@@ -211,7 +211,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateProfile: updateProfileFn,
     isStudent: state.role === "student",
     isTeacher: state.role === "teacher",
-    isAdmin: state.role === "admin",
+    isAdmin: state.role === "admin" || state.role === "superadmin",
+    isSuperAdmin: state.role === "superadmin",
     isAuthenticated: !!state.user,
   };
 

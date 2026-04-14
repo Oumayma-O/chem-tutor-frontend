@@ -18,8 +18,11 @@ export function useStudentLiveSessionTimedSync(options: {
   isStudent: boolean;
   classroomId: string | undefined;
   timed: TutorTimedModeApi;
+  /** Current lesson scope — used to gate the Exit Ticket tab to the right lesson. */
+  unitId?: string;
+  lessonIndex?: number;
 }) {
-  const { isStudent, classroomId, timed } = options;
+  const { isStudent, classroomId, timed, unitId, lessonIndex } = options;
   const timedRef = useRef(timed);
   timedRef.current = timed;
 
@@ -127,12 +130,19 @@ export function useStudentLiveSessionTimedSync(options: {
     t.setShowLaunchScreen(false);
   }, [liveSession]);
 
+  // Scope: only show the Exit Ticket tab when the current lesson matches the live session.
+  const sessionMatchesLesson =
+    unitId == null ||
+    lessonIndex == null ||
+    (liveSession?.unit_id === unitId && liveSession?.lesson_index === lessonIndex);
+
   const showExitTicketAction =
     !isStudent ||
     !classroomId ||
     (!liveSessionLoading &&
       Boolean(liveSession?.active_exit_ticket_id) &&
-      liveSession?.session_phase !== "timed_practice");
+      liveSession?.session_phase !== "timed_practice" &&
+      sessionMatchesLesson);
 
   const prefetchedExitTicket = useMemo(() => {
     const cid = timed.timedExitTicketConfigId;
@@ -144,6 +154,7 @@ export function useStudentLiveSessionTimedSync(options: {
     liveSession,
     liveSessionLoading,
     showExitTicketAction,
+    sessionMatchesLesson,
     dismissExitTicketOverlays,
     prefetchedExitTicket,
   };

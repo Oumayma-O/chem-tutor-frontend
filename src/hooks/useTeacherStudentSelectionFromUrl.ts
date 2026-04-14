@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SetURLSearchParams } from "react-router-dom";
-import { TEACHER_STUDENT_QUERY_PARAM } from "@/lib/teacherDashboardTabs";
+import { TEACHER_STUDENT_QUERY_PARAM, parseTeacherDashboardTab } from "@/lib/teacherDashboardTabs";
 
 /**
  * Keeps the selected student id in sync with `?student=` on the teacher dashboard URL.
@@ -17,6 +17,7 @@ export function useTeacherStudentSelectionFromUrl(options: {
     options;
 
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
+  const skipTabInject = useRef(false);
 
   const setSelectedStudentWithUrl = useCallback(
     (id: string | null) => {
@@ -30,6 +31,23 @@ export function useTeacherStudentSelectionFromUrl(options: {
           } else {
             p.delete(TEACHER_STUDENT_QUERY_PARAM);
           }
+          return p;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const handleDashboardTabChange = useCallback(
+    (value: string) => {
+      skipTabInject.current = true;
+      const next = parseTeacherDashboardTab(value) ?? "class";
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          if (next === "class") p.delete("tab");
+          else p.set("tab", next);
           return p;
         },
         { replace: true },
@@ -72,6 +90,10 @@ export function useTeacherStudentSelectionFromUrl(options: {
       } else {
         setSelectedStudent((prev) => (prev !== sid ? sid : prev));
         if (!searchParams.has("tab")) {
+          if (skipTabInject.current) {
+            skipTabInject.current = false;
+            return;
+          }
           setSearchParams(
             (prev) => {
               const p = new URLSearchParams(prev);
@@ -87,5 +109,5 @@ export function useTeacherStudentSelectionFromUrl(options: {
     }
   }, [loadingStudents, enrolledStudents, selectedClassId, searchParams, setSearchParams]);
 
-  return { selectedStudent, setSelectedStudentWithUrl };
+  return { selectedStudent, setSelectedStudentWithUrl, handleDashboardTabChange };
 }

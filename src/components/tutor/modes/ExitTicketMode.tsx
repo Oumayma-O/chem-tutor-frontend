@@ -137,7 +137,11 @@ export function ExitTicketMode({
       }
 
       try {
-        await submitExitTicketAttempt(submitId, { answers: classAnswers });
+        await submitExitTicketAttempt(submitId, {
+          answers: classAnswers,
+          results: graded.perQuestion,
+          score_percent: graded.scorePercent,
+        });
         submittedRef.current = true;
         setClassResults(graded.perQuestion);
         setAssessmentEndReason(endReason);

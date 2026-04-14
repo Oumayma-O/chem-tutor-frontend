@@ -1,5 +1,16 @@
 import { get } from "./core";
 
+export interface StandardOut {
+  code: string;
+  /** "NGSS" | "AP" | "NGSS-SEP" | "NGSS-CCC" */
+  framework: string;
+  title: string | null;
+  description: string | null;
+  category: string | null;
+  /** false for Science & Engineering Practices (NGSS-SEP) and Crosscutting Concepts (NGSS-CCC) */
+  is_core: boolean;
+}
+
 export interface LessonOut {
   id: number;
   unit_id: string;
@@ -14,7 +25,7 @@ export interface LessonOut {
   blueprint: string;
   /** Whether this lesson has an interactive simulation component */
   has_simulation: boolean;
-  standards: { code: string; framework: string; description: string }[];
+  standards: StandardOut[];
   is_active: boolean;
   /** Tool keys for this lesson, e.g. ['periodic_table', 'calculator']. From backend required_tools. */
   required_tools?: string[];

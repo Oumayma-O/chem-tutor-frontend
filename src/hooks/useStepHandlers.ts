@@ -44,6 +44,8 @@ interface UseStepHandlersOptions {
   classifyErrors: (steps: ThinkingStep[], problemContext: string) => Promise<ClassifiedError[]>;
   resetTracking: () => void;
   onMarkInProgress?: () => void;
+  /** Fires after each interactive or structured check (for answer-reveal / mastery flags). */
+  onCheckAnswerResult?: (stepId: string, isCorrect: boolean) => void;
 }
 
 export function useStepHandlers({
@@ -60,6 +62,7 @@ export function useStepHandlers({
   classifyErrors,
   resetTracking,
   onMarkInProgress,
+  onCheckAnswerResult,
 }: UseStepHandlersOptions) {
   const [answers, setAnswers] = useState<Record<string, StudentAnswer>>({});
   const [checkingAnswer, setCheckingAnswer] = useState<Set<string>>(new Set());
@@ -214,6 +217,7 @@ export function useStepHandlers({
       if (isCorrect) {
         toast.success(isFirstAttempt ? "Perfect! First try!" : "Correct!");
       }
+      onCheckAnswerResult?.(stepId, isCorrect);
     },
     [
       currentProblem,
@@ -228,6 +232,7 @@ export function useStepHandlers({
       updateSkillFromAttempt,
       calculatorEnabled,
       clearStaleHintForStep,
+      onCheckAnswerResult,
     ],
   );
 
@@ -280,8 +285,9 @@ export function useStepHandlers({
         setStructuredStepComplete((prev) => ({ ...prev, [stepId]: true }));
         toast.success("Correct!");
       }
+      onCheckAnswerResult?.(stepId, isCorrect);
     },
-    [answers, currentProblem, recordThinkingStep],
+    [answers, currentProblem, recordThinkingStep, onCheckAnswerResult],
   );
 
   const handleValidateEquation = useCallback(

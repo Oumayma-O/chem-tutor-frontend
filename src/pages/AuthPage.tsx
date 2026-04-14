@@ -1,46 +1,17 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth, AppRole } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { GraduationCap, User, AlertCircle, ArrowRight, ArrowLeft, Check, X } from "lucide-react";
+import { AlertCircle, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { BeakerMascot } from "@/components/tutor/widgets";
-import {
-  PROFILE_GRADE_OPTIONS,
-  PROFILE_COURSE_OPTIONS,
-  PROFILE_INTEREST_OPTIONS,
-} from "@/lib/profileOptions";
-
-/** Map signup form values to backend Grade/Course names (used for profile). */
-function signupGradeToProfileName(value: string): string {
-  const map: Record<string, string> = {
-    "middle-school": "Middle School",
-    "9th": "9th Grade",
-    "10th": "10th Grade",
-    "11th": "11th Grade",
-    "12th": "12th Grade",
-  };
-  return map[value] ?? value;
-}
-function signupCourseToProfileName(value: string): string {
-  const map: Record<string, string> = {
-    standard: "Standard Chemistry",
-    ap: "AP Chemistry",
-  };
-  return map[value] ?? value;
-}
+import { PROFILE_INTEREST_OPTIONS } from "@/lib/profileOptions";
+import { joinClassroomByCode } from "@/services/api/student";
+import { PasswordInput } from "@/components/ui/password-input";
 
 function capitalizeFirstInput(text: string): string {
   if (!text) return text;
@@ -48,7 +19,6 @@ function capitalizeFirstInput(text: string): string {
 }
 
 export default function AuthPage() {
-  const navigate = useNavigate();
   const { signIn, signUp } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,14 +27,12 @@ export default function AuthPage() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
 
-  // Signup Step 1
+  // Signup — students only
   const [signupStep, setSignupStep] = useState(1);
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
   const [signupName, setSignupName] = useState("");
-  const [signupRole, setSignupRole] = useState<AppRole>("student");
-  const [signupGradeRange, setSignupGradeRange] = useState("");
-  const [signupCourseType, setSignupCourseType] = useState("");
+  const [classCode, setClassCode] = useState("");
 
   // Signup Step 2 - Interests
   const [signupInterests, setSignupInterests] = useState<string[]>([]);
@@ -100,50 +68,43 @@ export default function AuthPage() {
       setError("Please enter your name");
       return;
     }
-    // Students go to step 2 (interests), teachers skip
-    if (signupRole === "student") {
-      setSignupStep(2);
-    } else {
-      handleFinalSignup();
-    }
+    setSignupStep(2);
   };
 
   const handleFinalSignup = async () => {
     setError(null);
     setIsLoading(true);
     try {
-      const gradeLevel = [signupGradeRange, signupCourseType]
-        .filter(Boolean)
-        .join(" · ") || null;
-
       const finalInterests = [...signupInterests];
       if (otherInterest.trim() && !finalInterests.includes("other")) {
         finalInterests.push("other");
       }
 
-      const gradeName = signupGradeRange ? signupGradeToProfileName(signupGradeRange) : undefined;
-      const courseName = signupCourseType ? signupCourseToProfileName(signupCourseType) : undefined;
-      const { error } = await signUp(
+      const result = await signUp(
         signupEmail,
         signupPassword,
-        signupRole,
+        "student",
         signupName,
-        gradeLevel || "",
-        gradeName,
-        courseName,
-        undefined,
         finalInterests
       );
-      if (error) {
-        const msg = error.message.toLowerCase().includes("failed to fetch")
+      if (result.error) {
+        const msg = result.error.message.toLowerCase().includes("failed to fetch")
           ? "Unable to connect. Please try again."
-          : error.message;
+          : result.error.message;
         setError(msg);
+        return;
+      }
+
+      const userId = (result.data as { user_id?: string } | null)?.user_id;
+      if (classCode.trim() && userId) {
+        try {
+          await joinClassroomByCode(classCode.trim(), userId);
+          toast.success("Account created and joined class!");
+        } catch {
+          toast.warning("Account created, but class code was invalid. You can try again from your dashboard.");
+        }
       } else {
         toast.success("Account created! You're all set.");
-        if (signupRole === "teacher") {
-          navigate("/teacher/dashboard", { replace: true });
-        }
       }
     } catch {
       setError("An unexpected error occurred");
@@ -298,7 +259,7 @@ export default function AuthPage() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="login-password">Password</Label>
-                    <Input id="login-password" type="password" placeholder="••••••••" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
+                    <PasswordInput id="login-password" placeholder="••••••••" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} required />
                   </div>
                   <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading ? "Signing in..." : "Log In"}
@@ -308,39 +269,6 @@ export default function AuthPage() {
 
               <TabsContent value="signup">
                 <form onSubmit={handleStep1Next} className="space-y-3">
-                  {/* Role */}
-                  <div className="space-y-1.5">
-                    <Label>I am a</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSignupRole("student")}
-                        className={cn(
-                          "flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 transition-all",
-                          signupRole === "student"
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-muted-foreground/30"
-                        )}
-                      >
-                        <User className={cn("w-4 h-4", signupRole === "student" ? "text-primary" : "text-muted-foreground")} />
-                        <span className={cn("text-sm font-medium", signupRole === "student" ? "text-primary" : "text-muted-foreground")}>Student</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSignupRole("teacher")}
-                        className={cn(
-                          "flex items-center justify-center gap-2 p-2.5 rounded-lg border-2 transition-all",
-                          signupRole === "teacher"
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-muted-foreground/30"
-                        )}
-                      >
-                        <GraduationCap className={cn("w-4 h-4", signupRole === "teacher" ? "text-primary" : "text-muted-foreground")} />
-                        <span className={cn("text-sm font-medium", signupRole === "teacher" ? "text-primary" : "text-muted-foreground")}>Teacher</span>
-                      </button>
-                    </div>
-                  </div>
-
                   <div className="space-y-1.5">
                     <Label htmlFor="signup-name">Name</Label>
                     <Input
@@ -361,66 +289,31 @@ export default function AuthPage() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="signup-password">Password</Label>
-                    <Input id="signup-password" type="password" placeholder="At least 6 characters" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} required minLength={6} />
+                    <PasswordInput id="signup-password" placeholder="At least 6 characters" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} required minLength={6} />
                   </div>
 
-                  {/* Student optional fields */}
-                  {signupRole === "student" && (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="signup-grade-range">
-                            Grade <span className="text-muted-foreground font-normal text-xs">(optional)</span>
-                          </Label>
-                          <Select value={signupGradeRange} onValueChange={setSignupGradeRange}>
-                            <SelectTrigger id="signup-grade-range">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PROFILE_GRADE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="signup-course-type">
-                            Course <span className="text-muted-foreground font-normal text-xs">(optional)</span>
-                          </Label>
-                          <Select value={signupCourseType} onValueChange={setSignupCourseType}>
-                            <SelectTrigger id="signup-course-type">
-                              <SelectValue placeholder="Select" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {PROFILE_COURSE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground -mt-1">
-                        Skip if unsure — we'll adapt to your level.
-                      </p>
-                    </>
-                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="signup-class-code">
+                      Classroom Code <span className="text-muted-foreground font-normal text-xs">(optional)</span>
+                    </Label>
+                    <Input
+                      id="signup-class-code"
+                      placeholder="e.g. A2W98Y. You can also join a class later."
+                      value={classCode}
+                      onChange={(e) => setClassCode(e.target.value.toUpperCase())}
+                      maxLength={10}
+                    />
+                  </div>
 
                   <Button type="submit" className="w-full gap-1.5" disabled={isLoading}>
-                    {signupRole === "student" ? "Next" : "Create Account"}
-                    {signupRole === "student" && <ArrowRight className="w-4 h-4" />}
+                    Next
+                    <ArrowRight className="w-4 h-4" />
                   </Button>
 
-                  {/* Step indicator for students */}
-                  {signupRole === "student" && (
-                    <div className="flex justify-center gap-2 pt-1">
-                      <div className="w-8 h-1.5 rounded-full bg-primary" />
-                      <div className="w-8 h-1.5 rounded-full bg-border" />
-                    </div>
-                  )}
+                  <div className="flex justify-center gap-2 pt-1">
+                    <div className="w-8 h-1.5 rounded-full bg-primary" />
+                    <div className="w-8 h-1.5 rounded-full bg-border" />
+                  </div>
                 </form>
               </TabsContent>
             </CardContent>

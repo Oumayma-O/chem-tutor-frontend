@@ -29,6 +29,14 @@ export interface TutorSessionSnapshot {
   hasCompletedLevel2?: boolean;
   /** Completed problem counts per level (session + reload via localStorage). */
   levelSolved?: Partial<Record<Level, number>>;
+  /** Unique Level 1 worked-example problem IDs the student has viewed (exposure gate for Level 2). */
+  viewedLevel1Ids?: string[];
+  /** Policy value persisted with the snapshot so restore matches server/classroom setting. */
+  minLevel1ExamplesForLevel2?: number;
+  /** True once enough unique L1 examples were viewed, or restored from a session already on Level 2+. */
+  level1ExposureSatisfied?: boolean;
+  /** Full ordered Level 1 problems array — persisted so Prev/Next works after page reload without hitting the backend. */
+  level1Problems?: Problem[];
 }
 
 export function getTutorSessionStorageKey(
