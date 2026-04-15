@@ -62,9 +62,9 @@ export function AnalyticsDashboard({
     const c = classStats?.category_breakdown;
     if (!c) return [];
     const rows = [
-      { topic: "Conceptual", mastery: Math.round(c.conceptual * 100) },
-      { topic: "Procedural", mastery: Math.round(c.procedural * 100) },
-      { topic: "Computational", mastery: Math.round(c.computational * 100) },
+      { topic: "Conceptual", mastery: Math.round((c.conceptual ?? 0) * 100) },
+      { topic: "Procedural", mastery: Math.round((c.procedural ?? 0) * 100) },
+      { topic: "Computational", mastery: Math.round((c.computational ?? 0) * 100) },
     ];
     // All zeros means no attempt data — treat as empty so the empty state renders
     return rows.every((r) => r.mastery === 0) ? [] : rows;

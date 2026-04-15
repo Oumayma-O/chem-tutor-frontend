@@ -26,7 +26,9 @@ function generatePredictions(masteryScore: number, skillMap: SkillMastery[], rec
   }
   const weakSkills = skillMap.filter((s) => s.status === "at_risk");
   const strongSkills = skillMap.filter((s) => s.status === "mastered");
-  if (weakSkills.length > 0) predictions.push({ label: "Skill Gap Alert", description: `Struggling with: ${weakSkills.map((s) => s.skillId.replace(/_/g, " ")).join(", ")}. Targeted practice on these areas could boost overall mastery by ~${Math.min(15, weakSkills.length * 5)}%.`, confidence: "high", type: "warning", icon: <AlertTriangle className="w-4 h-4" /> });
+  // Require at least 3 completed attempts before surfacing a skill gap alert — fewer
+  // attempts produce unreliable per-category scores that generate false positives.
+  if (weakSkills.length > 0 && recentAttempts.length >= 3) predictions.push({ label: "Skill Gap Alert", description: `Struggling with: ${weakSkills.map((s) => s.skillId.replace(/_/g, " ")).join(", ")}. Targeted practice on these areas could boost overall mastery by ~${Math.min(15, weakSkills.length * 5)}%.`, confidence: "high", type: "warning", icon: <AlertTriangle className="w-4 h-4" /> });
   if (strongSkills.length > 0 && weakSkills.length === 0) predictions.push({ label: "Ready for Challenge", description: "All skills at developing or mastered level. Student may benefit from harder problems to maintain engagement.", confidence: "medium", type: "success", icon: <Zap className="w-4 h-4" /> });
   const conceptualErrors = errorPatterns.filter((e) => e.category === "conceptual");
   const computationalErrors = errorPatterns.filter((e) => e.category === "computational");

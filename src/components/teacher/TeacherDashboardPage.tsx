@@ -54,22 +54,72 @@ export function TeacherDashboardPage({
 
   const [chapterFilter, setChapterFilter] = useState("all");
 
-  const [analyticsDate, setAnalyticsDate] = useState<Date | undefined>(undefined);
-  const [analyticsChapter, setAnalyticsChapter] = useState("all");
-  const [analyticsLesson, setAnalyticsLesson] = useState<number | "all">("all");
-  const [analyticsMode, setAnalyticsMode] = useState<"all" | "practice" | "exit-ticket">("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Analytics filters — persisted in URL so the browser back button + refresh restore state
+  const analyticsChapter = searchParams.get("chapter") ?? "all";
+  const analyticsLessonRaw = searchParams.get("lesson");
+  const analyticsLesson: number | "all" =
+    analyticsLessonRaw != null && analyticsLessonRaw !== "all"
+      ? Number(analyticsLessonRaw)
+      : "all";
+  const analyticsMode =
+    (searchParams.get("mode") as "all" | "practice" | "exit-ticket") ?? "all";
+  const analyticsDateRaw = searchParams.get("date");
+  const analyticsDate: Date | undefined = analyticsDateRaw
+    ? new Date(analyticsDateRaw)
+    : undefined;
 
   const handleAnalyticsChapterChange = (v: string) => {
-    setAnalyticsChapter(v);
-    setAnalyticsLesson("all");
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (v === "all") p.delete("chapter"); else p.set("chapter", v);
+        p.delete("lesson"); // reset lesson when chapter changes
+        return p;
+      },
+      { replace: true },
+    );
+  };
+
+  const setAnalyticsLesson = (v: number | "all") => {
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (v === "all") p.delete("lesson"); else p.set("lesson", String(v));
+        return p;
+      },
+      { replace: true },
+    );
+  };
+
+  const setAnalyticsMode = (v: "all" | "practice" | "exit-ticket") => {
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (v === "all") p.delete("mode"); else p.set("mode", v);
+        return p;
+      },
+      { replace: true },
+    );
+  };
+
+  const setAnalyticsDate = (d: Date | undefined) => {
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (!d) p.delete("date");
+        else p.set("date", d.toISOString().slice(0, 10)); // YYYY-MM-DD
+        return p;
+      },
+      { replace: true },
+    );
   };
 
   const [newClassName, setNewClassName] = useState("");
   const [newClassCourseType, setNewClassCourseType] = useState<string>("standard");
   const [creatingClass, setCreatingClass] = useState(false);
   const [manageClassesOpen, setManageClassesOpen] = useState(false);
-
-  const [searchParams, setSearchParams] = useSearchParams();
 
   const {
     classes,

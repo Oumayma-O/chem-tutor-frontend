@@ -106,9 +106,9 @@ export function useTeacherDashboardData(options?: {
       const weak: string[] = [];
       const cs = r.mastery?.category_scores;
       if (cs) {
-        if (cs.conceptual < 0.5) weak.push("conceptual");
-        if (cs.procedural < 0.5) weak.push("procedural");
-        if (cs.computational < 0.5) weak.push("computational");
+        if (cs.conceptual != null && cs.conceptual < 0.5) weak.push("conceptual");
+        if (cs.procedural != null && cs.procedural < 0.5) weak.push("procedural");
+        if (cs.computational != null && cs.computational < 0.5) weak.push("computational");
       }
       let lastActive = 0;
       if (r.last_activity_at) {

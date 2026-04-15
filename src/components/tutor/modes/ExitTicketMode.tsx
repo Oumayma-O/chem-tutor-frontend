@@ -100,6 +100,7 @@ export function ExitTicketMode({
     initialReviewMode ? "submit" : null,
   );
   const submittedRef = useRef(initialReviewMode);
+  const startedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
     setTimeLimit(derivedLimitSec);
@@ -137,10 +138,12 @@ export function ExitTicketMode({
       }
 
       try {
+        const timeSpentS = Math.round((Date.now() - startedAtRef.current) / 1000);
         await submitExitTicketAttempt(submitId, {
           answers: classAnswers,
           results: graded.perQuestion,
           score_percent: graded.scorePercent,
+          time_spent_s: timeSpentS,
         });
         submittedRef.current = true;
         setClassResults(graded.perQuestion);

@@ -19,9 +19,9 @@ interface MasteryBreakdownProps {
   score: number;
   errors: ClassifiedError[];
   categoryScores?: {
-    conceptual: number;
-    procedural: number;
-    computational: number;
+    conceptual: number | null;
+    procedural: number | null;
+    computational: number | null;
   };
   level3Unlocked?: boolean;
 }

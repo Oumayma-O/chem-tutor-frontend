@@ -26,11 +26,11 @@ export function skillMapFromCategoryBreakdown(
       problemCount,
     };
   };
-  return [
-    row("conceptual", "Conceptual", "reaction_concepts", breakdown.conceptual ?? 0),
-    row("procedural", "Procedural", "rate_laws", breakdown.procedural ?? 0),
-    row("computational", "Computational", "unit_conversion", breakdown.computational ?? 0),
-  ];
+  const entries: SkillMastery[] = [];
+  if (breakdown.conceptual != null) entries.push(row("conceptual", "Conceptual", "reaction_concepts", breakdown.conceptual));
+  if (breakdown.procedural != null) entries.push(row("procedural", "Procedural", "rate_laws", breakdown.procedural));
+  if (breakdown.computational != null) entries.push(row("computational", "Computational", "unit_conversion", breakdown.computational));
+  return entries;
 }
 
 /** Map API practice attempts to the shape expected by PredictiveInsights (trend / pacing heuristics). */

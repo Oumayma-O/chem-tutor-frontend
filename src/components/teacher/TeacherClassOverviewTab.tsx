@@ -276,7 +276,7 @@ function WeakAreasBody({
       { key: "conceptual", label: "Conceptual", v: cb.conceptual },
       { key: "procedural", label: "Procedural", v: cb.procedural },
       { key: "computational", label: "Computational", v: cb.computational },
-    ].filter((r) => r.v < 0.5);
+    ].filter((r): r is { key: string; label: string; v: number } => r.v != null && r.v < 0.5);
     if (rows.length === 0) {
       return (
         <p className="text-sm text-muted-foreground">

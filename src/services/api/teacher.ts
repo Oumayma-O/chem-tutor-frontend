@@ -4,9 +4,9 @@
 import { get, post, patch, del } from "@/lib/api/core";
 
 export interface CategorySnapshot {
-  conceptual: number;
-  procedural: number;
-  computational: number;
+  conceptual: number | null;
+  procedural: number | null;
+  computational: number | null;
 }
 
 export interface ClassSummaryStats {
@@ -133,6 +133,7 @@ export interface ExitTicketResponseItem {
   /** Score as 0-100 percentage (e.g. 75.0 means 75%). Prefer server value from student submit. */
   score: number | null;
   submitted_at: string;
+  time_spent_s: number;
 }
 
 /** Body for POST `/student/exit-tickets/{id}/submit` — backend should persist `results` + `score_percent`. */
@@ -142,6 +143,8 @@ export interface SubmitExitTicketBody {
   results?: Record<string, boolean>;
   /** Overall score 0–100 from that grading. */
   score_percent?: number;
+  /** Seconds from first question shown to submission. */
+  time_spent_s?: number;
 }
 
 export interface ExitTicketAnalytics {
@@ -181,7 +184,7 @@ export interface StudentAttemptOut {
 export interface StudentAnalyticsOut {
   student_id: string;
   overall_mastery: number;
-  category_scores: { conceptual: number; procedural: number; computational: number };
+  category_scores: { conceptual: number | null; procedural: number | null; computational: number | null };
   recent_attempts: StudentAttemptOut[];
   lessons_with_data: number;
   total_attempts?: number;
@@ -192,8 +195,9 @@ export async function getStudentAnalytics(
   studentId: string,
   unitId?: string,
 ): Promise<StudentAnalyticsOut> {
-  const qs = unitId && unitId !== "all" ? `?unit_id=${encodeURIComponent(unitId)}` : "";
-  return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics${qs}`);
+  const params = new URLSearchParams({ limit: "200" });
+  if (unitId && unitId !== "all") params.set("unit_id", unitId);
+  return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics?${params}`);
 }
 
 export async function deleteClassroom(classroomId: string): Promise<void> {
