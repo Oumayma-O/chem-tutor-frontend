@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { format, formatDistanceToNow, isToday, isYesterday, differenceInCalendarDays } from "date-fns";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { PredictiveInsights, SkillRadarChart } from "@/components/tutor/progress";
 import { studentAttemptsToPredictiveShape } from "@/lib/predictiveFromMastery";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
@@ -95,9 +95,6 @@ export function TeacherStudentsTab({
   const { units } = useUnits();
   const selectedChapterForFilter = analyticsChapter !== "all" ? units.find((u) => u.id === analyticsChapter) : undefined;
   const lessonTitles = selectedChapterForFilter?.lesson_titles ?? [];
-
-  const [filteredMetrics, setFilteredMetrics] = useState<{ score: number; weakTopics: string[] } | null>(null);
-  useEffect(() => { setFilteredMetrics(null); }, [selectedStudent]);
 
   return (
     <TabsContent value="students" className="space-y-6">
@@ -195,8 +192,6 @@ export function TeacherStudentsTab({
           )}
           {enrolledStudents.map((student) => {
             const isActive = selectedStudent === student.id;
-            const displayMastery = isActive && filteredMetrics ? filteredMetrics.score : student.mastery;
-            const displayWeakTopics = isActive && filteredMetrics ? filteredMetrics.weakTopics : student.weakTopics;
             return (
               <button
                 key={student.id}
@@ -219,16 +214,16 @@ export function TeacherStudentsTab({
                     {student.trend === "down" && <TrendingDown className="w-3 h-3 text-destructive" />}
                     {student.trend === "stable" && <Minus className="w-3 h-3 text-muted-foreground" />}
                     <Badge
-                      variant={displayMastery >= 75 ? "default" : displayMastery >= 50 ? "secondary" : "destructive"}
+                      variant={student.mastery >= 75 ? "default" : student.mastery >= 50 ? "secondary" : "destructive"}
                       className="text-xs"
                     >
-                      {displayMastery}%
+                      {student.mastery}%
                     </Badge>
                   </div>
                 </div>
-                {displayWeakTopics.length > 0 && (
+                {student.weakTopics.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-2">
-                    {displayWeakTopics.map((t) => (
+                    {student.weakTopics.map((t) => (
                       <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
                         {t.replace(/_/g, " ")}
                       </span>
@@ -263,7 +258,6 @@ export function TeacherStudentsTab({
               analyticsLesson={analyticsLesson}
               analyticsDate={analyticsDate}
               analyticsMode={analyticsMode}
-              onFilteredMetrics={setFilteredMetrics}
             />
           )}
         </div>
@@ -296,7 +290,6 @@ function StudentDetailPanel({
   analyticsLesson,
   analyticsDate,
   analyticsMode,
-  onFilteredMetrics,
 }: {
   studentId: string;
   classroomId: string;
@@ -305,9 +298,7 @@ function StudentDetailPanel({
   analyticsLesson: number | "all";
   analyticsDate: Date | undefined;
   analyticsMode: StudentAnalyticsMode;
-  onFilteredMetrics?: (m: { score: number; weakTopics: string[] }) => void;
 }) {
-  const queryClient = useQueryClient();
   const student = enrolledStudents.find((s) => s.id === studentId);
   const { units } = useUnits();
   const chapterFilter = analyticsChapter !== "all" ? analyticsChapter : undefined;
@@ -342,15 +333,6 @@ function StudentDetailPanel({
 
   const isLoading = (needPractice && practiceLoading) || (needExit && exitLoading);
 
-  // When the detailed analytics returns a fresher mastery score than the roster cache,
-  // invalidate the roster so all components (Class tab, student list, stat cards) update.
-  useEffect(() => {
-    if (!analytics || !student) return;
-    const freshPct = Math.round(analytics.overall_mastery * 100);
-    if (freshPct !== student.mastery) {
-      void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.roster(classroomId) });
-    }
-  }, [analytics?.overall_mastery, student?.mastery, classroomId, queryClient]);
 
   const unitTitle = (uid: string) => units.find((u) => u.id === uid)?.title ?? uid;
 
@@ -582,10 +564,6 @@ function StudentDetailPanel({
     if (cs.computational != null && cs.computational >= 0.75) strong.push("computational");
     return strong.length > 0 ? strong : headlineScorePct >= 75 ? ["All areas strong"] : [];
   }, [analytics, analyticsLesson, headlineScorePct]);
-
-  useEffect(() => {
-    onFilteredMetrics?.({ score: headlineScorePct, weakTopics: filteredWeakTopics });
-  }, [headlineScorePct, filteredWeakTopics, onFilteredMetrics]);
 
   const actionMastery = headlineScorePct;
   const suggestedActions: { label: string; icon: ReactNode; variant: "default" | "secondary" | "outline" }[] = [];

@@ -73,8 +73,10 @@ function mapApiTeacherClass(c: ApiTeacherClass): TeacherClassRow {
 
 export function useTeacherDashboardData(options?: {
   onManagedClassCountChange?: (count: number) => void;
+  /** When set, the roster is scoped to this chapter/lesson so sidebar scores match the active filter. */
+  rosterFilter?: { unitId?: string; lessonIndex?: number };
 }) {
-  const { onManagedClassCountChange } = options ?? {};
+  const { onManagedClassCountChange, rosterFilter } = options ?? {};
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? "";
@@ -95,13 +97,15 @@ export function useTeacherDashboardData(options?: {
 
   const resolvedClassId = selectedClassId ?? "all";
 
+  const filterUnit = rosterFilter?.unitId && rosterFilter.unitId !== "all" ? rosterFilter.unitId : undefined;
+  const filterLesson = typeof rosterFilter?.lessonIndex === "number" ? rosterFilter.lessonIndex : undefined;
+
   const { data: rosterRaw = [], isLoading: loadingStudents } = useQuery({
-    queryKey: teacherQueryKeys.roster(resolvedClassId),
-    queryFn: () => getClassRoster(resolvedClassId),
+    queryKey: teacherQueryKeys.roster(resolvedClassId, filterUnit, filterLesson),
+    queryFn: () => getClassRoster(resolvedClassId, { unitId: filterUnit, lessonIndex: filterLesson }),
     enabled: resolvedClassId !== "all" && selectedClassId !== null,
-    staleTime: 30_000,          // consider stale after 30s — mastery changes during practice
-    refetchOnWindowFocus: true,  // refresh when teacher returns to the browser tab
-    refetchInterval: 60_000,     // poll every 60s while the dashboard is open
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
   });
 
   // SSE: real-time roster updates — pushes to the same cache key as the polling query.
@@ -109,6 +113,8 @@ export function useTeacherDashboardData(options?: {
   useTeacherRosterSSE({
     classId: resolvedClassId,
     enabled: resolvedClassId !== "all" && selectedClassId !== null,
+    unitId: filterUnit,
+    lessonIndex: filterLesson,
   });
 
   const enrolledStudents: ClassStudentRow[] = useMemo(() => {

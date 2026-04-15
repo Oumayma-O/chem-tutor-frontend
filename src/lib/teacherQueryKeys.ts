@@ -11,7 +11,8 @@ export const teacherQueryKeys = {
   /** Per-logged-in-user class list (GET /teacher/classes). Prevents cache bleed on shared browser. */
   classes: (userId: string) => ["teacher", "classes", userId] as const,
 
-  roster: (classId: string) => ["teacher", "roster", classId] as const,
+  roster: (classId: string, unitId?: string, lessonIndex?: number | "all") =>
+    ["teacher", "roster", classId, unitId ?? "all", lessonIndex ?? "all"] as const,
 
   /** Live presence rows (GET /teacher/classes/{id}/live). */
   live: (classId: string) => ["teacher", "live", classId] as const,

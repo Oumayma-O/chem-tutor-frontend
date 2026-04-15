@@ -14,23 +14,31 @@ const API_URL = (import.meta.env.VITE_API_URL as string)?.replace(/\/$/, "") ?? 
 export function useTeacherRosterSSE(options: {
   classId: string;
   enabled: boolean;
+  unitId?: string;
+  lessonIndex?: number;
 }) {
-  const { classId, enabled } = options;
+  const { classId, enabled, unitId, lessonIndex } = options;
   const queryClient = useQueryClient();
+
+  const filterUnit = unitId && unitId !== "all" ? unitId : undefined;
+  const filterLesson = typeof lessonIndex === "number" ? lessonIndex : undefined;
 
   useEventSourceConnection({
     enabled: Boolean(enabled && classId && classId !== "all" && API_URL),
-    reconnectKey: classId,
+    reconnectKey: `${classId}:${filterUnit ?? ""}:${filterLesson ?? ""}`,
     getUrl: () => {
       const token = getStoredToken();
       if (!token) return null;
-      return `${API_URL}/teacher/classes/${classId}/roster/stream?token=${encodeURIComponent(token)}`;
+      const params = new URLSearchParams({ token: token });
+      if (filterUnit) params.set("unit_id", filterUnit);
+      if (filterLesson !== undefined) params.set("lesson_index", String(filterLesson));
+      return `${API_URL}/teacher/classes/${classId}/roster/stream?${params.toString()}`;
     },
     onMessage: (data) => {
       try {
         const roster = JSON.parse(data);
         if (Array.isArray(roster)) {
-          queryClient.setQueryData(teacherQueryKeys.roster(classId), roster);
+          queryClient.setQueryData(teacherQueryKeys.roster(classId, filterUnit, filterLesson), roster);
         }
       } catch {
         // malformed payload — ignore, polling fallback will catch up

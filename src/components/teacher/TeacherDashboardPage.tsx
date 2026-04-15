@@ -138,7 +138,13 @@ export function TeacherDashboardPage({
     refetchClasses,
     createTeacherClass,
     deleteTeacherClass,
-  } = useTeacherDashboardData({ onManagedClassCountChange });
+  } = useTeacherDashboardData({
+    onManagedClassCountChange,
+    rosterFilter: {
+      unitId: analyticsChapter !== "all" ? analyticsChapter : undefined,
+      lessonIndex: analyticsLesson !== "all" ? analyticsLesson : undefined,
+    },
+  });
 
   const { selectedStudent, setSelectedStudentWithUrl, handleDashboardTabChange } = useTeacherStudentSelectionFromUrl({
     selectedClassId,

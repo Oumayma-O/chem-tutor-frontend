@@ -233,8 +233,15 @@ export async function createClass(body: { name: string; unit_id?: string | null 
   return post("/teacher/classes", body);
 }
 
-export async function getClassRoster(classroomId: string): Promise<RosterStudent[]> {
-  return get<RosterStudent[]>(`/teacher/classes/${classroomId}/roster`);
+export async function getClassRoster(
+  classroomId: string,
+  opts?: { unitId?: string; lessonIndex?: number },
+): Promise<RosterStudent[]> {
+  const params = new URLSearchParams();
+  if (opts?.unitId && opts.unitId !== "all") params.set("unit_id", opts.unitId);
+  if (opts?.lessonIndex !== undefined) params.set("lesson_index", String(opts.lessonIndex));
+  const qs = params.toString();
+  return get<RosterStudent[]>(`/teacher/classes/${classroomId}/roster${qs ? `?${qs}` : ""}`);
 }
 
 export async function generateExitTicket(body: {
