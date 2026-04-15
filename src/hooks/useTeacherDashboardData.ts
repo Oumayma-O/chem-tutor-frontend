@@ -98,6 +98,9 @@ export function useTeacherDashboardData(options?: {
     queryKey: teacherQueryKeys.roster(resolvedClassId),
     queryFn: () => getClassRoster(resolvedClassId),
     enabled: resolvedClassId !== "all" && selectedClassId !== null,
+    staleTime: 30_000,          // consider stale after 30s — mastery changes during practice
+    refetchOnWindowFocus: true,  // refresh when teacher returns to the browser tab
+    refetchInterval: 60_000,     // poll every 60s while the dashboard is open
   });
 
   const enrolledStudents: ClassStudentRow[] = useMemo(() => {
