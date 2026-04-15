@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTeacherRosterSSE } from "@/hooks/useTeacherRosterSSE";
 import {
   getTeacherClasses,
   createClass,
@@ -101,6 +102,13 @@ export function useTeacherDashboardData(options?: {
     staleTime: 30_000,          // consider stale after 30s — mastery changes during practice
     refetchOnWindowFocus: true,  // refresh when teacher returns to the browser tab
     refetchInterval: 60_000,     // poll every 60s while the dashboard is open
+  });
+
+  // SSE: real-time roster updates — pushes to the same cache key as the polling query.
+  // Falls back silently to polling if the backend endpoint doesn't exist yet.
+  useTeacherRosterSSE({
+    classId: resolvedClassId,
+    enabled: resolvedClassId !== "all" && selectedClassId !== null,
   });
 
   const enrolledStudents: ClassStudentRow[] = useMemo(() => {
