@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { format, formatDistanceToNow, isToday, isYesterday, differenceInCalendarDays } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { PredictiveInsights, SkillRadarChart } from "@/components/tutor/progress";
 import { studentAttemptsToPredictiveShape } from "@/lib/predictiveFromMastery";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
@@ -307,6 +307,7 @@ function StudentDetailPanel({
   analyticsMode: StudentAnalyticsMode;
   onFilteredMetrics?: (m: { score: number; weakTopics: string[] }) => void;
 }) {
+  const queryClient = useQueryClient();
   const student = enrolledStudents.find((s) => s.id === studentId);
   const { units } = useUnits();
   const chapterFilter = analyticsChapter !== "all" ? analyticsChapter : undefined;
@@ -340,6 +341,16 @@ function StudentDetailPanel({
   });
 
   const isLoading = (needPractice && practiceLoading) || (needExit && exitLoading);
+
+  // When the detailed analytics returns a fresher mastery score than the roster cache,
+  // invalidate the roster so all components (Class tab, student list, stat cards) update.
+  useEffect(() => {
+    if (!analytics || !student) return;
+    const freshPct = Math.round(analytics.overall_mastery * 100);
+    if (freshPct !== student.mastery) {
+      void queryClient.invalidateQueries({ queryKey: teacherQueryKeys.roster(classroomId) });
+    }
+  }, [analytics?.overall_mastery, student?.mastery, classroomId, queryClient]);
 
   const unitTitle = (uid: string) => units.find((u) => u.id === uid)?.title ?? uid;
 
