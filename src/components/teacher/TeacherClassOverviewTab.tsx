@@ -84,7 +84,7 @@ export function TeacherClassOverviewTab({
         {selectedClassId !== "all" && (
           <LiveSessionPanel
             classId={selectedClassId}
-            totalStudents={classStats?.total_students ?? enrolledStudents.length}
+            totalStudents={enrolledStudents.length}
             onStudentClick={onStudentClick}
           />
         )}
@@ -112,7 +112,7 @@ export function TeacherClassOverviewTab({
             <div>
               <p className="text-xs font-medium text-muted-foreground">Total Students</p>
               <p className="text-2xl font-bold tabular-nums text-slate-900">
-                {classStats?.total_students ?? enrolledStudents.length}
+                {enrolledStudents.length}
               </p>
             </div>
           </CardContent>
@@ -136,7 +136,7 @@ export function TeacherClassOverviewTab({
             <div>
               <p className="text-xs font-medium text-muted-foreground">At Risk (&lt;50%)</p>
               <p className="text-2xl font-bold tabular-nums text-red-600">
-                {classStats?.at_risk_count ?? atRiskStudents.length}
+                {atRiskStudents.length}
               </p>
             </div>
           </CardContent>

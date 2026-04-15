@@ -83,7 +83,7 @@ export function AnalyticsDashboard({
       .map(([topic, count]) => ({ topic, count }));
   }, [enrolledStudents]);
 
-  const totalStudents = classStats?.total_students ?? enrolledStudents.length;
+  const totalStudents = enrolledStudents.length;
 
   const kpis = useMemo(
     () => [

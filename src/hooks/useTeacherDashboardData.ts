@@ -149,8 +149,10 @@ export function useTeacherDashboardData(options?: {
   const classStats = resolvedClassId !== "all" ? selectedClass?.stats : undefined;
 
   const classMastery = useMemo(() => {
-    if (classStats) return Math.round(classStats.avg_mastery * 100);
-    if (enrolledStudents.length === 0) return 0;
+    // Always compute from fresh roster data — classStats.avg_mastery can be stale.
+    if (enrolledStudents.length === 0) {
+      return classStats ? Math.round(classStats.avg_mastery * 100) : 0;
+    }
     return Math.round(enrolledStudents.reduce((a, s) => a + s.mastery, 0) / enrolledStudents.length);
   }, [classStats, enrolledStudents]);
 
