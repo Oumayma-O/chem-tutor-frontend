@@ -488,12 +488,10 @@ function StudentDetailPanel({
       allScores.length > 0
         ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
         : masteryPct;
-    const headline =
-      chapterFilter && allScores.length > 0
-        ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
-        : chapterFilter
-          ? headlineFlat
-          : (avgAcross ?? headlineFlat);
+    // When scoped to a chapter/lesson, use the backend SkillMastery score so the
+    // detail headline matches the sidebar card (both from the same banded metric).
+    // Raw attempt average is only used for the unfiltered "all chapters" view.
+    const headline = chapterFilter ? masteryPct : (avgAcross ?? headlineFlat);
 
     const merged: (
       | { kind: "practice"; attempt: StudentAttemptOut }
