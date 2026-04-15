@@ -194,9 +194,11 @@ export async function getStudentAnalytics(
   classroomId: string,
   studentId: string,
   unitId?: string,
+  lessonIndex?: number,
 ): Promise<StudentAnalyticsOut> {
   const params = new URLSearchParams({ limit: "200" });
   if (unitId && unitId !== "all") params.set("unit_id", unitId);
+  if (lessonIndex !== undefined) params.set("lesson_index", String(lessonIndex));
   return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics?${params}`);
 }
 

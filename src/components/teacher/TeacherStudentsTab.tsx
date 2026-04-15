@@ -308,6 +308,8 @@ function StudentDetailPanel({
   const needPractice = analyticsMode === "practice" || analyticsMode === "all";
   const needExit = analyticsMode === "exit-ticket" || analyticsMode === "all";
 
+  const lessonFilter = analyticsLesson !== "all" ? analyticsLesson : undefined;
+
   const { data: analytics, isLoading: practiceLoading } = useQuery({
     queryKey: [
       "teacher",
@@ -315,12 +317,12 @@ function StudentDetailPanel({
       classroomId,
       studentId,
       chapterFilter ?? "all",
-      analyticsLesson,
+      lessonFilter ?? "all",
     ],
-    queryFn: () => getStudentAnalytics(classroomId, studentId, chapterFilter),
+    queryFn: () => getStudentAnalytics(classroomId, studentId, chapterFilter, lessonFilter),
     enabled: Boolean(classroomId && studentId && classroomId !== "all" && needPractice),
-    staleTime: 2 * 60_000,   // serve from cache for 2 min; background-refresh after
-    refetchInterval: 60_000, // poll every 60 s while the panel is open
+    staleTime: 2 * 60_000,
+    refetchInterval: 60_000,
   });
 
   const { data: exitData, isLoading: exitLoading } = useQuery({
@@ -353,16 +355,14 @@ function StudentDetailPanel({
   const masteryPct = analytics ? Math.round(analytics.overall_mastery * 100) : (student?.mastery ?? 0);
 
   const attempts = analytics?.recent_attempts ?? [];
+  // Backend already filters by unit_id and lesson_index — only date is a UI-only filter.
   const finishedPractice = useMemo(() => {
     let f = attempts.filter((a) => a.is_complete && a.score != null);
     if (analyticsDate) {
       f = f.filter((a) => sameCalendarDay(analyticsDate, a.started_at));
     }
-    if (analyticsLesson !== "all") {
-      f = f.filter((a) => a.lesson_index === analyticsLesson);
-    }
     return f;
-  }, [attempts, analyticsDate, analyticsLesson]);
+  }, [attempts, analyticsDate]);
 
   const exitForStudent = useMemo(() => {
     const bundles = exitData?.items ?? [];
