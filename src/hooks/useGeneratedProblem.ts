@@ -78,7 +78,7 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
         ? shuffleEquationPartsForDisplay(equationParts)
         : undefined;
     return {
-      id: s.id || `${pd.id}-step-${s.step_number}`,
+      id: `${pd.id}-step-${s.step_number}`,
       step_number: s.step_number,
       type: stepType,
       is_given: s.is_given === true || String(s.type) === "given",

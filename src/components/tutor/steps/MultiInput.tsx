@@ -176,6 +176,9 @@ export function MultiInput({
     setIsChecking(true);
     try {
       const studentAnswer = serializeFields(variables, values);
+      // Commit current field snapshot before validation so parent state cannot lag
+      // behind a final "Check" click for this step.
+      onDraftChange?.(studentAnswer);
       const correctAnswer = serializeCorrectFields(variables);
       const { isCorrect, feedback } = await onValidate(studentAnswer, correctAnswer);
 

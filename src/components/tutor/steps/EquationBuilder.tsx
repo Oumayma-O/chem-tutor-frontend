@@ -122,6 +122,8 @@ export function EquationBuilder({
   const handleCheck = useCallback(async () => {
     if (slots.length === 0 || isValidating || isComplete) return;
     onCheckStart?.();
+    // Persist latest slot order before async validate/complete pipeline.
+    onDraftChange?.(JSON.stringify(slots));
     setIsValidating(true);
     try {
       const correct = await onValidate(slots);
@@ -135,7 +137,7 @@ export function EquationBuilder({
     } finally {
       setIsValidating(false);
     }
-  }, [slots, isValidating, isComplete, onCheckStart, onValidate, onComplete, persist]);
+  }, [slots, isValidating, isComplete, onCheckStart, onValidate, onComplete, onDraftChange, persist]);
 
   return (
     <StepCard isComplete={isComplete} isIncorrect={isIncorrect} isLocked={isLocked}>

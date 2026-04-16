@@ -19,6 +19,7 @@ interface Params {
   /** Full ordered steps (including `is_given`); must align with `buildStepLog` indices. */
   problemSteps: SolutionStep[];
   answers: Record<string, StudentAnswer>;
+  hints: Record<string, string>;
   structuredStepComplete: Record<string, boolean>;
   setHasCompletedLevel2: React.Dispatch<React.SetStateAction<boolean>>;
   setBackendCategoryScores: React.Dispatch<
@@ -29,6 +30,7 @@ interface Params {
   onMasteryLevel2Completions?: (count: number) => void;
   /** When true, next save-step skips mastery inflation (answer was revealed). */
   consumeWasRevealedForSave?: () => boolean;
+  isStepRevealed?: (stepId: string) => boolean;
 }
 
 export function useTutorMasterySync({
@@ -41,14 +43,17 @@ export function useTutorMasterySync({
   currentProblemId,
   problemSteps,
   answers,
+  hints,
   structuredStepComplete,
   setHasCompletedLevel2,
   setBackendCategoryScores,
   setMasteryScore,
   onMasteryLevel2Completions,
   consumeWasRevealedForSave,
+  isStepRevealed,
 }: Params) {
   const lastSavedStepLogKeyRef = useRef<string>("");
+  const saveTimerRef = useRef<number | null>(null);
 
   const applyMasterySnapshot = useCallback(
     (state: MasteryApiSnapshot) => {
@@ -81,7 +86,14 @@ export function useTutorMasterySync({
     const interactive = interactiveStepsFromProblem(problemSteps);
     if (!userId || !currentAttemptId || currentLevel === 1 || interactive.length === 0) return;
 
-    const attempted = stepLogForIncrementalSave(problemSteps, answers, structuredStepComplete);
+    const attempted = stepLogForIncrementalSave(problemSteps, answers, structuredStepComplete, {
+      hintedStepIds: new Set(Object.keys(hints)),
+      revealedStepIds: new Set(
+        problemSteps
+          .map((s) => s.id)
+          .filter((sid) => (isStepRevealed?.(sid) ?? false)),
+      ),
+    });
 
     if (attempted.length === 0) return;
     const payloadKey = JSON.stringify(attempted);
@@ -95,15 +107,27 @@ export function useTutorMasterySync({
       });
     }
 
-    /** One-shot flag from answer-reveal hook; consumed here so each save sends at most one `was_revealed`. */
-    const wasRevealed = consumeWasRevealedForSave?.() ?? false;
-    apiSaveStep({
-      attempt_id: currentAttemptId,
-      step_log: attempted,
-      was_revealed: wasRevealed,
-    })
-      .then((res) => applyMasterySnapshot(res.mastery ?? {}))
-      .catch(() => {});
+    if (saveTimerRef.current != null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = window.setTimeout(() => {
+      /** One-shot flag from answer-reveal hook; consumed here so each save sends at most one `was_revealed`. */
+      const wasRevealed = consumeWasRevealedForSave?.() ?? false;
+      apiSaveStep({
+        attempt_id: currentAttemptId,
+        step_log: attempted,
+        was_revealed: wasRevealed,
+      })
+        .then((res) => applyMasterySnapshot(res.mastery ?? {}))
+        .catch(() => {});
+      saveTimerRef.current = null;
+    }, 80);
+    return () => {
+      if (saveTimerRef.current != null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
   }, [
     userId,
     currentAttemptId,
@@ -112,9 +136,20 @@ export function useTutorMasterySync({
     problemSteps,
     answers,
     structuredStepComplete,
+    hints,
     applyMasterySnapshot,
     consumeWasRevealedForSave,
+    isStepRevealed,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current != null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const persistLevel3Unlock = useCallback(async () => {
     if (!userId) return;

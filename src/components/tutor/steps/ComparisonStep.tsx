@@ -103,6 +103,8 @@ export function ComparisonStep({
     if (!selected || isComplete) return;
     setHintPanelOpen(false);
     onCheckStart?.();
+    // Commit selected operator immediately so completion snapshot is durable.
+    onDraftChange?.(JSON.stringify(selected));
     const correct = selected === correctAnswer;
     setIsIncorrect(!correct);
     persist(selected, true, !correct);

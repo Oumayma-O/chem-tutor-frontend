@@ -78,7 +78,6 @@ export default function UnitLandingPage() {
               unit_id: uid,
               lesson_index: lidx,
               level: 1,
-              difficulty: "medium",
             });
             if (playlist?.problems?.length) {
               const idx = Math.min(

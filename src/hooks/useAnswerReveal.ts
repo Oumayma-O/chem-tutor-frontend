@@ -103,10 +103,16 @@ export function useAnswerReveal(options: {
     return true;
   }, []);
 
+  const isStepRevealed = useCallback(
+    (stepId: string): boolean => revealedRef.current[stepId] === true,
+    [],
+  );
+
   return {
     recordCheckResult,
     getRevealUi,
     consumeWasRevealedForSave,
+    isStepRevealed,
     totalRevealsUsed,
   };
 }

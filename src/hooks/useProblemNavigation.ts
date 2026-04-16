@@ -113,16 +113,46 @@ function stepMatchesLogEntry(step: SolutionStep, entry: Partial<StepLogEntry>): 
   );
 }
 
+type HydratedAttempt = {
+  attempt_id: string;
+  problem_id: string;
+  level: number;
+  is_complete?: boolean;
+  step_log: unknown[];
+} | null | undefined;
+
+function getHydratedAttemptForProblem(
+  playlist: {
+    active_attempt?: HydratedAttempt;
+    attempts_by_problem?: Record<string, HydratedAttempt>;
+  },
+  problemId: string,
+): HydratedAttempt {
+  const fromMap = playlist.attempts_by_problem?.[problemId];
+  if (fromMap) {
+    if (import.meta.env.DEV) {
+      console.debug("[hydrate] attempts_by_problem hit", {
+        problemId,
+        attemptId: fromMap?.attempt_id,
+      });
+    }
+    return fromMap;
+  }
+  const fallback = playlist.active_attempt?.problem_id === problemId ? playlist.active_attempt : null;
+  if (import.meta.env.DEV) {
+    console.debug("[hydrate] attempts_by_problem miss", {
+      problemId,
+      fallbackToActive: Boolean(fallback),
+      activeProblemId: playlist.active_attempt?.problem_id ?? null,
+    });
+  }
+  return fallback;
+}
+
 export function mergeHydratedProblemState(
   problem: Problem,
   localState: PerProblemState | undefined,
-  activeAttempt?: {
-    attempt_id: string;
-    problem_id: string;
-    level: number;
-    is_complete?: boolean;
-    step_log: unknown[];
-  } | null,
+  activeAttempt?: HydratedAttempt,
 ): {
   answers: Record<string, StudentAnswer>;
   structuredStepComplete: Record<string, boolean>;
@@ -436,7 +466,6 @@ export function useProblemNavigation({
             unit_id: unitId,
             lesson_index: lessonIndex,
             level,
-            difficulty,
           });
           if (playlist?.problems?.length) {
             const idx = Math.min(
@@ -740,7 +769,6 @@ export function useProblemNavigation({
           unit_id: unitId,
           lesson_index: lessonIndex,
           level,
-          difficulty,
         });
         if (!playlist?.problems?.length || playlist.total <= 1) return;
 
@@ -776,13 +804,7 @@ export function useProblemNavigation({
   const restorePerProblemState = useCallback(
     (
       problem: Problem,
-      activeAttempt?: {
-        attempt_id: string;
-        problem_id: string;
-        level: number;
-        is_complete?: boolean;
-        step_log: unknown[];
-      } | null,
+      activeAttempt?: HydratedAttempt,
     ) => {
       const saved = perProblemCacheRef.current[problem.id];
       const merged = mergeHydratedProblemState(problem, saved, activeAttempt);
@@ -816,7 +838,6 @@ export function useProblemNavigation({
             unit_id: unitId,
             lesson_index: lessonIndex,
             level,
-            difficulty,
           });
           if (playlist?.problems?.length) {
             const hydratedProblems = parseHydratedProblems(playlist);
@@ -852,8 +873,9 @@ export function useProblemNavigation({
                     .filter((id) => id !== restored.id),
                 );
               }
-              restorePerProblemState(restored, playlist.active_attempt);
-              if (playlist.active_attempt?.problem_id !== restored.id) {
+              const restoredAttempt = getHydratedAttemptForProblem(playlist, restored.id);
+              restorePerProblemState(restored, restoredAttempt);
+              if (restoredAttempt?.problem_id !== restored.id) {
                 startAttemptForProblem(
                   restored,
                   restored.difficulty as "easy" | "medium" | "hard",

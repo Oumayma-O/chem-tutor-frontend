@@ -326,7 +326,6 @@ export function ChemistryTutor({
   const prevViewedL1CountRef = useRef(0);
   const autoProgressTimeoutRef = useRef<number | null>(null);
   const autoProgressArmedProblemIdRef = useRef<string | null>(null);
-  const autoProgressShouldContinueRef = useRef(false);
 
   useEffect(() => {
     prevViewedL1CountRef.current = 0;
@@ -372,12 +371,14 @@ export function ChemistryTutor({
     currentProblemId: nav.currentProblem?.id,
     problemSteps: displaySteps,
     answers: steps.answers,
+    hints: steps.hints,
     structuredStepComplete: steps.structuredStepComplete,
     setHasCompletedLevel2,
     setBackendCategoryScores,
     setMasteryScore,
     onMasteryLevel2Completions: mergeLevel2CompletionsFromMastery,
     consumeWasRevealedForSave: tutorAnswerReveal.consumeWasRevealedForSave,
+    isStepRevealed: tutorAnswerReveal.isStepRevealed,
   });
 
   // ── Side effects ──────────────────────────────────────────────────────────
@@ -396,6 +397,7 @@ export function ChemistryTutor({
     progressionResult,
     handleCheckProgression,
     handleContinueAfterProgression,
+    handleAutoProgression,
     handleStayAtLevel,
   } = useTutorProgression({
     userId,
@@ -419,6 +421,7 @@ export function ChemistryTutor({
       answers: steps.answers,
       problemSteps: displaySteps,
       structuredStepComplete: steps.structuredStepComplete,
+      isStepRevealed: tutorAnswerReveal.isStepRevealed,
     },
     nav: {
       currentProblem: nav.currentProblem ? { id: nav.currentProblem.id } : null,
@@ -445,18 +448,15 @@ export function ChemistryTutor({
     }
     const problemId = nav.currentProblem?.id ?? null;
     if (!problemId || nav.currentLevel === 1 || !allComplete) {
-      autoProgressShouldContinueRef.current = false;
-      if (problemId !== autoProgressArmedProblemIdRef.current) {
-        autoProgressArmedProblemIdRef.current = null;
-      }
+      // Re-arm on any incomplete state so reset/retry of the same problem id can auto-submit again.
+      autoProgressArmedProblemIdRef.current = null;
       return;
     }
     if (autoProgressArmedProblemIdRef.current === problemId) return;
 
     autoProgressArmedProblemIdRef.current = problemId;
-    autoProgressShouldContinueRef.current = true;
     autoProgressTimeoutRef.current = window.setTimeout(() => {
-      handleCheckProgression();
+      void handleAutoProgression();
     }, 1500);
 
     return () => {
@@ -465,13 +465,7 @@ export function ChemistryTutor({
         autoProgressTimeoutRef.current = null;
       }
     };
-  }, [allComplete, nav.currentLevel, nav.currentProblem?.id, handleCheckProgression]);
-
-  useEffect(() => {
-    if (!showProgressionModal || !autoProgressShouldContinueRef.current) return;
-    autoProgressShouldContinueRef.current = false;
-    void handleContinueAfterProgression();
-  }, [showProgressionModal, handleContinueAfterProgression]);
+  }, [allComplete, nav.currentLevel, nav.currentProblem?.id, handleAutoProgression]);
 
   useEffect(() => {
     setMasteryLevel2Completions(null);
@@ -824,7 +818,6 @@ export function ChemistryTutor({
                       {allComplete && (
                         <Button
                           onClick={() => {
-                            autoProgressShouldContinueRef.current = false;
                             if (autoProgressTimeoutRef.current != null) {
                               window.clearTimeout(autoProgressTimeoutRef.current);
                               autoProgressTimeoutRef.current = null;

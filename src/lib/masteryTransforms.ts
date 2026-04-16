@@ -10,6 +10,7 @@ export type MasteryCategoryScores = {
 
 export type StepLogEntry = {
   step_id?: string;
+  is_given?: boolean;
   is_correct: boolean;
   reasoning_pattern: string;
   /** Forwarded verbatim from step.category — set by LLM and guaranteed by server guardrail. */
@@ -23,6 +24,8 @@ export type StepLogEntry = {
   attempts?: number;
   first_attempt_correct?: boolean;
   validation_feedback?: string;
+  hints_used?: number;
+  was_revealed?: boolean;
 };
 
 /**
@@ -174,11 +177,18 @@ export function buildStepLog(
   steps: SolutionStep[],
   answers: Record<string, StudentAnswer>,
   structuredStepComplete: Record<string, boolean>,
+  options?: {
+    hintedStepIds?: Set<string>;
+    revealedStepIds?: Set<string>;
+  },
 ): StepLogEntry[] {
+  const hintedStepIds = options?.hintedStepIds;
+  const revealedStepIds = options?.revealedStepIds;
   return steps.map((s) => {
     const saved = answers[s.id];
     return {
       step_id: s.id,
+      is_given: !!s.is_given,
       is_correct: s.is_given
         ? true
         : isStepAnswerCorrect(answers, structuredStepComplete, s.id),
@@ -189,6 +199,8 @@ export function buildStepLog(
       attempts: saved?.attempts ?? 0,
       first_attempt_correct: saved?.first_attempt_correct,
       validation_feedback: saved?.validation_feedback,
+      hints_used: hintedStepIds?.has(s.id) ? 1 : 0,
+      was_revealed: revealedStepIds?.has(s.id) ?? false,
     };
   });
 }
@@ -206,12 +218,16 @@ export function stepLogForIncrementalSave(
   problemSteps: SolutionStep[],
   answers: Record<string, StudentAnswer>,
   structuredStepComplete: Record<string, boolean>,
+  options?: {
+    hintedStepIds?: Set<string>;
+    revealedStepIds?: Set<string>;
+  },
 ): StepLogEntry[] {
   const interactive = interactiveStepsFromProblem(problemSteps);
   const anyInteractiveAttempted = interactive.some((s) =>
     isStepAnswerAttempted(answers, structuredStepComplete, s.id),
   );
-  return buildStepLog(problemSteps, answers, structuredStepComplete).filter((_, idx) => {
+  return buildStepLog(problemSteps, answers, structuredStepComplete, options).filter((_, idx) => {
     const step = problemSteps[idx];
     if (!step) return false;
     if (step.is_given) return anyInteractiveAttempted;
@@ -228,7 +244,11 @@ export function stepLogForAttemptComplete(
   answers: Record<string, StudentAnswer>,
   structuredStepComplete: Record<string, boolean>,
   fallbackWhenEmpty: SolutionStep[] = [],
+  options?: {
+    hintedStepIds?: Set<string>;
+    revealedStepIds?: Set<string>;
+  },
 ): StepLogEntry[] {
   const stepsForLog = problemSteps.length > 0 ? problemSteps : fallbackWhenEmpty;
-  return buildStepLog(stepsForLog, answers, structuredStepComplete);
+  return buildStepLog(stepsForLog, answers, structuredStepComplete, options);
 }

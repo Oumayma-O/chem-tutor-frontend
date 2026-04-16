@@ -59,6 +59,16 @@ export interface PlaylistHydrationResponse {
   total: number;
   has_prev: boolean;
   has_next: boolean;
+  attempts_by_problem?: Record<
+    string,
+    {
+      attempt_id: string;
+      problem_id: string;
+      level: number;
+      is_complete: boolean;
+      step_log: unknown[];
+    }
+  >;
   active_attempt?: {
     attempt_id: string;
     problem_id: string;
@@ -67,6 +77,10 @@ export interface PlaylistHydrationResponse {
     step_log: unknown[];
   } | null;
 }
+
+const inFlightPlaylistRequests = new Map<string, Promise<PlaylistHydrationResponse>>();
+const recentPlaylistResults = new Map<string, { expiresAt: number; data: PlaylistHydrationResponse }>();
+const PLAYLIST_TTL_MS = 1500;
 
 export interface ValidationOutput {
   is_correct: boolean;
@@ -195,13 +209,37 @@ export async function apiGetPlaylist(params: {
   level: number;
   difficulty?: "easy" | "medium" | "hard";
 }): Promise<PlaylistHydrationResponse> {
+  const requestKey = [
+    params.unit_id,
+    String(params.lesson_index),
+    String(params.level),
+    params.difficulty ?? "",
+  ].join("|");
+  const existing = inFlightPlaylistRequests.get(requestKey);
+  if (existing) return existing;
+  const recent = recentPlaylistResults.get(requestKey);
+  if (recent && recent.expiresAt > Date.now()) return Promise.resolve(recent.data);
+  if (recent) recentPlaylistResults.delete(requestKey);
+
   const query = new URLSearchParams({
     unit_id: params.unit_id,
     lesson_index: String(params.lesson_index),
     level: String(params.level),
   });
   if (params.difficulty) query.set("difficulty", params.difficulty);
-  return get<PlaylistHydrationResponse>(`/problems/playlist?${query.toString()}`);
+  const request = get<PlaylistHydrationResponse>(`/problems/playlist?${query.toString()}`)
+    .then((data) => {
+      recentPlaylistResults.set(requestKey, { data, expiresAt: Date.now() + PLAYLIST_TTL_MS });
+      return data;
+    })
+    .finally(() => {
+      const active = inFlightPlaylistRequests.get(requestKey);
+      if (active === request) {
+        inFlightPlaylistRequests.delete(requestKey);
+      }
+    });
+  inFlightPlaylistRequests.set(requestKey, request);
+  return request;
 }
 
 export async function apiValidateStep(body: {

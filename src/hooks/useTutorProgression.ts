@@ -34,6 +34,7 @@ interface Params {
     /** Full ordered steps (including given); interactive steps are derived in-hook. */
     problemSteps: SolutionStep[];
     structuredStepComplete: Record<string, boolean>;
+    isStepRevealed?: (stepId: string) => boolean;
   };
   nav: {
     currentProblem: { id: string } | null;
@@ -115,6 +116,15 @@ export function useTutorProgression({
             steps.problemSteps,
             steps.answers,
             steps.structuredStepComplete,
+            [],
+            {
+              hintedStepIds: new Set(Object.keys(steps.hints)),
+              revealedStepIds: new Set(
+                steps.problemSteps
+                  .map((s) => s.id)
+                  .filter((sid) => (steps.isStepRevealed?.(sid) ?? false)),
+              ),
+            },
           );
       const correctCount = step_log.filter((e) => e.is_correct).length;
       // L1 worked examples are always scored 1.0 (student viewed the example)
@@ -178,8 +188,8 @@ export function useTutorProgression({
     completeCurrentAttempt();
   }, [nav, checkProgression, setHasCompletedLevel2, completeCurrentAttempt]);
 
-  const handleContinueAfterProgression = useCallback(async () => {
-    if (!progressionResult || !nav.currentProblem) return;
+  const continueWithResult = useCallback(async (result: ProgressionResult) => {
+    if (!nav.currentProblem) return;
     if (completeAttemptPromiseRef.current) {
       try { await completeAttemptPromiseRef.current; } catch { /* non-blocking */ }
       completeAttemptPromiseRef.current = null;
@@ -194,13 +204,13 @@ export function useTutorProgression({
     }
 
     prepareNextProblemTransition(nextExcludeIds);
-    const advancingToLevel3 = isLevel2To3Advance(progressionResult, nav.currentLevel);
+    const advancingToLevel3 = isLevel2To3Advance(result, nav.currentLevel);
     if (!advancingToLevel3) delete nav.levelCacheRef.current[nav.currentLevel as 1 | 2 | 3];
 
     const backendDiff = recommendedDifficulty;
     setRecommendedDifficulty(null);
 
-    if (isLevel2To3Advance(progressionResult, nav.currentLevel)) {
+    if (isLevel2To3Advance(result, nav.currentLevel)) {
       setHasCompletedLevel2(true);
       persistLevel3Unlock();
       nav.setCurrentLevel(3);
@@ -232,7 +242,6 @@ export function useTutorProgression({
     await nav.hydrateOrGenerateForLevel(2, backendDiff ?? "medium", nextExcludeIds);
     toast.info("New faded example loaded!");
   }, [
-    progressionResult,
     nav,
     prepareNextProblemTransition,
     recommendedDifficulty,
@@ -247,6 +256,21 @@ export function useTutorProgression({
     onMasteryLevel2Completions,
     onTopicComplete,
   ]);
+
+  const handleContinueAfterProgression = useCallback(async () => {
+    if (!progressionResult) return;
+    await continueWithResult(progressionResult);
+  }, [progressionResult, continueWithResult]);
+
+  const handleAutoProgression = useCallback(async () => {
+    if (!nav.currentProblem) return;
+    const result = checkProgression();
+    if (isLevel2To3Advance(result, nav.currentLevel)) {
+      setHasCompletedLevel2(true);
+    }
+    completeCurrentAttempt();
+    await continueWithResult(result);
+  }, [nav, checkProgression, setHasCompletedLevel2, completeCurrentAttempt, continueWithResult]);
 
   const handleStayAtLevel = useCallback(async () => {
     if (!nav.currentProblem) return;
@@ -270,6 +294,7 @@ export function useTutorProgression({
     progressionResult,
     handleCheckProgression,
     handleContinueAfterProgression,
+    handleAutoProgression,
     handleStayAtLevel,
   };
 }
