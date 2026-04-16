@@ -399,6 +399,8 @@ export function ChemistryTutor({
     handleContinueAfterProgression,
     handleAutoProgression,
     handleStayAtLevel,
+    handleLevel1SeeAnother,
+    handleLevel1StartFadedExample,
   } = useTutorProgression({
     userId,
     unitId,
@@ -436,6 +438,8 @@ export function ChemistryTutor({
       setCurrentLevel: nav.setCurrentLevel,
       loadNewProblem: nav.loadNewProblem,
       hydrateOrGenerateForLevel: nav.hydrateOrGenerateForLevel,
+      handleSeeAnother: nav.handleSeeAnother,
+      handleStartFadedExample: nav.handleStartFadedExample,
       canAccessLevel2: nav.level1ExposureSatisfied,
     },
   });
@@ -785,7 +789,7 @@ export function ChemistryTutor({
                 <div className="flex items-center gap-4 flex-wrap">
                   {nav.currentLevel === 1 ? (
                     <>
-                      <Button onClick={nav.handleStartFadedExample} className="gap-2">
+                      <Button onClick={() => { void handleLevel1StartFadedExample(); }} className="gap-2">
                         <ArrowRight className="w-4 h-4" />
                         Ready to Try? Start Faded Example
                       </Button>
@@ -795,7 +799,7 @@ export function ChemistryTutor({
                         <Button
                           variant="outline"
                           className="gap-2"
-                          onClick={nav.handleSeeAnother}
+                          onClick={() => { void handleLevel1SeeAnother(); }}
                           disabled={nav.problemLoading || nav.isNavigating || nav.isBackgroundGenerating}
                         >
                           <BookOpen className={cn("w-4 h-4", nav.isBackgroundGenerating && "animate-spin")} />

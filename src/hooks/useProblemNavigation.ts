@@ -306,6 +306,7 @@ export function useProblemNavigation({
   const prefetchInFlight = useRef(false);
   /** When non-null, a prefetch for this level is in progress; loadNewProblem can await it. */
   const prefetchPromiseRef = useRef<{ promise: Promise<GenerateResult>; level: number } | null>(null);
+  const hydratedAttemptByProblemRef = useRef<Record<string, HydratedAttempt>>({});
   /** Per-level lock: true while an active API call (in-flight await or fresh generate) is in
    *  the slow path for that level. Prevents concurrent fresh-generate calls from different
    *  entry points (handleContinueAfterProgression + tab click) creating duplicate problems. */
@@ -806,8 +807,9 @@ export function useProblemNavigation({
       problem: Problem,
       activeAttempt?: HydratedAttempt,
     ) => {
+      const effectiveAttempt = activeAttempt ?? hydratedAttemptByProblemRef.current[problem.id];
       const saved = perProblemCacheRef.current[problem.id];
-      const merged = mergeHydratedProblemState(problem, saved, activeAttempt);
+      const merged = mergeHydratedProblemState(problem, saved, effectiveAttempt);
       const hints = saved?.hints ?? {};
       perProblemCacheRef.current[problem.id] = {
         answers: merged.answers,
@@ -817,8 +819,8 @@ export function useProblemNavigation({
       stepSettersRef.current.setAnswers(merged.answers);
       stepSettersRef.current.setHints(hints);
       stepSettersRef.current.setStructuredStepComplete(merged.structuredStepComplete);
-      if (activeAttempt?.problem_id === problem.id) {
-        onAttemptStart(activeAttempt.is_complete ? null : merged.attemptId);
+      if (effectiveAttempt?.problem_id === problem.id) {
+        onAttemptStart(effectiveAttempt.is_complete ? null : merged.attemptId);
         setStepRemountKey((prev) => prev + 1);
       }
     },
@@ -841,6 +843,22 @@ export function useProblemNavigation({
           });
           if (playlist?.problems?.length) {
             const hydratedProblems = parseHydratedProblems(playlist);
+            // Seed per-problem cache from backend hydration for the whole timeline, not just
+            // the currently selected problem. This keeps saved attempts available when the user
+            // navigates back to earlier examples after a hard refresh.
+            for (const hydratedProblem of hydratedProblems) {
+              const attemptForProblem = getHydratedAttemptForProblem(playlist, hydratedProblem.id);
+              if (attemptForProblem?.problem_id === hydratedProblem.id) {
+                hydratedAttemptByProblemRef.current[hydratedProblem.id] = attemptForProblem;
+              }
+              const existing = perProblemCacheRef.current[hydratedProblem.id];
+              const merged = mergeHydratedProblemState(hydratedProblem, existing, attemptForProblem);
+              perProblemCacheRef.current[hydratedProblem.id] = {
+                answers: merged.answers,
+                hints: existing?.hints ?? {},
+                structuredStepComplete: merged.structuredStepComplete,
+              };
+            }
             const idx = Math.min(
               Math.max(playlist.current_index, 0),
               Math.max(hydratedProblems.length - 1, 0),
@@ -1206,6 +1224,16 @@ export function useProblemNavigation({
           level3ProblemsRef.current = [entry.problem];
         }
         setPagination(entry.pagination ?? defaultPaginationForLevel(level));
+        // Always refresh full backend timeline after cache restore so unsolved examples
+        // are not lost if the local cache only had a partial history snapshot.
+        if (userId) {
+          void hydrateHistoryFromBackend(
+            level,
+            entry.problem.id,
+            entry.pagination?.current_index ?? 0,
+            entry.difficulty,
+          );
+        }
       }
 
       // Clear any in-flight loading state from a concurrent generate call on another level.
@@ -1224,7 +1252,7 @@ export function useProblemNavigation({
         triggerPrefetch(entry.difficulty, [], 3);
       }
     },
-    [triggerPrefetch, startAttemptForProblem, loadNewProblem], // stepSettersRef, seenLevel1IdsRef, level1ProblemsRef are stable refs
+    [triggerPrefetch, startAttemptForProblem, loadNewProblem, userId, hydrateHistoryFromBackend], // stepSettersRef, seenLevel1IdsRef, level1ProblemsRef are stable refs
   );
 
   /**

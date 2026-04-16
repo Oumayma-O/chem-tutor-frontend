@@ -53,6 +53,8 @@ interface Params {
       diff: "easy" | "medium" | "hard",
       exclude: string[],
     ) => Promise<unknown>;
+    handleSeeAnother: () => Promise<void>;
+    handleStartFadedExample: () => void;
     /** True when the student has viewed enough unique Level 1 examples (required before Level 2). */
     canAccessLevel2: boolean;
   };
@@ -81,6 +83,43 @@ export function useTutorProgression({
   const [showProgressionModal, setShowProgressionModal] = useState(false);
   const [progressionResult, setProgressionResult] = useState<ProgressionResult | null>(null);
   const completeAttemptPromiseRef = useRef<Promise<unknown> | null>(null);
+  const completionInFlightProblemIdRef = useRef<string | null>(null);
+
+  const applyMasteryDecision = useCallback((decision: { mastery?: unknown; recommended_next_difficulty?: string }) => {
+    if (decision.mastery) {
+      applyMasterySnapshotToLessonUi(decision.mastery as Record<string, unknown>, {
+        setBackendCategoryScores,
+        setMasteryScore,
+        setHasCompletedLevel2,
+        onMasteryLevel2Completions,
+      });
+    }
+    if (decision.recommended_next_difficulty) {
+      setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
+    }
+    // Reconcile with server source-of-truth to avoid any stale/race UI state after completion.
+    if (userId) {
+      apiGetMastery(userId, unitId, lessonIndex)
+        .then((state) => {
+          applyMasterySnapshotToLessonUi(state, {
+            setBackendCategoryScores,
+            setMasteryScore,
+            setHasCompletedLevel2,
+            onMasteryLevel2Completions,
+          });
+        })
+        .catch(() => {});
+    }
+  }, [
+    userId,
+    unitId,
+    lessonIndex,
+    setBackendCategoryScores,
+    setMasteryScore,
+    setHasCompletedLevel2,
+    onMasteryLevel2Completions,
+    setRecommendedDifficulty,
+  ]);
 
   const prepareNextProblemTransition = useCallback((nextExcludeIds: string[]) => {
     nav.saveCurrentStateToCache();
@@ -94,6 +133,9 @@ export function useTutorProgression({
    *  both the progression-modal path and the direct "Practice More" path. */
   const completeCurrentAttempt = useCallback(() => {
     if (!nav.currentProblem) return;
+    const problemId = nav.currentProblem.id;
+    if (completionInFlightProblemIdRef.current === problemId) return;
+    completionInFlightProblemIdRef.current = problemId;
 
     const allFirstAttempt = interactiveStepIds.every(
       (id) => steps.answers[id]?.first_attempt_correct === true,
@@ -150,20 +192,15 @@ export function useTutorProgression({
       completeAttemptPromiseRef.current = completePromise;
       completePromise
         .then((decision) => {
-          if (decision.mastery) {
-            applyMasterySnapshotToLessonUi(decision.mastery, {
-              setBackendCategoryScores,
-              setMasteryScore,
-              setHasCompletedLevel2,
-              onMasteryLevel2Completions,
-            });
-          }
-          if (decision.recommended_next_difficulty) {
-            setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
-          }
+          applyMasteryDecision(decision);
           setCurrentAttemptId(null);
         })
-        .catch(() => setCurrentAttemptId(null));
+        .catch(() => setCurrentAttemptId(null))
+        .finally(() => {
+          if (completionInFlightProblemIdRef.current === problemId) {
+            completionInFlightProblemIdRef.current = null;
+          }
+        });
     } else if (userId && (interactiveForAttempt.length > 0 || isLevel1)) {
       // Late-bind guard: never drop a completion just because attempt_id was lost in UI state.
       // We start a fresh attempt for the current problem and immediately complete it with full step_log.
@@ -220,17 +257,7 @@ export function useTutorProgression({
       completeAttemptPromiseRef.current = completePromise;
       completePromise
         .then((decision) => {
-          if (decision.mastery) {
-            applyMasterySnapshotToLessonUi(decision.mastery, {
-              setBackendCategoryScores,
-              setMasteryScore,
-              setHasCompletedLevel2,
-              onMasteryLevel2Completions,
-            });
-          }
-          if (decision.recommended_next_difficulty) {
-            setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
-          }
+          applyMasteryDecision(decision);
           setCurrentAttemptId(null);
         })
         .catch(() => {
@@ -238,9 +265,17 @@ export function useTutorProgression({
             console.error("[mastery-sync] Late-bind completion failed; score update may be skipped.");
           }
           setCurrentAttemptId(null);
+        })
+        .finally(() => {
+          if (completionInFlightProblemIdRef.current === problemId) {
+            completionInFlightProblemIdRef.current = null;
+          }
         });
     } else {
       setCurrentAttemptId(null);
+      if (completionInFlightProblemIdRef.current === problemId) {
+        completionInFlightProblemIdRef.current = null;
+      }
     }
   }, [
     nav,
@@ -257,6 +292,7 @@ export function useTutorProgression({
     setCurrentAttemptId,
     setHasCompletedLevel2,
     onMasteryLevel2Completions,
+    applyMasteryDecision,
   ]);
 
   const handleCheckProgression = useCallback(() => {
@@ -372,6 +408,33 @@ export function useTutorProgression({
     }
   }, [nav, prepareNextProblemTransition]);
 
+  const finalizeCurrentAttempt = useCallback(async () => {
+    completeCurrentAttempt();
+    if (completeAttemptPromiseRef.current) {
+      try {
+        await completeAttemptPromiseRef.current;
+      } catch {
+        // Non-blocking: navigation may still proceed even if completion request failed.
+      } finally {
+        completeAttemptPromiseRef.current = null;
+      }
+    }
+  }, [completeCurrentAttempt]);
+
+  const handleLevel1SeeAnother = useCallback(async () => {
+    if (nav.currentLevel === 1) {
+      await finalizeCurrentAttempt();
+    }
+    await nav.handleSeeAnother();
+  }, [nav, finalizeCurrentAttempt]);
+
+  const handleLevel1StartFadedExample = useCallback(async () => {
+    if (nav.currentLevel === 1) {
+      await finalizeCurrentAttempt();
+    }
+    nav.handleStartFadedExample();
+  }, [nav, finalizeCurrentAttempt]);
+
   return {
     showProgressionModal,
     setShowProgressionModal,
@@ -380,6 +443,8 @@ export function useTutorProgression({
     handleContinueAfterProgression,
     handleAutoProgression,
     handleStayAtLevel,
+    handleLevel1SeeAnother,
+    handleLevel1StartFadedExample,
   };
 }
 
