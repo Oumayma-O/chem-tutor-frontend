@@ -202,16 +202,6 @@ export async function getStudentAnalytics(
   return get<StudentAnalyticsOut>(`/teacher/classes/${classroomId}/students/${studentId}/analytics?${params}`);
 }
 
-/** Block or unblock a student in a classroom. */
-export async function blockStudent(classroomId: string, studentId: string, blocked: boolean): Promise<void> {
-  await patch(`/classrooms/${classroomId}/students/${studentId}`, { is_blocked: blocked });
-}
-
-/** Remove a student from a classroom entirely. */
-export async function removeStudentFromClass(classroomId: string, studentId: string): Promise<void> {
-  await del(`/classrooms/${classroomId}/students/${studentId}`);
-}
-
 export async function deleteClassroom(classroomId: string): Promise<void> {
   await del(`/classrooms/${classroomId}`);
 }
@@ -416,4 +406,15 @@ export async function getTimedPracticeAnalytics(
   return get<TimedPracticeAnalytics>(
     `/teacher/classes/${classId}/sessions/${sessionId}/practice-analytics`,
   );
+}
+
+
+// ── Student management (block / remove) ──────────────────
+
+export async function blockStudent(classroomId: string, studentId: string, blocked: boolean): Promise<void> {
+  await patch(`/classrooms/${classroomId}/students/${studentId}`, { is_blocked: blocked });
+}
+
+export async function removeStudentFromClass(classroomId: string, studentId: string): Promise<void> {
+  await del(`/classrooms/${classroomId}/students/${studentId}`);
 }
