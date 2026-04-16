@@ -324,6 +324,9 @@ export function ChemistryTutor({
   const isLevel3Locked = !hasCompletedLevel2;
   const isLevel2Locked = !nav.level1ExposureSatisfied;
   const prevViewedL1CountRef = useRef(0);
+  const autoProgressTimeoutRef = useRef<number | null>(null);
+  const autoProgressArmedProblemIdRef = useRef<string | null>(null);
+  const autoProgressShouldContinueRef = useRef(false);
 
   useEffect(() => {
     prevViewedL1CountRef.current = 0;
@@ -433,6 +436,42 @@ export function ChemistryTutor({
       canAccessLevel2: nav.level1ExposureSatisfied,
     },
   });
+
+  // Auto-submit on final-step completion (L2/L3 only), then continue progression automatically.
+  useEffect(() => {
+    if (autoProgressTimeoutRef.current != null) {
+      window.clearTimeout(autoProgressTimeoutRef.current);
+      autoProgressTimeoutRef.current = null;
+    }
+    const problemId = nav.currentProblem?.id ?? null;
+    if (!problemId || nav.currentLevel === 1 || !allComplete) {
+      autoProgressShouldContinueRef.current = false;
+      if (problemId !== autoProgressArmedProblemIdRef.current) {
+        autoProgressArmedProblemIdRef.current = null;
+      }
+      return;
+    }
+    if (autoProgressArmedProblemIdRef.current === problemId) return;
+
+    autoProgressArmedProblemIdRef.current = problemId;
+    autoProgressShouldContinueRef.current = true;
+    autoProgressTimeoutRef.current = window.setTimeout(() => {
+      handleCheckProgression();
+    }, 1500);
+
+    return () => {
+      if (autoProgressTimeoutRef.current != null) {
+        window.clearTimeout(autoProgressTimeoutRef.current);
+        autoProgressTimeoutRef.current = null;
+      }
+    };
+  }, [allComplete, nav.currentLevel, nav.currentProblem?.id, handleCheckProgression]);
+
+  useEffect(() => {
+    if (!showProgressionModal || !autoProgressShouldContinueRef.current) return;
+    autoProgressShouldContinueRef.current = false;
+    void handleContinueAfterProgression();
+  }, [showProgressionModal, handleContinueAfterProgression]);
 
   useEffect(() => {
     setMasteryLevel2Completions(null);
@@ -783,7 +822,17 @@ export function ChemistryTutor({
                       </Button>
 
                       {allComplete && (
-                        <Button onClick={handleCheckProgression} className="gap-2">
+                        <Button
+                          onClick={() => {
+                            autoProgressShouldContinueRef.current = false;
+                            if (autoProgressTimeoutRef.current != null) {
+                              window.clearTimeout(autoProgressTimeoutRef.current);
+                              autoProgressTimeoutRef.current = null;
+                            }
+                            handleCheckProgression();
+                          }}
+                          className="gap-2"
+                        >
                           <Zap className="w-4 h-4" />
                           Continue
                         </Button>
