@@ -20,8 +20,7 @@ Create `.env` from `.env.example`:
 | Variable | Required | Description |
 |---|---|---|
 | `VITE_API_URL` | Yes | FastAPI backend URL. Local: `http://localhost:8000/api/v1` |
-| `VITE_TUTOR_MAX_ANSWER_REVEALS_PER_LESSON` | No | Fallback max reveals if API omits it. Default: `6` |
-| `VITE_TUTOR_MIN_LEVEL1_EXAMPLES_FOR_LEVEL2` | No | L1 examples needed to unlock L2. Default: `2` |
+
 
 ## Scripts
 
@@ -292,6 +291,10 @@ The frontend expects a FastAPI backend at `VITE_API_URL` with these key endpoint
 
 5. **Answer reveal**: The `useTutorAnswerReveal` hook tracks per-lesson reveal counts. The `max_reveals_per_lesson` comes from the classroom settings (teacher-configurable).
 
-6. **localStorage keys**: Tutor session state is keyed by `userId_unitId_lessonIndex`. Clearing localStorage resets all practice progress.
+6. **Exit ticket scoring is server-side only**: The backend always scores exit ticket submissions via `score_exit_ticket_submission`. The frontend no longer sends `score_percent` or `results` in the submit body — the server computes them using the same `StepValidationService` pipeline as `/validate-step`.
 
-7. **Module-level cache**: `problemPrefetchCache.ts` survives React unmounts. Problems prefetched from UnitLandingPage are available when the student enters practice.
+7. **L1→L2 unlock threshold is backend-owned**: `min_level1_examples_for_level2` is returned by the problems API from classroom settings (or the backend default of `2` for solo practice). The frontend `VITE_TUTOR_MIN_LEVEL1_EXAMPLES_FOR_LEVEL2` env var is a dead fallback.
+
+8. **localStorage keys**: Tutor session state is keyed by `userId_unitId_lessonIndex`. Clearing localStorage resets all practice progress.
+
+9. **Module-level cache**: `problemPrefetchCache.ts` survives React unmounts. Problems prefetched from UnitLandingPage are available when the student enters practice.
