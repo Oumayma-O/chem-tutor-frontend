@@ -53,6 +53,21 @@ export interface ProblemDeliveryResponse {
   min_level1_examples_for_level2?: number;
 }
 
+export interface PlaylistHydrationResponse {
+  problems: ProblemOutput[];
+  current_index: number;
+  total: number;
+  has_prev: boolean;
+  has_next: boolean;
+  active_attempt?: {
+    attempt_id: string;
+    problem_id: string;
+    level: number;
+    is_complete: boolean;
+    step_log: unknown[];
+  } | null;
+}
+
 export interface ValidationOutput {
   is_correct: boolean;
   feedback?: string;
@@ -172,6 +187,21 @@ export async function apiNavigateProblem(body: {
   class_id?: string;
 }): Promise<ProblemDeliveryResponse> {
   return post<ProblemDeliveryResponse>("/problems/navigate", body);
+}
+
+export async function apiGetPlaylist(params: {
+  unit_id: string;
+  lesson_index: number;
+  level: number;
+  difficulty?: "easy" | "medium" | "hard";
+}): Promise<PlaylistHydrationResponse> {
+  const query = new URLSearchParams({
+    unit_id: params.unit_id,
+    lesson_index: String(params.lesson_index),
+    level: String(params.level),
+  });
+  if (params.difficulty) query.set("difficulty", params.difficulty);
+  return get<PlaylistHydrationResponse>(`/problems/playlist?${query.toString()}`);
 }
 
 export async function apiValidateStep(body: {

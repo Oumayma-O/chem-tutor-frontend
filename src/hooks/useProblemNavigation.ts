@@ -14,14 +14,21 @@ import {
   Dispatch,
   SetStateAction,
 } from "react";
-import { Level, Problem, StudentAnswer } from "@/types/chemistry";
+import { Level, Problem, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import { ThinkingStep, ClassifiedError } from "@/types/cognitive";
 import { ProblemPagination } from "@/lib/api";
 import {
   apiStartAttempt,
+  apiGetPlaylist,
   apiNavigateProblem,
 } from "@/lib/api";
-import { useGeneratedProblem, parseProblemOutput, type GenerateResult } from "@/hooks/useGeneratedProblem";
+import {
+  parseHydratedProblem,
+  useGeneratedProblem,
+  parseHydratedProblems,
+  parseProblemOutput,
+  type GenerateResult,
+} from "@/hooks/useGeneratedProblem";
 import { toast } from "sonner";
 import {
   getTutorSessionStorageKey,
@@ -30,6 +37,7 @@ import {
   writeTutorSessionSnapshot,
 } from "@/lib/tutorSessionStorage";
 import { getFallbackMinLevel1ExamplesForLevel2 } from "@/config/tutorReveal";
+import type { StepLogEntry } from "@/lib/masteryTransforms";
 
 // ── Shared types (exported for use in ChemistryTutor.tsx) ───────────────────
 
@@ -98,6 +106,85 @@ function cachedProblemHasBrokenMultiInput(problem: Problem): boolean {
   );
 }
 
+function stepMatchesLogEntry(step: SolutionStep, entry: Partial<StepLogEntry>): boolean {
+  return (
+    (typeof entry.step_id === "string" && entry.step_id === step.id) ||
+    (typeof entry.step_label === "string" && entry.step_label === step.label)
+  );
+}
+
+export function mergeHydratedProblemState(
+  problem: Problem,
+  localState: PerProblemState | undefined,
+  activeAttempt?: {
+    attempt_id: string;
+    problem_id: string;
+    level: number;
+    is_complete?: boolean;
+    step_log: unknown[];
+  } | null,
+): {
+  answers: Record<string, StudentAnswer>;
+  structuredStepComplete: Record<string, boolean>;
+  attemptId: string | null;
+} {
+  const backendAnswers: Record<string, StudentAnswer> = {};
+  const backendStructuredStepComplete: Record<string, boolean> = {};
+  const matchesActiveProblem =
+    activeAttempt?.problem_id === problem.id && Array.isArray(activeAttempt?.step_log);
+
+  if (matchesActiveProblem) {
+    for (const raw of activeAttempt.step_log) {
+      if (!raw || typeof raw !== "object") continue;
+      const entry = raw as Partial<StepLogEntry>;
+      const step = problem.steps.find((candidate) => stepMatchesLogEntry(candidate, entry));
+      if (!step || step.is_given) continue;
+      const answer = typeof entry.answer === "string" ? entry.answer : "";
+      const attempts =
+        typeof entry.attempts === "number" && Number.isFinite(entry.attempts) && entry.attempts >= 0
+          ? Math.floor(entry.attempts)
+          : 0;
+      const isCorrect = typeof entry.is_correct === "boolean" ? entry.is_correct : undefined;
+      backendAnswers[step.id] = {
+        step_id: step.id,
+        answer,
+        is_correct: isCorrect,
+        attempts,
+        first_attempt_correct:
+          typeof entry.first_attempt_correct === "boolean" ? entry.first_attempt_correct : undefined,
+        validation_feedback:
+          typeof entry.validation_feedback === "string" ? entry.validation_feedback : undefined,
+      };
+      if (step.type !== "interactive" && isCorrect === true) {
+        backendStructuredStepComplete[step.id] = true;
+      }
+    }
+  }
+
+  const answers: Record<string, StudentAnswer> = { ...backendAnswers };
+  const structuredStepComplete: Record<string, boolean> = { ...backendStructuredStepComplete };
+  const localAnswers = localState?.answers ?? {};
+  const localStructured = localState?.structuredStepComplete ?? {};
+
+  for (const step of problem.steps) {
+    if (step.is_given) continue;
+    const backendHasState =
+      answers[step.id] !== undefined || structuredStepComplete[step.id] === true;
+    if (!backendHasState && localAnswers[step.id]) {
+      answers[step.id] = localAnswers[step.id];
+    }
+    if (!backendHasState && localStructured[step.id]) {
+      structuredStepComplete[step.id] = true;
+    }
+  }
+
+  return {
+    answers,
+    structuredStepComplete,
+    attemptId: matchesActiveProblem ? activeAttempt?.attempt_id ?? null : null,
+  };
+}
+
 // ── Hook interface ──────────────────────────────────────────────────────────
 
 interface UseProblemNavigationOptions {
@@ -134,6 +221,8 @@ interface UseProblemNavigationOptions {
   classroomId?: string;
   /** From GET /classrooms/me/live-session when problem payloads omit the field. */
   liveSessionMinLevel1ExamplesForLevel2?: number;
+  /** Known lesson lifecycle state from lesson progress; lets L1 skip playlist on first entry. */
+  lessonStatus?: "not-started" | "in-progress" | "completed";
 }
 
 // ── Hook ────────────────────────────────────────────────────────────────────
@@ -157,6 +246,7 @@ export function useProblemNavigation({
   onRestoreHasCompletedLevel2,
   classroomId,
   liveSessionMinLevel1ExamplesForLevel2,
+  lessonStatus,
 }: UseProblemNavigationOptions) {
   const [currentProblem, setCurrentProblem] = useState<Problem | null>(null);
   const [currentLevel, setCurrentLevel] = useState<Level>(() => {
@@ -239,6 +329,7 @@ export function useProblemNavigation({
   useLayoutEffect(() => {
     level1ExposureSatisfiedRef.current = level1ExposureSatisfied;
   }, [level1ExposureSatisfied]);
+  const isKnownFirstLessonAccess = lessonStatus === "not-started";
 
   /** Register the active Level 1 problem as viewed (deduped). Keeps `seenLevel1IdsRef` aligned for exclude logic.
    *  Declared before the exposure gate so the same layout pass sees an updated `seenLevel1IdsRef` for Level 2 unlock. */
@@ -334,15 +425,44 @@ export function useProblemNavigation({
     [userId, unitId, lessonIndex, onAttemptStart],
   );
 
+  const prefetchHydrateOrGenerate = useCallback(
+    async (
+      level: number,
+      difficulty: "easy" | "medium" | "hard",
+    ): Promise<GenerateResult> => {
+      if (userId && !(level === 1 && isKnownFirstLessonAccess)) {
+        try {
+          const playlist = await apiGetPlaylist({
+            unit_id: unitId,
+            lesson_index: lessonIndex,
+            level,
+            difficulty,
+          });
+          if (playlist?.problems?.length) {
+            const idx = Math.min(
+              Math.max(playlist.current_index, 0),
+              Math.max(playlist.problems.length - 1, 0),
+            );
+            return parseHydratedProblem(playlist.problems[idx], idx, playlist.total);
+          }
+        } catch {
+          // Fall back to generate for prefetch.
+        }
+      }
+      return await generateProblem(difficulty, [], level);
+    },
+    [userId, unitId, lessonIndex, generateProblem, isKnownFirstLessonAccess],
+  );
+
   const triggerPrefetch = useCallback(
-    (difficulty: "easy" | "medium" | "hard", excludeIds: string[], level: number) => {
+    (difficulty: "easy" | "medium" | "hard", _excludeIds: string[], level: number) => {
       if (prefetchInFlight.current) return;
       const levelToPrefetch = level;
       const start = () => {
         if (prefetchInFlight.current) return;
         prefetchInFlight.current = true;
         prefetchPromiseRef.current = null;
-        const promise = generateProblem(difficulty, excludeIds, levelToPrefetch)
+        const promise = prefetchHydrateOrGenerate(levelToPrefetch, difficulty)
           .then((result) => {
             if (result.allow_answer_reveal !== undefined) {
               setAllowAnswerReveal(result.allow_answer_reveal);
@@ -385,7 +505,7 @@ export function useProblemNavigation({
       const delayMs = levelToPrefetch === 3 ? 0 : 400;
       setTimeout(start, delayMs);
     },
-    [generateProblem],
+    [prefetchHydrateOrGenerate],
   );
 
   const prefetchNextLevelIfNeeded = useCallback(
@@ -540,16 +660,19 @@ export function useProblemNavigation({
             if (!historyRef.current.find((p) => p.id === problem.id)) {
               historyRef.current = [...historyRef.current, problem];
             }
-            const total = historyRef.current.length;
-            const idx = total - 1;
+            const total = Math.max(historyRef.current.length, pag?.total ?? 0);
+            const idx = pag?.current_index ?? (historyRef.current.length - 1);
             setPagination({
               current_index: idx,
               total,
-              max_problems: total,
-              has_prev: idx > 0,
-              has_next: false,
+              max_problems: pag?.max_problems ?? total,
+              has_prev: pag?.has_prev ?? (idx > 0),
+              has_next: pag?.has_next ?? false,
               at_limit: false,
             });
+            if ((pag?.has_prev ?? false) && historyRef.current.length <= 1) {
+              void hydrateHistoryFromBackend(level, problem.id, idx, difficulty);
+            }
           }
           setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
         } else {
@@ -601,6 +724,161 @@ export function useProblemNavigation({
       }
     },
     [generateProblem, applyPrefetchedProblem, startAttemptForProblem, onAttemptStart, prefetchNextLevelIfNeeded],
+  );
+
+  const hydrateHistoryFromBackend = useCallback(
+    async (
+      level: number,
+      currentProblemId: string,
+      backendCurrentIndex: number,
+      difficulty: "easy" | "medium" | "hard",
+    ) => {
+      if (!userId || level === 1) return;
+      try {
+        const expectedLevel = level as Level;
+        const playlist = await apiGetPlaylist({
+          unit_id: unitId,
+          lesson_index: lessonIndex,
+          level,
+          difficulty,
+        });
+        if (!playlist?.problems?.length || playlist.total <= 1) return;
+
+        const hydratedProblems = parseHydratedProblems(playlist);
+
+        const historyRef = level === 2 ? level2ProblemsRef : level3ProblemsRef;
+        historyRef.current = hydratedProblems;
+        const idx = Math.min(
+          Math.max(backendCurrentIndex, 0),
+          Math.max(hydratedProblems.length - 1, 0),
+        );
+        if (stateSnapshot.current.currentLevel !== expectedLevel) return;
+        setPagination({
+          current_index: idx,
+          total: hydratedProblems.length,
+          max_problems: hydratedProblems.length,
+          has_prev: idx > 0,
+          has_next: idx < hydratedProblems.length - 1,
+          at_limit: false,
+        });
+        setCompletedProblemIds(
+          hydratedProblems
+            .map((p) => p.id)
+            .filter((id) => id !== currentProblemId),
+        );
+      } catch {
+        // Non-blocking hydration path.
+      }
+    },
+    [userId, unitId, lessonIndex],
+  );
+
+  const restorePerProblemState = useCallback(
+    (
+      problem: Problem,
+      activeAttempt?: {
+        attempt_id: string;
+        problem_id: string;
+        level: number;
+        is_complete?: boolean;
+        step_log: unknown[];
+      } | null,
+    ) => {
+      const saved = perProblemCacheRef.current[problem.id];
+      const merged = mergeHydratedProblemState(problem, saved, activeAttempt);
+      const hints = saved?.hints ?? {};
+      perProblemCacheRef.current[problem.id] = {
+        answers: merged.answers,
+        hints,
+        structuredStepComplete: merged.structuredStepComplete,
+      };
+      stepSettersRef.current.setAnswers(merged.answers);
+      stepSettersRef.current.setHints(hints);
+      stepSettersRef.current.setStructuredStepComplete(merged.structuredStepComplete);
+      if (activeAttempt?.problem_id === problem.id) {
+        onAttemptStart(activeAttempt.is_complete ? null : merged.attemptId);
+        setStepRemountKey((prev) => prev + 1);
+      }
+    },
+    [onAttemptStart],
+  ); // stepSettersRef is a stable ref
+
+  const hydrateOrGenerateForLevel = useCallback(
+    async (
+      level: Level,
+      difficulty: "easy" | "medium" | "hard",
+      excludeIds: string[],
+    ): Promise<Problem | null> => {
+      if (userId && !(level === 1 && isKnownFirstLessonAccess)) {
+        try {
+          const expectedLevel = level;
+          const playlist = await apiGetPlaylist({
+            unit_id: unitId,
+            lesson_index: lessonIndex,
+            level,
+            difficulty,
+          });
+          if (playlist?.problems?.length) {
+            const hydratedProblems = parseHydratedProblems(playlist);
+            const idx = Math.min(
+              Math.max(playlist.current_index, 0),
+              Math.max(hydratedProblems.length - 1, 0),
+            );
+            const restored = hydratedProblems[idx] ?? null;
+            if (restored) {
+              if (stateSnapshot.current.currentLevel !== expectedLevel) return restored;
+              setCurrentProblem(restored);
+              setCurrentDifficulty(restored.difficulty as "easy" | "medium" | "hard");
+              if (level === 1) {
+                level1ProblemsRef.current = [...hydratedProblems];
+                const seenIds = hydratedProblems.map((p) => p.id);
+                seenLevel1IdsRef.current = seenIds;
+                setViewedLevel1Ids([...seenIds]);
+                setPagination(makeLevel1Pagination(idx, hydratedProblems.length));
+              } else {
+                const historyRef = level === 2 ? level2ProblemsRef : level3ProblemsRef;
+                historyRef.current = hydratedProblems;
+                setPagination({
+                  current_index: idx,
+                  total: hydratedProblems.length,
+                  max_problems: hydratedProblems.length,
+                  has_prev: idx > 0,
+                  has_next: idx < hydratedProblems.length - 1,
+                  at_limit: false,
+                });
+                setCompletedProblemIds(
+                  hydratedProblems
+                    .map((p) => p.id)
+                    .filter((id) => id !== restored.id),
+                );
+              }
+              restorePerProblemState(restored, playlist.active_attempt);
+              if (playlist.active_attempt?.problem_id !== restored.id) {
+                startAttemptForProblem(
+                  restored,
+                  restored.difficulty as "easy" | "medium" | "hard",
+                  level,
+                );
+              }
+              setProblemLoading(false);
+              return restored;
+            }
+          }
+        } catch {
+          // Fall through to generation.
+        }
+      }
+      return await loadNewProblem(difficulty, excludeIds, level);
+    },
+    [
+      userId,
+      unitId,
+      lessonIndex,
+      loadNewProblem,
+      restorePerProblemState,
+      startAttemptForProblem,
+      isKnownFirstLessonAccess,
+    ],
   );
 
   // ── Init: reset guard on chapter/topic change ────────────────────────────
@@ -763,7 +1041,11 @@ export function useProblemNavigation({
           }
           if (typeof parsed.masteryScore === "number") onRestoreMasteryScore?.(parsed.masteryScore);
           if (parsed.hasCompletedLevel2 === true) onRestoreHasCompletedLevel2?.();
-          startAttemptForProblem(entry.problem, entry.difficulty, lvl as Level);
+              if (userId && (lvl as Level) > 1) {
+                void hydrateOrGenerateForLevel(lvl as Level, entry.difficulty, []);
+              } else {
+                startAttemptForProblem(entry.problem, entry.difficulty, lvl as Level);
+              }
           setProblemLoading(false);
           return () => {
             persistOnUnmountRef.current();
@@ -772,11 +1054,11 @@ export function useProblemNavigation({
       }
     }
     hasInitializedRef.current = true;
-    loadNewProblem("medium", [], 1);
+    void hydrateOrGenerateForLevel(1, "medium", []);
     return () => {
       persistOnUnmountRef.current();
     };
-  }, [loadNewProblem, unitId, lessonIndex, lessonName, userId, clearAllStepState]);
+  }, [unitId, lessonIndex, lessonName, userId, clearAllStepState, hydrateOrGenerateForLevel]);
 
   // ── Cache & persistence ───────────────────────────────────────────────────
 
@@ -906,8 +1188,15 @@ export function useProblemNavigation({
 
       // Clear any in-flight loading state from a concurrent generate call on another level.
       setProblemLoading(false);
-      // Ensure mastery sync has an active attempt id for cached problems.
-      startAttemptForProblem(entry.problem, entry.difficulty, level);
+      const cachedState = perProblemCacheRef.current[entry.problem.id];
+      const hasCachedStudentWork =
+        Object.keys(cachedState?.answers ?? {}).length > 0 ||
+        Object.keys(cachedState?.structuredStepComplete ?? {}).length > 0;
+      // Avoid creating a newer empty attempt row that can overwrite hydrated answers for this problem.
+      // Only start a fresh attempt when this cached problem has no prior student work in local state.
+      if (!hasCachedStudentWork) {
+        startAttemptForProblem(entry.problem, entry.difficulty, level);
+      }
       // Eager loading: when restoring to Level 2, start Level 3 prefetch so advance is zero-wait.
       if (level === 2) {
         triggerPrefetch(entry.difficulty, [], 3);
@@ -915,13 +1204,6 @@ export function useProblemNavigation({
     },
     [triggerPrefetch, startAttemptForProblem, loadNewProblem], // stepSettersRef, seenLevel1IdsRef, level1ProblemsRef are stable refs
   );
-
-  const restorePerProblemState = useCallback((problemId: string) => {
-    const saved = perProblemCacheRef.current[problemId];
-    stepSettersRef.current.setAnswers(saved?.answers ?? {});
-    stepSettersRef.current.setHints(saved?.hints ?? {});
-    stepSettersRef.current.setStructuredStepComplete(saved?.structuredStepComplete ?? {});
-  }, []); // stepSettersRef is a stable ref
 
   /**
    * After clearing React step state, persist empty answers/drafts immediately.
@@ -1008,7 +1290,7 @@ export function useProblemNavigation({
         if (cached != null && targetIdx >= 0 && targetIdx < level1ProblemsRef.current.length) {
           setIsNavigating(true);
           setCurrentProblem(cached);
-          restorePerProblemState(cached.id);
+          restorePerProblemState(cached);
           setPagination(makeLevel1Pagination(targetIdx, pag.total));
           stepSettersRef.current.setHintLoading(new Set());
           stepSettersRef.current.resetTracking();
@@ -1026,7 +1308,7 @@ export function useProblemNavigation({
           setIsNavigating(true);
           saveCurrentStateToCache();
           setCurrentProblem(cached);
-          restorePerProblemState(cached.id);
+          restorePerProblemState(cached);
           setPagination({
             current_index: targetIdx,
             total: historyRef.current.length,
@@ -1092,7 +1374,7 @@ export function useProblemNavigation({
         setCurrentProblem(problem);
         setCurrentDifficulty(problem.difficulty as "easy" | "medium" | "hard");
         stepSettersRef.current.setHintLoading(new Set());
-        restorePerProblemState(problem.id);
+        restorePerProblemState(problem);
         setPagination(navPag ?? defaultPaginationForLevel(lvl));
         stepSettersRef.current.resetTracking();
       } catch (err: unknown) {
@@ -1226,7 +1508,7 @@ export function useProblemNavigation({
       const nextIdx = snap.current_index + 1;
       const cached = historyRef.current[nextIdx];
       setCurrentProblem(cached);
-      restorePerProblemState(cached.id);
+      restorePerProblemState(cached);
       setPagination({
         ...snap,
         current_index: nextIdx,
@@ -1295,10 +1577,10 @@ export function useProblemNavigation({
       // Level 3 default difficulty is "medium" — backend recommendations override this
       // in handleContinueAfterProgression via the backendDiff path.
       const { completedProblemIds: cpi } = stateSnapshot.current;
-      loadNewProblem("medium", cpi, level);
+      void hydrateOrGenerateForLevel(level, "medium", cpi);
       return true;
     },
-    [saveCurrentStateToCache, restoreFromCache, loadNewProblem, resetProblemState], // refs are stable
+    [saveCurrentStateToCache, restoreFromCache, resetProblemState, hydrateOrGenerateForLevel], // refs are stable
   );
 
   const handleStartFadedExample = useCallback(() => {
@@ -1371,6 +1653,7 @@ export function useProblemNavigation({
     perProblemCacheRef,
     stepRemountKey,
     loadNewProblem,
+    hydrateOrGenerateForLevel,
     saveCurrentStateToCache,
     resetProblemState,
     handleResetProblem,

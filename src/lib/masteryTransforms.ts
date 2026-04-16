@@ -9,6 +9,7 @@ export type MasteryCategoryScores = {
 } | null;
 
 export type StepLogEntry = {
+  step_id?: string;
   is_correct: boolean;
   reasoning_pattern: string;
   /** Forwarded verbatim from step.category — set by LLM and guaranteed by server guardrail. */
@@ -18,30 +19,24 @@ export type StepLogEntry = {
    * category when `category` was omitted on the problem payload (matches backend LABEL_TO_MASTERY_CATEGORY).
    */
   step_label: string;
+  answer?: string;
+  attempts?: number;
+  first_attempt_correct?: boolean;
+  validation_feedback?: string;
 };
 
 /**
- * Headline mastery % for the UI: arithmetic mean of conceptual / procedural / computational
- * when the API reports at least one finite category score. Otherwise falls back to
- * `mastery_score` so empty or missing `category_scores` does not zero out a valid model score.
+ * Headline mastery % for the UI: always derived from the backend `mastery_score` (band-based
+ * 0–1 float). Category scores are informational only and must NOT override the headline figure —
+ * averaging them caused instant-100% on the first perfect attempt (all categories → 1.0).
  */
 export function overallMasteryPercent(
   masteryScore: number | undefined | null,
-  categoryScores?: MasteryCategoryScores,
+  _categoryScores?: MasteryCategoryScores,
 ): number {
-  if (!categoryScores) {
-    return typeof masteryScore === "number" ? Math.round(masteryScore * 100) : 0;
-  }
-  const raw = [categoryScores.conceptual, categoryScores.procedural, categoryScores.computational];
-  const hasAnyCategory = raw.some((v) => typeof v === "number" && Number.isFinite(v));
-  if (!hasAnyCategory) {
-    return typeof masteryScore === "number" ? Math.round(masteryScore * 100) : 0;
-  }
-  const conceptual = categoryScores.conceptual ?? 0;
-  const procedural = categoryScores.procedural ?? 0;
-  const computational = categoryScores.computational ?? 0;
-  const avg = (conceptual + procedural + computational) / 3;
-  return Math.round(avg * 100);
+  return typeof masteryScore === "number" && Number.isFinite(masteryScore)
+    ? Math.round(masteryScore * 100)
+    : 0;
 }
 
 export function normalizeCategoryScores(categoryScores?: MasteryCategoryScores): {
@@ -76,7 +71,8 @@ export type MasteryColorClasses = {
 };
 
 /**
- * Dynamic mastery colors for score displays. Thresholds: &lt;15% red, 15–59% yellow, ≥60% green.
+ * Dynamic mastery colors for score displays. Thresholds: &lt;15% red, 15–49% yellow, ≥50% green.
+ * 50% = new L2 ceiling (student has filled both L1 and L2 bands).
  * Use with `transition-colors duration-500` on colored elements.
  */
 export function getMasteryColor(score: number): MasteryColorClasses {
@@ -85,7 +81,7 @@ export function getMasteryColor(score: number): MasteryColorClasses {
   if (s < 15) {
     return { text: "text-[#de0030]", bg: "bg-[#de0030]", band: "red" };
   }
-  if (s < 60) {
+  if (s < 50) {
     return { text: "text-[#e7b008]", bg: "bg-[#e7b008]", band: "amber" };
   }
   return { text: "text-[#16a249]", bg: "bg-[#16a249]", band: "emerald" };
@@ -179,14 +175,22 @@ export function buildStepLog(
   answers: Record<string, StudentAnswer>,
   structuredStepComplete: Record<string, boolean>,
 ): StepLogEntry[] {
-  return steps.map((s) => ({
-    is_correct: s.is_given
-      ? true
-      : isStepAnswerCorrect(answers, structuredStepComplete, s.id),
-    reasoning_pattern: s.skill_used?.trim() || s.label,
-    category: masteryCategoryFromStep(s),
-    step_label: s.label,
-  }));
+  return steps.map((s) => {
+    const saved = answers[s.id];
+    return {
+      step_id: s.id,
+      is_correct: s.is_given
+        ? true
+        : isStepAnswerCorrect(answers, structuredStepComplete, s.id),
+      reasoning_pattern: s.skill_used?.trim() || s.label,
+      category: masteryCategoryFromStep(s),
+      step_label: s.label,
+      answer: saved?.answer ?? "",
+      attempts: saved?.attempts ?? 0,
+      first_attempt_correct: saved?.first_attempt_correct,
+      validation_feedback: saved?.validation_feedback,
+    };
+  });
 }
 
 /** Interactive (non–`is_given`) steps derived from the full problem list. */
