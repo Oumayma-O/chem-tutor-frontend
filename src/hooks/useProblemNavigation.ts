@@ -1034,11 +1034,14 @@ export function useProblemNavigation({
             level1ProblemsRef.current = [];
             applyLevel1PaginationFromEntry();
           } else {
-            // Seed L2/L3 history ref so Prev navigation works immediately after a page reload.
-            if (lvl === 2 && level2ProblemsRef.current.length === 0) {
-              level2ProblemsRef.current = [entry.problem];
-            } else if (lvl === 3 && level3ProblemsRef.current.length === 0) {
-              level3ProblemsRef.current = [entry.problem];
+            // Seed L2/L3 history ref at the correct index so prev/next navigation
+            // is consistent while the async backend hydration fills the full history.
+            const brokenHistRef = lvl === 2 ? level2ProblemsRef : level3ProblemsRef;
+            if (brokenHistRef.current.length === 0) {
+              const seedIdx = Math.max(entry.pagination?.current_index ?? 0, 0);
+              const arr: Problem[] = [];
+              arr[seedIdx] = entry.problem;
+              brokenHistRef.current = arr;
             }
             setPagination(entry.pagination ?? defaultPaginationForLevel(lvl as Level));
           }
@@ -1089,11 +1092,14 @@ export function useProblemNavigation({
             // Recompute Level 1 pagination locally — cached entry may have backend's max_problems: 5.
             applyLevel1PaginationFromEntry();
           } else {
-            // Seed L2/L3 history ref so Prev navigation works immediately after a page reload.
-            if (lvl === 2 && level2ProblemsRef.current.length === 0) {
-              level2ProblemsRef.current = [entry.problem];
-            } else if (lvl === 3 && level3ProblemsRef.current.length === 0) {
-              level3ProblemsRef.current = [entry.problem];
+            // Seed L2/L3 history ref at the correct index so prev/next navigation
+            // is consistent while the async backend hydration fills the full history.
+            const normalHistRef = lvl === 2 ? level2ProblemsRef : level3ProblemsRef;
+            if (normalHistRef.current.length === 0) {
+              const seedIdx = Math.max(entry.pagination?.current_index ?? 0, 0);
+              const arr: Problem[] = [];
+              arr[seedIdx] = entry.problem;
+              normalHistRef.current = arr;
             }
             setPagination(entry.pagination ?? defaultPaginationForLevel(lvl as Level));
           }
