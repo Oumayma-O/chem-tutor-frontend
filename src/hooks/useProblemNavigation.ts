@@ -771,9 +771,27 @@ export function useProblemNavigation({
           lesson_index: lessonIndex,
           level,
         });
-        if (!playlist?.problems?.length || playlist.total <= 1) return;
+        if (!playlist?.problems?.length) return;
 
         const hydratedProblems = parseHydratedProblems(playlist);
+        if (hydratedProblems.length === 0) return;
+
+        // Seed per-problem state from backend for every problem in the playlist.
+        // Without this, navigating back to an earlier example after a level-switch
+        // or hard refresh has no attempt data and shows empty answers.
+        for (const hp of hydratedProblems) {
+          const attemptForProblem = getHydratedAttemptForProblem(playlist, hp.id);
+          if (attemptForProblem?.problem_id === hp.id) {
+            hydratedAttemptByProblemRef.current[hp.id] = attemptForProblem;
+          }
+          const existing = perProblemCacheRef.current[hp.id];
+          const merged = mergeHydratedProblemState(hp, existing, attemptForProblem ?? undefined);
+          perProblemCacheRef.current[hp.id] = {
+            answers: merged.answers,
+            hints: existing?.hints ?? {},
+            structuredStepComplete: merged.structuredStepComplete,
+          };
+        }
 
         const historyRef = level === 2 ? level2ProblemsRef : level3ProblemsRef;
         historyRef.current = hydratedProblems;
@@ -1217,11 +1235,16 @@ export function useProblemNavigation({
         }
         setPagination(makeLevel1Pagination(curIdx, n));
       } else {
-        // Seed L2/L3 history ref from the cache entry so Prev navigation works after a page reload.
-        if (level === 2 && level2ProblemsRef.current.length === 0) {
-          level2ProblemsRef.current = [entry.problem];
-        } else if (level === 3 && level3ProblemsRef.current.length === 0) {
-          level3ProblemsRef.current = [entry.problem];
+        // Seed L2/L3 history ref at the cached problem's correct index so navigation
+        // works immediately while async backend hydration fills the rest of the history.
+        // Using a sparse array (not index 0) prevents navigating "prev" from finding
+        // the wrong problem before hydration completes.
+        const histRefToSeed = level === 2 ? level2ProblemsRef : level3ProblemsRef;
+        if (histRefToSeed.current.length === 0) {
+          const seedIdx = Math.max(entry.pagination?.current_index ?? 0, 0);
+          const arr: Problem[] = [];
+          arr[seedIdx] = entry.problem;
+          histRefToSeed.current = arr;
         }
         setPagination(entry.pagination ?? defaultPaginationForLevel(level));
         // Always refresh full backend timeline after cache restore so unsolved examples
