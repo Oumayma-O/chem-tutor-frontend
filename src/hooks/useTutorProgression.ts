@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import { apiCompleteAttempt, apiGetMastery, apiSetTopicStatus } from "@/lib/api";
+import { apiCompleteAttempt, apiGetMastery, apiSetTopicStatus, apiStartAttempt } from "@/lib/api";
 import type { ProgressionResult, SolutionStep, StudentAnswer } from "@/types/chemistry";
 import {
   applyMasterySnapshotToLessonUi,
@@ -129,15 +129,24 @@ export function useTutorProgression({
       const correctCount = step_log.filter((e) => e.is_correct).length;
       // L1 worked examples are always scored 1.0 (student viewed the example)
       const score = isLevel1 ? 1.0 : step_log.length > 0 ? correctCount / step_log.length : 0;
-      const completePromise = apiCompleteAttempt({
-        attempt_id: currentAttemptId,
-        user_id: userId,
-        unit_id: unitId,
-        lesson_index: lessonIndex,
-        score,
-        step_log,
-        level: nav.currentLevel,
-      });
+      const runComplete = (attemptId: string) => {
+        if (import.meta.env.DEV) {
+          console.debug(
+            `[mastery-sync] Sending completion for Attempt ${attemptId} - Expecting score update.`,
+            { problemId: nav.currentProblem?.id, level: nav.currentLevel },
+          );
+        }
+        return apiCompleteAttempt({
+          attempt_id: attemptId,
+          user_id: userId,
+          unit_id: unitId,
+          lesson_index: lessonIndex,
+          score,
+          step_log,
+          level: nav.currentLevel,
+        });
+      };
+      const completePromise = runComplete(currentAttemptId);
       completeAttemptPromiseRef.current = completePromise;
       completePromise
         .then((decision) => {
@@ -155,6 +164,81 @@ export function useTutorProgression({
           setCurrentAttemptId(null);
         })
         .catch(() => setCurrentAttemptId(null));
+    } else if (userId && (interactiveForAttempt.length > 0 || isLevel1)) {
+      // Late-bind guard: never drop a completion just because attempt_id was lost in UI state.
+      // We start a fresh attempt for the current problem and immediately complete it with full step_log.
+      const score = isLevel1 ? 1.0 : 0.0;
+      const step_log = isLevel1
+        ? []
+        : stepLogForAttemptComplete(
+            steps.problemSteps,
+            steps.answers,
+            steps.structuredStepComplete,
+            [],
+            {
+              hintedStepIds: new Set(Object.keys(steps.hints)),
+              revealedStepIds: new Set(
+                steps.problemSteps
+                  .map((s) => s.id)
+                  .filter((sid) => (steps.isStepRevealed?.(sid) ?? false)),
+              ),
+            },
+          );
+      const computedScore =
+        !isLevel1 && step_log.length > 0
+          ? step_log.filter((e) => e.is_correct).length / step_log.length
+          : score;
+      const completePromise = apiStartAttempt({
+        user_id: userId,
+        unit_id: unitId,
+        lesson_index: lessonIndex,
+        problem_id: nav.currentProblem.id,
+        difficulty: nav.currentDifficulty,
+        level: nav.currentLevel,
+      })
+        .then(({ attempt_id }) => {
+          if (import.meta.env.DEV) {
+            console.error(
+              "[mastery-sync] Missing attempt_id at completion; late-bound attempt before complete.",
+              { problemId: nav.currentProblem?.id, level: nav.currentLevel, lateAttemptId: attempt_id },
+            );
+            console.debug(
+              `[mastery-sync] Sending completion for Attempt ${attempt_id} - Expecting score update.`,
+              { problemId: nav.currentProblem?.id, level: nav.currentLevel },
+            );
+          }
+          return apiCompleteAttempt({
+            attempt_id,
+            user_id: userId,
+            unit_id: unitId,
+            lesson_index: lessonIndex,
+            score: computedScore,
+            step_log,
+            level: nav.currentLevel,
+          });
+        });
+      completeAttemptPromiseRef.current = completePromise;
+      completePromise
+        .then((decision) => {
+          if (decision.mastery) {
+            applyMasterySnapshotToLessonUi(decision.mastery, {
+              setBackendCategoryScores,
+              setMasteryScore,
+              setHasCompletedLevel2,
+              onMasteryLevel2Completions,
+            });
+          }
+          if (decision.recommended_next_difficulty) {
+            setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
+          }
+          setCurrentAttemptId(null);
+        })
+        .catch(() => {
+          if (import.meta.env.DEV) {
+            console.error("[mastery-sync] Late-bind completion failed; score update may be skipped.");
+          }
+          setCurrentAttemptId(null);
+        });
     } else {
       setCurrentAttemptId(null);
     }

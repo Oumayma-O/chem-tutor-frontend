@@ -1331,6 +1331,15 @@ export function useProblemNavigation({
           saveCurrentStateToCache();
           setCurrentProblem(cached);
           restorePerProblemState(cached);
+          const cachedState = perProblemCacheRef.current[cached.id];
+          const hasCachedStudentWork =
+            Object.keys(cachedState?.answers ?? {}).length > 0 ||
+            Object.keys(cachedState?.structuredStepComplete ?? {}).length > 0;
+          // Start an attempt for unsolved cached problems so completion always has a live attempt_id.
+          // Keep existing behavior for solved/restored problems to avoid creating empty newer attempts.
+          if (!hasCachedStudentWork) {
+            startAttemptForProblem(cached, cached.difficulty as "easy" | "medium" | "hard", lvl);
+          }
           setPagination({
             current_index: targetIdx,
             total: historyRef.current.length,
@@ -1435,7 +1444,16 @@ export function useProblemNavigation({
         setIsNavigating(false);
       }
     },
-    [userId, unitId, lessonIndex, saveCurrentStateToCache, loadNewProblem, restorePerProblemState, resetProblemState],
+    [
+      userId,
+      unitId,
+      lessonIndex,
+      saveCurrentStateToCache,
+      loadNewProblem,
+      restorePerProblemState,
+      resetProblemState,
+      startAttemptForProblem,
+    ],
   );
 
   const handleSeeAnother = useCallback(async () => {
@@ -1531,6 +1549,13 @@ export function useProblemNavigation({
       const cached = historyRef.current[nextIdx];
       setCurrentProblem(cached);
       restorePerProblemState(cached);
+      const cachedState = perProblemCacheRef.current[cached.id];
+      const hasCachedStudentWork =
+        Object.keys(cachedState?.answers ?? {}).length > 0 ||
+        Object.keys(cachedState?.structuredStepComplete ?? {}).length > 0;
+      if (!hasCachedStudentWork) {
+        startAttemptForProblem(cached, cached.difficulty as "easy" | "medium" | "hard", lvl);
+      }
       setPagination({
         ...snap,
         current_index: nextIdx,
