@@ -1,9 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { getStoredToken } from "@/lib/api/core";
 import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import type { ExitTicketsForClass, TimedPracticeAnalytics } from "@/services/api/teacher";
 import type { LiveStudentEntry } from "@/services/api/presence";
 import { useEventSourceConnection } from "@/hooks/useEventSourceConnection";
+import { getSseToken } from "@/lib/sseToken";
 
 const API_URL = (import.meta.env.VITE_API_URL as string)?.replace(/\/$/, "") ?? "";
 
@@ -39,8 +39,8 @@ export function useTeacherLiveSSE(options: { classId: string | undefined; enable
   useEventSourceConnection({
     enabled: Boolean(enabled && classId && API_URL),
     reconnectKey,
-    getUrl: () => {
-      const token = getStoredToken();
+    getUrl: async () => {
+      const token = await getSseToken();
       if (!token || !classId) return null;
       return `${API_URL}/teacher/classes/${classId}/live/stream?token=${encodeURIComponent(token)}`;
     },
@@ -77,8 +77,8 @@ export function useTeacherExitTicketsSSE(options: {
   useEventSourceConnection({
     enabled: Boolean(enabled && classId && API_URL),
     reconnectKey,
-    getUrl: () => {
-      const token = getStoredToken();
+    getUrl: async () => {
+      const token = await getSseToken();
       if (!token || !classId) return null;
       return exitTicketsStreamUrl(classId, page, limit, unitId, lessonId, days, token);
     },
@@ -113,8 +113,8 @@ export function useTeacherPracticeAnalyticsSSE(options: {
   useEventSourceConnection({
     enabled: Boolean(enabled && classId && sessionId && API_URL),
     reconnectKey,
-    getUrl: () => {
-      const token = getStoredToken();
+    getUrl: async () => {
+      const token = await getSseToken();
       if (!token || !classId || !sessionId) return null;
       return `${API_URL}/teacher/classes/${classId}/sessions/${sessionId}/practice-analytics/stream?token=${encodeURIComponent(token)}`;
     },

@@ -14,7 +14,7 @@ const OPEN_TIMEOUT_MS = 20_000;
 export function useEventSourceConnection(options: {
   enabled: boolean;
   reconnectKey: string;
-  getUrl: () => string | null;
+  getUrl: () => string | null | Promise<string | null>;
   onMessage: (data: string) => void;
 }): void {
   const { enabled, reconnectKey, getUrl, onMessage } = options;
@@ -50,11 +50,13 @@ export function useEventSourceConnection(options: {
       clearReconnectTimer();
       const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempt, RECONNECT_MAX_MS);
       reconnectAttempt = Math.min(reconnectAttempt + 1, 12);
-      reconnectTimer = setTimeout(connect, delay);
+      reconnectTimer = setTimeout(() => {
+        void connect();
+      }, delay);
     }
 
-    function connect() {
-      const url = getUrlRef.current();
+    async function connect() {
+      const url = await getUrlRef.current();
       if (!url) return;
 
       const gen = ++connectGeneration;
@@ -96,7 +98,7 @@ export function useEventSourceConnection(options: {
       };
     }
 
-    connect();
+    void connect();
 
     return () => {
       connectGeneration += 1;

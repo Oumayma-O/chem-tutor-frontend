@@ -1,5 +1,6 @@
 import { SkillMastery } from "@/types/cognitive";
 import { cn } from "@/lib/utils";
+import { TEACHER_SCORE_MODERATE_MIN, TEACHER_SCORE_STRONG_MIN } from "@/lib/teacherScoreStyles";
 
 interface SkillRadarChartProps {
   skills: SkillMastery[];
@@ -59,20 +60,26 @@ export function SkillRadarChart({ skills, size = 200 }: SkillRadarChartProps) {
         ))}
         {axes.map((axis, i) => (
           <text key={i} x={axis.labelX} y={axis.labelY} textAnchor="middle" dominantBaseline="middle" className={cn("text-[10px] font-medium fill-current", getStatusColor(axis.skill.status))}>
+            <title>{axis.skill.description ?? axis.skill.skillName}</title>
             {SKILL_LABELS[axis.skill.skillId] || axis.skill.skillName.split(" ")[0]}
           </text>
         ))}
       </svg>
       <div className="flex justify-center gap-4 mt-4 pt-3 border-t border-border">
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-success" /><span className="text-xs text-muted-foreground">Strong (75%+)</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(45, 93%, 47%)" }} /><span className="text-xs text-muted-foreground">Developing (50-74%)</span></div>
-        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-destructive" /><span className="text-xs text-muted-foreground">Needs Support (&lt;50%)</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-success" /><span className="text-xs text-muted-foreground">Strong ({TEACHER_SCORE_STRONG_MIN}%+)</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: "hsl(45, 93%, 47%)" }} /><span className="text-xs text-muted-foreground">Developing ({TEACHER_SCORE_MODERATE_MIN}-{TEACHER_SCORE_STRONG_MIN - 1}%)</span></div>
+        <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-destructive" /><span className="text-xs text-muted-foreground">Needs Support (&lt;{TEACHER_SCORE_MODERATE_MIN}%)</span></div>
       </div>
       <div className="mt-4 pt-3 border-t border-border space-y-2">
         {skills.map((skill) => (
-          <div key={skill.skillId} className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">{skill.skillName}</span>
-            <div className="flex items-center gap-2">
+          <div key={skill.skillId} className="flex items-center justify-between gap-4 text-xs">
+            <div className="min-w-0">
+              <span className="text-foreground font-medium">{skill.skillName}</span>
+              {skill.description && (
+                <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{skill.description}</p>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
               <div className="w-16 h-1.5 bg-secondary rounded-full overflow-hidden">
                 <div className={cn("h-full rounded-full", skill.status === "mastered" && "bg-success", skill.status === "developing" && "bg-yellow-500", skill.status === "at_risk" && "bg-destructive")} style={{ width: `${skill.score}%` }} />
               </div>

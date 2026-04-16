@@ -129,11 +129,11 @@ describe("Property 1: Bug Condition — User-Initiated Tab Change Is Not Overrid
   });
 
   /**
-   * Additional scoped case: clicking Analytics tab should set tab=analytics
+   * Additional scoped case: clicking Exit Tickets tab should set tab=exit-tickets
    * (this one is NOT affected by the bug since tab param is present after the click,
    *  but verifies no regression in the non-class-tab path)
    */
-  it("after clicking the Analytics tab with a student selected, tab param should be analytics", async () => {
+  it("after clicking the Exit Tickets tab with a student selected, tab param should be exit-tickets", async () => {
     const enrolledStudents = [{ id: "abc" }];
     const { getParams, setSearchParams } = makeSearchParamsState({
       student: "abc",
@@ -158,9 +158,9 @@ describe("Property 1: Bug Condition — User-Initiated Tab Change Is Not Overrid
       { initialProps: { searchParams: getParams(), enrolled: enrolledStudents } },
     );
 
-    // Simulate handleDashboardTabChange("analytics")
+    // Simulate handleDashboardTabChange("exit-tickets")
     act(() => {
-      result.current.handleDashboardTabChange("analytics");
+      result.current.handleDashboardTabChange("exit-tickets");
     });
 
     rerender({ searchParams: getParams(), enrolled: enrolledStudents });
@@ -169,8 +169,8 @@ describe("Property 1: Bug Condition — User-Initiated Tab Change Is Not Overrid
     await act(async () => {});
 
     const finalParams = getParams();
-    expect(finalParams.get("tab")).toBe("analytics");
-    expect(parseTeacherDashboardTab(finalParams.get("tab"))).toBe("analytics");
+    expect(finalParams.get("tab")).toBe("exit-tickets");
+    expect(parseTeacherDashboardTab(finalParams.get("tab"))).toBe("exit-tickets");
   });
 });
 
@@ -220,7 +220,7 @@ const deepLinkParamsArb = (studentId: string) =>
 /** Generate searchParams WITHOUT ?student= (various combinations) */
 const noStudentParamsArb = fc.record({
   tab: fc.option(
-    fc.constantFrom("class", "analytics", "students", "standards", "exit-tickets", "settings"),
+    fc.constantFrom("class", "students", "standards", "exit-tickets", "settings"),
     { nil: undefined },
   ),
 }).map(({ tab }) => {

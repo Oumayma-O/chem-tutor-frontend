@@ -9,6 +9,11 @@ export interface AuthTokenResponse {
   name: string;
 }
 
+export interface SseTokenResponse {
+  sse_token: string;
+  expires_in_seconds: number;
+}
+
 export interface MeResponse {
   user_id: string;
   email: string;
@@ -48,6 +53,10 @@ export async function apiLogin(body: {
 
 export async function apiMe(): Promise<MeResponse> {
   return get<MeResponse>("/auth/me");
+}
+
+export async function apiIssueSseToken(): Promise<SseTokenResponse> {
+  return post<SseTokenResponse>("/auth/sse-token", {});
 }
 
 export async function apiUpdateProfile(body: {

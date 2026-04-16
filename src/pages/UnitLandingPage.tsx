@@ -8,11 +8,11 @@ import { ArrowRight, ArrowLeft, ChevronRight, Menu, Loader2 } from "lucide-react
 import { useAuth } from "@/hooks/useAuth";
 import { useLessonCompletion } from "@/hooks/useLessonCompletion";
 import { useQueryClient } from "@tanstack/react-query";
-import { apiGenerateProblemV2 } from "@/lib/api";
+import { apiGenerateProblemV2, apiGetPlaylist } from "@/lib/api";
 import { apiGetReferenceCard, refCardQueryKey } from "@/lib/api/problems";
 import { staticFetchOptions } from "@/lib/api/queryOptions";
-import { parseProblemOutput } from "@/hooks/useGeneratedProblem";
-import { enqueuePrefetch } from "@/lib/problemPrefetchCache";
+import { parseHydratedProblem, parseProblemOutput } from "@/hooks/useGeneratedProblem";
+import { enqueuePrefetch, setResolvedResult } from "@/lib/problemPrefetchCache";
 import { getSimEntry } from "@/components/simulations/registry";
 import { setLastActiveTab } from "@/utils/lessonTabStore";
 import { ClassroomLiveBanner } from "@/components/student/ClassroomLiveBanner";
@@ -27,7 +27,7 @@ export default function UnitLandingPage() {
 
   const queryClient = useQueryClient();
   const { profile, user } = useAuth();
-  const { getStatus } = useLessonCompletion(unitId || "", user?.id);
+  const { getStatus, statusLoaded, statusFromBackend } = useLessonCompletion(unitId || "", user?.id);
 
   const currentLessonTitle = lessonTitles[currentLessonIdx] ?? "";
 
@@ -58,6 +58,8 @@ export default function UnitLandingPage() {
     if (!uid || !lname) return;
 
     const lidx = currentLessonIdx;
+    const isKnownFirstLessonAccess =
+      statusLoaded && statusFromBackend && getStatus(lidx) === "not-started";
 
     const prefetchTimer = setTimeout(() => {
       // Reference card — React Query deduplicates if already in-flight or cached.
@@ -67,18 +69,37 @@ export default function UnitLandingPage() {
         ...staticFetchOptions,
       });
 
-      // Level-1 problem — queued so at most MAX_CONCURRENT LLM calls run at once.
+      // Level-1 problem prefetch is playlist-first for consistency with active tutor loads.
+      // If a saved playlist already exists, seed the module cache from hydration and skip generate.
       enqueuePrefetch(uid, lidx, 1, () =>
-        apiGenerateProblemV2({
-          unit_id: uid,
-          lesson_index: lidx,
-          lesson_name: lname,
-          difficulty: "medium",
-          level: 1,
-          interests: profile?.interests ?? [],
-          grade_level: profile?.grade_level ?? null,
-          user_id: user?.id,
-        }).then((data) => {
+        Promise.resolve().then(async () => {
+          if (!isKnownFirstLessonAccess) {
+            const playlist = await apiGetPlaylist({
+              unit_id: uid,
+              lesson_index: lidx,
+              level: 1,
+              difficulty: "medium",
+            });
+            if (playlist?.problems?.length) {
+              const idx = Math.min(
+                Math.max(playlist.current_index, 0),
+                Math.max(playlist.problems.length - 1, 0),
+              );
+              const hydrated = parseHydratedProblem(playlist.problems[idx], idx, playlist.total);
+              setResolvedResult(uid, lidx, 1, hydrated);
+              return hydrated;
+            }
+          }
+          const data = await apiGenerateProblemV2({
+            unit_id: uid,
+            lesson_index: lidx,
+            lesson_name: lname,
+            difficulty: "medium",
+            level: 1,
+            interests: profile?.interests ?? [],
+            grade_level: profile?.grade_level ?? null,
+            user_id: user?.id,
+          });
           if (!data?.problem?.id || !data?.problem?.steps?.length) {
             throw new Error("Invalid problem structure from prefetch");
           }
@@ -88,7 +109,18 @@ export default function UnitLandingPage() {
     }, 300);
 
     return () => clearTimeout(prefetchTimer);
-  }, [unit?.id, currentLessonIdx, lessonTitles, queryClient]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    unit?.id,
+    currentLessonIdx,
+    lessonTitles,
+    queryClient,
+    profile?.interests,
+    profile?.grade_level,
+    user?.id,
+    getStatus,
+    statusLoaded,
+    statusFromBackend,
+  ]);
 
   if (loading) {
     return (

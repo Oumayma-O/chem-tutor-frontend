@@ -32,7 +32,7 @@ import { useTutorTimedMode } from "@/hooks/useTutorTimedMode";
 import { useStudentLiveSessionTimedSync } from "@/hooks/useStudentLiveSessionTimedSync";
 import { studentQueryKeys } from "@/lib/studentQueryKeys";
 import { setDismissedLiveBannerAnchor } from "@/lib/studentLiveBannerDismiss";
-import { loadExitTicketSubmit, saveExitTicketSubmit } from "@/lib/exitTicketSubmitPersistence";
+import { loadExitTicketSubmitForUser, saveExitTicketSubmitForUser } from "@/lib/exitTicketSubmitPersistence";
 import { liveSessionAnchorKey } from "@/services/api/classroomSession";
 import { isStepAnswerCorrect } from "@/lib/masteryTransforms";
 import { effectiveLevel2CompletedCountIncludingCurrent } from "@/lib/progressionUtils";
@@ -74,6 +74,7 @@ interface ChemistryTutorProps {
   onMarkInProgress?: () => void;
   /** When true, Level 3 is shown as unlocked (from parent's lesson completion state — avoids extra progress API call). */
   lessonCompleted?: boolean;
+  lessonStatus?: "not-started" | "in-progress" | "completed";
   interests?: string[];
   gradeLevel?: string | null;
   /** Tool keys for this lesson, e.g. ['periodic_table']. From API lesson.required_tools. */
@@ -98,6 +99,7 @@ export function ChemistryTutor({
   onTopicComplete,
   onMarkInProgress,
   lessonCompleted = false,
+  lessonStatus,
   interests = [],
   gradeLevel = null,
   requiredTools = [],
@@ -181,7 +183,8 @@ export function ChemistryTutor({
     setClassifiedErrors: restoreClassifiedErrors,
   } = useCognitiveTracking();
 
-  const { profile, isStudent } = useAuth();
+  const { profile, isStudent, user } = useAuth();
+  const persistenceUserId = user?.id ?? userId ?? null;
 
   const timed = useTutorTimedMode();
 
@@ -214,6 +217,7 @@ export function ChemistryTutor({
     onRestoreMasteryScore: (s) => setMasteryScore(s),
     onRestoreHasCompletedLevel2: () => setHasCompletedLevel2(true),
     liveSessionMinLevel1ExamplesForLevel2: liveSession?.min_level1_examples_for_level2,
+    lessonStatus,
   });
 
   const tutorAnswerReveal = useTutorAnswerReveal({
@@ -425,6 +429,7 @@ export function ChemistryTutor({
       levelCacheRef: nav.levelCacheRef,
       setCurrentLevel: nav.setCurrentLevel,
       loadNewProblem: nav.loadNewProblem,
+      hydrateOrGenerateForLevel: nav.hydrateOrGenerateForLevel,
       canAccessLevel2: nav.level1ExposureSatisfied,
     },
   });
@@ -457,12 +462,12 @@ export function ChemistryTutor({
   const submittedForActiveTicket =
     resolvedExitTicketId != null &&
     (exitTicketSubmittedRef.current?.configId === resolvedExitTicketId ||
-      loadExitTicketSubmit(resolvedExitTicketId) != null);
+      loadExitTicketSubmitForUser(resolvedExitTicketId, persistenceUserId) != null);
 
   useEffect(() => {
     const tid = liveSession?.active_exit_ticket_id ?? timed.timedExitTicketConfigId ?? null;
     if (!tid) return;
-    const persisted = loadExitTicketSubmit(tid);
+    const persisted = loadExitTicketSubmitForUser(tid, persistenceUserId);
     if (!persisted) return;
     if (exitTicketSubmittedRef.current?.configId === tid) return;
     exitTicketSubmittedRef.current = {
@@ -470,7 +475,7 @@ export function ChemistryTutor({
       answers: persisted.answers,
       results: persisted.results,
     };
-  }, [liveSession?.active_exit_ticket_id, timed.timedExitTicketConfigId]);
+  }, [liveSession?.active_exit_ticket_id, timed.timedExitTicketConfigId, persistenceUserId]);
 
   // ── Timed mode overlays ───────────────────────────────────────────────────
 
@@ -489,7 +494,7 @@ export function ChemistryTutor({
 
   if (timed.showExitTicket) {
     const configId = resolvedExitTicketId ?? undefined;
-    const persisted = configId != null ? loadExitTicketSubmit(configId) : null;
+    const persisted = configId != null ? loadExitTicketSubmitForUser(configId, persistenceUserId) : null;
     const fromRef =
       configId != null && exitTicketSubmittedRef.current?.configId === configId
         ? exitTicketSubmittedRef.current
@@ -512,7 +517,11 @@ export function ChemistryTutor({
           const id = data.configId ?? configId;
           if (id) {
             exitTicketSubmittedRef.current = { configId: id, answers: data.answers, results: data.results };
-            saveExitTicketSubmit(id, { answers: data.answers, results: data.results });
+            saveExitTicketSubmitForUser(
+              id,
+              { answers: data.answers, results: data.results },
+              persistenceUserId,
+            );
           }
           if (profile?.classroom_id) {
             void queryClient.invalidateQueries({ queryKey: studentQueryKeys.liveSession(profile.classroom_id) });

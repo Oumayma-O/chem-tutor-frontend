@@ -1,17 +1,14 @@
 import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTeacherDashboardData } from "@/hooks/useTeacherDashboardData";
 import { useTeacherStudentSelectionFromUrl } from "@/hooks/useTeacherStudentSelectionFromUrl";
 import { useTeacherLiveSSE } from "@/hooks/useTeacherDashboardSSE";
 import { useTeacherLivePresence } from "@/hooks/useTeacherLivePresence";
-import { apiPostClassAnalytics } from "@/lib/api/analytics";
 import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
-import { AnalyticsDashboard } from "@/components/teacher/AnalyticsDashboard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   BarChart3,
-  TrendingUp,
   Users,
   Settings,
   Users2,
@@ -56,19 +53,35 @@ export function TeacherDashboardPage({
 
   const [searchParams, setSearchParams] = useSearchParams();
 
+  const parseLessonParam = (raw: string | null): number | "all" => {
+    if (!raw || raw === "all") return "all";
+    const parsed = Number(raw);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : "all";
+  };
+
+  const parseDateParam = (raw: string | null): Date | undefined => {
+    if (!raw) return undefined;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+    if (m) {
+      const y = Number(m[1]);
+      const mo = Number(m[2]);
+      const d = Number(m[3]);
+      const localDate = new Date(y, mo - 1, d);
+      return Number.isNaN(localDate.getTime()) ? undefined : localDate;
+    }
+    const date = new Date(raw);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  };
+
   // Analytics filters — persisted in URL so the browser back button + refresh restore state
   const analyticsChapter = searchParams.get("chapter") ?? "all";
-  const analyticsLessonRaw = searchParams.get("lesson");
-  const analyticsLesson: number | "all" =
-    analyticsLessonRaw != null && analyticsLessonRaw !== "all"
-      ? Number(analyticsLessonRaw)
+  const analyticsLesson = parseLessonParam(searchParams.get("lesson"));
+  const analyticsModeRaw = searchParams.get("mode");
+  const analyticsMode: "all" | "practice" | "exit-ticket" =
+    analyticsModeRaw === "practice" || analyticsModeRaw === "exit-ticket"
+      ? analyticsModeRaw
       : "all";
-  const analyticsMode =
-    (searchParams.get("mode") as "all" | "practice" | "exit-ticket") ?? "all";
-  const analyticsDateRaw = searchParams.get("date");
-  const analyticsDate: Date | undefined = analyticsDateRaw
-    ? new Date(analyticsDateRaw)
-    : undefined;
+  const analyticsDate = parseDateParam(searchParams.get("date"));
 
   const handleAnalyticsChapterChange = (v: string) => {
     setSearchParams(
@@ -121,6 +134,12 @@ export function TeacherDashboardPage({
   const [creatingClass, setCreatingClass] = useState(false);
   const [manageClassesOpen, setManageClassesOpen] = useState(false);
 
+  // When admin drills into a class, provide the ID directly so the roster hook
+  // doesn't try to validate it against the (empty) teacher-owned class list.
+  const viewClassId = isAdmin
+    ? (adminSelectedClass?.id ?? initialAdminClass?.id ?? undefined)
+    : undefined;
+
   const {
     classes,
     classesLoading,
@@ -144,10 +163,11 @@ export function TeacherDashboardPage({
       unitId: analyticsChapter !== "all" ? analyticsChapter : undefined,
       lessonIndex: analyticsLesson !== "all" ? analyticsLesson : undefined,
     },
+    viewClassId,
   });
 
   const { selectedStudent, setSelectedStudentWithUrl, handleDashboardTabChange } = useTeacherStudentSelectionFromUrl({
-    selectedClassId,
+    selectedClassId: isAdmin ? (adminSelectedClass?.id ?? "all") : selectedClassId,
     loadingStudents,
     enrolledStudents,
     searchParams,
@@ -156,16 +176,33 @@ export function TeacherDashboardPage({
 
   // When opened from /class/:id URL, default to "class" tab (no directory available)
   const defaultTab = isAdmin && !initialAdminClass ? "directory" : "class";
-  const dashboardTab = parseTeacherDashboardTab(searchParams.get("tab")) ?? defaultTab;
+  const parsedTab = parseTeacherDashboardTab(searchParams.get("tab"));
+  const allowedTabs = isAdmin
+    ? (initialAdminClass
+      ? (["class", "students", "standards", "exit-tickets"] as const)
+      : (["directory", "class", "students", "standards", "exit-tickets"] as const))
+    : (["class", "students", "standards", "exit-tickets", "settings"] as const);
+  const dashboardTab =
+    parsedTab && allowedTabs.includes(parsedTab)
+      ? parsedTab
+      : defaultTab;
 
   // For admin: use the class they drilled into from Directory; for teacher: their own selection
   const effectiveClassroomId = isAdmin
     ? (adminSelectedClass?.id ?? "all")
     : selectedClassId;
+  const activeClassId = effectiveClassroomId !== "all" ? effectiveClassroomId : undefined;
 
   function handleAdminSelectClass(cls: { id: string; name: string; code: string }) {
     setAdminSelectedClass(cls);
-    setSearchParams({ tab: "class" });
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        p.set("tab", "class");
+        return p;
+      },
+      { replace: true, preventScrollReset: true },
+    );
   }
   function handleBackToDirectory() {
     if (initialAdminClass) {
@@ -173,30 +210,26 @@ export function TeacherDashboardPage({
       navigate("/");
     } else {
       setAdminSelectedClass(null);
-      setSearchParams({ tab: "directory" });
+      setSelectedClassId("all");
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.set("tab", "directory");
+          return p;
+        },
+        { replace: true, preventScrollReset: true },
+      );
     }
   }
 
   useTeacherLiveSSE({
-    classId: selectedClassId !== "all" ? selectedClassId : undefined,
-    enabled: selectedClassId !== "all",
+    classId: activeClassId,
+    enabled: Boolean(activeClassId),
   });
 
   /** Polling fallback for live rows when SSE (`/live/stream`) fails (e.g. CORS / missing route). Same cache key as SSE + panels. */
-  const livePollClassId = selectedClassId !== "all" ? selectedClassId : null;
+  const livePollClassId = activeClassId ?? null;
   useTeacherLivePresence({ classId: livePollClassId });
-
-  const { data: classAnalytics, isLoading: loadingAnalytics } = useQuery({
-    queryKey: teacherQueryKeys.classAnalytics(selectedClassId, detectedChapterId),
-    queryFn: () =>
-      apiPostClassAnalytics({
-        class_id: selectedClassId,
-        unit_id: detectedChapterId!,
-        include_ai_insights: false,
-      }),
-    enabled: selectedClassId !== "all" && detectedChapterId !== null,
-    staleTime: 60_000,
-  });
 
   const handleCreateClass = async (): Promise<boolean> => {
     if (!newClassName.trim()) return false;
@@ -294,7 +327,7 @@ export function TeacherDashboardPage({
 
         {/* Tabs */}
         <Tabs value={dashboardTab} onValueChange={handleDashboardTabChange} className="mt-6 space-y-6">
-          <TabsList className={`grid w-full max-w-4xl ${isAdmin && !initialAdminClass ? "grid-cols-7" : "grid-cols-6"}`}>
+          <TabsList className={`grid w-full max-w-4xl ${isAdmin && !initialAdminClass ? "grid-cols-6" : "grid-cols-5"}`}>
             {isAdmin && !initialAdminClass && (
               <TabsTrigger value="directory" className="gap-1.5">
                 <Users2 className="w-3.5 h-3.5" />
@@ -304,10 +337,6 @@ export function TeacherDashboardPage({
             <TabsTrigger value="class" className="gap-1.5">
               <BarChart3 className="w-3.5 h-3.5" />
               Class
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="gap-1.5">
-              <TrendingUp className="w-3.5 h-3.5" />
-              Analytics
             </TabsTrigger>
             <TabsTrigger value="students" className="gap-1.5">
               <Users className="w-3.5 h-3.5" />
@@ -348,21 +377,6 @@ export function TeacherDashboardPage({
             onStudentClick={setSelectedStudentWithUrl}
           />
 
-          <TabsContent value="analytics" className="space-y-6">
-            <AnalyticsDashboard
-              selectedClassId={effectiveClassroomId}
-              loadingStudents={loadingStudents}
-              enrolledStudents={enrolledStudents}
-              classStats={classStats}
-              classMastery={classMastery}
-              atRiskCount={atRiskStudents.length}
-              masteredCount={masteredStudents.length}
-              developingCount={developingStudents.length}
-              classAnalytics={classAnalytics}
-              loadingAnalytics={loadingAnalytics}
-            />
-          </TabsContent>
-
           <TeacherStudentsTab
             selectedClassId={effectiveClassroomId}
             selectedClass={selectedClass}
@@ -382,7 +396,6 @@ export function TeacherDashboardPage({
           />
 
           <TeacherStandardsTab
-            unitId={detectedChapterId}
             classId={effectiveClassroomId !== "all" ? effectiveClassroomId : null}
             enrolledStudents={enrolledStudents}
           />

@@ -1,8 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { getStoredToken } from "@/lib/api/core";
 import { studentQueryKeys } from "@/lib/studentQueryKeys";
 import { normalizeLiveSession } from "@/services/api/classroomSession";
 import { useEventSourceConnection } from "@/hooks/useEventSourceConnection";
+import { getSseToken } from "@/lib/sseToken";
 
 const API_URL = (import.meta.env.VITE_API_URL as string)?.replace(/\/$/, "") ?? "";
 
@@ -21,8 +21,8 @@ export function useStudentLiveSessionSSE(options: {
   useEventSourceConnection({
     enabled: Boolean(enabled && classroomId && API_URL),
     reconnectKey,
-    getUrl: () => {
-      const token = getStoredToken();
+    getUrl: async () => {
+      const token = await getSseToken();
       if (!token) return null;
       return `${API_URL}/classrooms/me/live-session/stream?token=${encodeURIComponent(token)}`;
     },

@@ -75,35 +75,52 @@ export function useTeacherDashboardData(options?: {
   onManagedClassCountChange?: (count: number) => void;
   /** When set, the roster is scoped to this chapter/lesson so sidebar scores match the active filter. */
   rosterFilter?: { unitId?: string; lessonIndex?: number };
+  /**
+   * Admin/superadmin drill-in override. When provided, this class ID is used
+   * directly for the roster query, bypassing teacher-class-list validation.
+   * The teacher classes query is also skipped (admin has no owned classes).
+   */
+  viewClassId?: string;
 }) {
-  const { onManagedClassCountChange, rosterFilter } = options ?? {};
+  const { onManagedClassCountChange, rosterFilter, viewClassId } = options ?? {};
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const userId = user?.id ?? "";
+  const selectedClassStorageKey = userId
+    ? `teacher_selected_class_id:${userId}`
+    : "teacher_selected_class_id";
   // Use a null sentinel while classes are loading so we don't flash the "all" view
   // before we can confirm the stored class id still exists.
   const [selectedClassId, setSelectedClassIdRaw] = useState<string | null>(null);
   const setSelectedClassId = (id: string) => {
-    localStorage.setItem("teacher_selected_class_id", id);
+    localStorage.setItem(selectedClassStorageKey, id);
     setSelectedClassIdRaw(id);
   };
 
+  // Skip the teacher-classes fetch when an admin override class is active — the
+  // admin has no owned classes, so this query would always return [] and cause
+  // the selected-class validation below to reset the ID back to "all".
   const { data: apiClasses = [], isLoading: classesLoading } = useQuery({
     queryKey: teacherQueryKeys.classes(userId),
     queryFn: getTeacherClasses,
-    enabled: Boolean(userId),
+    enabled: Boolean(userId) && !viewClassId,
   });
   const classes = useMemo(() => apiClasses.map(mapApiTeacherClass), [apiClasses]);
 
   const resolvedClassId = selectedClassId ?? "all";
 
+  // For admin drill-in the class ID comes externally; for teachers it comes from
+  // their own class selection. Using separate variable avoids touching teacher
+  // selection logic while giving admin the right roster.
+  const rosterClassId = viewClassId ?? resolvedClassId;
+
   const filterUnit = rosterFilter?.unitId && rosterFilter.unitId !== "all" ? rosterFilter.unitId : undefined;
   const filterLesson = typeof rosterFilter?.lessonIndex === "number" ? rosterFilter.lessonIndex : undefined;
 
   const { data: rosterRaw = [], isLoading: loadingStudents } = useQuery({
-    queryKey: teacherQueryKeys.roster(resolvedClassId, filterUnit, filterLesson),
-    queryFn: () => getClassRoster(resolvedClassId, { unitId: filterUnit, lessonIndex: filterLesson }),
-    enabled: resolvedClassId !== "all" && selectedClassId !== null,
+    queryKey: teacherQueryKeys.roster(rosterClassId, filterUnit, filterLesson),
+    queryFn: () => getClassRoster(rosterClassId, { unitId: filterUnit, lessonIndex: filterLesson }),
+    enabled: rosterClassId !== "all",
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -111,8 +128,8 @@ export function useTeacherDashboardData(options?: {
   // SSE: real-time roster updates — pushes to the same cache key as the polling query.
   // Falls back silently to polling if the backend endpoint doesn't exist yet.
   useTeacherRosterSSE({
-    classId: resolvedClassId,
-    enabled: resolvedClassId !== "all" && selectedClassId !== null,
+    classId: rosterClassId,
+    enabled: rosterClassId !== "all",
     unitId: filterUnit,
     lessonIndex: filterLesson,
   });
@@ -147,13 +164,13 @@ export function useTeacherDashboardData(options?: {
   // Once classes have loaded, resolve the stored id (or fall back to "all").
   useEffect(() => {
     if (classesLoading) return;
-    const stored = localStorage.getItem("teacher_selected_class_id") ?? "all";
+    const stored = localStorage.getItem(selectedClassStorageKey) ?? "all";
     if (stored !== "all" && !classes.some((c) => c.id === stored)) {
       setSelectedClassId("all");
     } else {
       setSelectedClassIdRaw(stored);
     }
-  }, [classesLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [classesLoading, classes, selectedClassStorageKey]);
 
   useEffect(() => {
     onManagedClassCountChange?.(classes.length);

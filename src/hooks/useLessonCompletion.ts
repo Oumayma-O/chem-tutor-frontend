@@ -12,6 +12,8 @@ type LessonStatus = "not-started" | "in-progress" | "completed";
 export function useLessonCompletion(unitId: string, userId?: string) {
   const storageKey = `${STORAGE_PREFIX}${userId ?? "guest"}_${unitId}`;
   const [statusMap, setStatusMap] = useState<Record<number, LessonStatus>>({});
+  const [statusLoaded, setStatusLoaded] = useState(false);
+  const [statusFromBackend, setStatusFromBackend] = useState(false);
 
   const loadFromStorage = useCallback((): Record<number, LessonStatus> => {
     try {
@@ -41,11 +43,15 @@ export function useLessonCompletion(unitId: string, userId?: string) {
 
   const refetch = useCallback(() => {
     if (!unitId) return;
+    setStatusLoaded(false);
+    setStatusFromBackend(false);
     if (userId) {
       apiGetTopicProgress(userId, unitId)
         .then((records) => {
           if (records.length === 0) {
             setStatusMap(loadFromStorage());
+            setStatusLoaded(true);
+            setStatusFromBackend(true);
             return;
           }
           const dbMap: Record<number, LessonStatus> = {};
@@ -54,10 +60,16 @@ export function useLessonCompletion(unitId: string, userId?: string) {
           }
           setStatusMap(dbMap);
           persistLocal(dbMap);
+          setStatusLoaded(true);
+          setStatusFromBackend(true);
         })
-        .catch(() => setStatusMap(loadFromStorage()));
+        .catch(() => {
+          setStatusMap(loadFromStorage());
+          setStatusLoaded(true);
+        });
     } else {
       setStatusMap(loadFromStorage());
+      setStatusLoaded(true);
     }
   }, [unitId, userId, loadFromStorage, persistLocal]);
 
@@ -124,5 +136,14 @@ export function useLessonCompletion(unitId: string, userId?: string) {
     [userId, unitId, persistLocal],
   );
 
-  return { isCompleted, markCompleted, markInProgress, getStatus, completionMap: statusMap, refetch };
+  return {
+    isCompleted,
+    markCompleted,
+    markInProgress,
+    getStatus,
+    completionMap: statusMap,
+    refetch,
+    statusLoaded,
+    statusFromBackend,
+  };
 }

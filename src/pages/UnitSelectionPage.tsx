@@ -18,13 +18,14 @@ import { ClassroomLiveBanner } from "@/components/student/ClassroomLiveBanner";
 
 type NavState = { searchQuery?: string; selectedLevel?: CourseLevel | "all" } | null;
 
-/** Infer course filter from profile (grade_level and/or course from signup). */
-function inferCourseLevel(profile: { grade_level?: string | null; course?: string | null } | null): CourseLevel | "all" {
+/** Infer course filter from profile (grade_level, course, or classroom name). */
+function inferCourseLevel(profile: { grade_level?: string | null; course?: string | null; classroom_name?: string | null } | null): CourseLevel | "all" {
   if (!profile) return "all";
   const gl = (profile.grade_level ?? "").toLowerCase();
   const co = (profile.course ?? "").toLowerCase();
-  if (gl.includes("ap") || gl.includes("advanced") || co.includes("ap") || co.includes("advanced")) return "ap";
-  if (gl || co) return "standard";
+  const cn = (profile.classroom_name ?? "").toLowerCase();
+  if (gl.includes("ap") || gl.includes("advanced") || co.includes("ap") || co.includes("advanced") || cn.includes("ap") || cn.includes("advanced")) return "ap";
+  if (gl || co || cn) return "standard";
   return "all";
 }
 

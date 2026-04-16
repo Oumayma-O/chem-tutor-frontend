@@ -1,6 +1,11 @@
 import { useState, useCallback } from "react";
 import { Problem, SolutionStep } from "@/types/chemistry";
-import { apiGenerateProblemV2, ProblemDeliveryResponse, ProblemPagination } from "@/lib/api";
+import {
+  apiGenerateProblemV2,
+  ProblemDeliveryResponse,
+  ProblemOutput,
+  ProblemPagination,
+} from "@/lib/api";
 import {
   getCachedPromise,
   getResolvedResult,
@@ -145,6 +150,30 @@ export function parseProblemOutput(data: ProblemDeliveryResponse): GenerateResul
     ...(max_answer_reveals_per_lesson !== undefined ? { max_answer_reveals_per_lesson } : {}),
     ...(min_level1_examples_for_level2 !== undefined ? { min_level1_examples_for_level2 } : {}),
   };
+}
+
+export function parseHydratedProblem(
+  problem: ProblemOutput,
+  currentIndex: number,
+  total: number,
+): GenerateResult {
+  return parseProblemOutput({
+    problem,
+    current_index: currentIndex,
+    total,
+    max_problems: total,
+    has_prev: currentIndex > 0,
+    has_next: currentIndex < total - 1,
+    at_limit: false,
+  });
+}
+
+export function parseHydratedProblems(
+  playlist: { problems: ProblemOutput[]; total: number },
+): Problem[] {
+  return playlist.problems.map((problem, idx) =>
+    parseHydratedProblem(problem, idx, playlist.total).problem,
+  );
 }
 
 export function useGeneratedProblem({

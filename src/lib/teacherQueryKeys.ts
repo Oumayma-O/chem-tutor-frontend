@@ -20,6 +20,13 @@ export const teacherQueryKeys = {
   /** Class analytics POST (chapter-scoped). */
   classAnalytics: (classId: string, chapterId: string | null) =>
     ["teacher", "analytics", classId, chapterId] as const,
+  studentAnalytics: (
+    classId: string,
+    studentId: string,
+    unitId: string | undefined,
+    lessonIndex: number | undefined,
+  ) =>
+    ["teacher", "student-analytics", classId, studentId, unitId ?? "all", lessonIndex ?? "all"] as const,
 
   exitTickets: {
     /** Prefix for invalidateQueries — matches all exit-ticket queries for a class. */

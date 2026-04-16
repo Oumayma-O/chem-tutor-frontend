@@ -19,7 +19,7 @@ function capitalizeFirstInput(text: string): string {
 }
 
 export default function AuthPage() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, refreshProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -99,6 +99,7 @@ export default function AuthPage() {
       if (classCode.trim() && userId) {
         try {
           await joinClassroomByCode(classCode.trim(), userId);
+          await refreshProfile();
           toast.success("Account created and joined class!");
         } catch {
           toast.warning("Account created, but class code was invalid. You can try again from your dashboard.");

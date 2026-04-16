@@ -33,7 +33,7 @@ export function useTeacherStudentSelectionFromUrl(options: {
           }
           return p;
         },
-        { replace: true },
+        { replace: true, preventScrollReset: true },
       );
     },
     [setSearchParams],
@@ -43,6 +43,8 @@ export function useTeacherStudentSelectionFromUrl(options: {
     (value: string) => {
       skipTabInject.current = true;
       const next = parseTeacherDashboardTab(value) ?? "class";
+      const scrollX = typeof window !== "undefined" ? window.scrollX : 0;
+      const scrollY = typeof window !== "undefined" ? window.scrollY : 0;
       setSearchParams(
         (prev) => {
           const p = new URLSearchParams(prev);
@@ -50,8 +52,24 @@ export function useTeacherStudentSelectionFromUrl(options: {
           else p.set("tab", next);
           return p;
         },
-        { replace: true },
+        { replace: true, preventScrollReset: true },
       );
+      if (typeof window !== "undefined") {
+        if (typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent)) {
+          return;
+        }
+        const safeScrollTo = () => {
+          try {
+            window.scrollTo(scrollX, scrollY);
+          } catch {
+            // jsdom does not implement window.scrollTo in tests.
+          }
+        };
+        requestAnimationFrame(() => {
+          safeScrollTo();
+          setTimeout(safeScrollTo, 0);
+        });
+      }
     },
     [setSearchParams],
   );
@@ -59,6 +77,7 @@ export function useTeacherStudentSelectionFromUrl(options: {
   useEffect(() => {
     if (loadingStudents) return;
     const sid = searchParams.get(TEACHER_STUDENT_QUERY_PARAM);
+    const hasValidTabParam = parseTeacherDashboardTab(searchParams.get("tab")) != null;
     const validIds = new Set(enrolledStudents.map((s) => s.id));
 
     if (selectedClassId === "all") {
@@ -69,7 +88,7 @@ export function useTeacherStudentSelectionFromUrl(options: {
             p.delete(TEACHER_STUDENT_QUERY_PARAM);
             return p;
           },
-          { replace: true },
+          { replace: true, preventScrollReset: true },
         );
       }
       setSelectedStudent(null);
@@ -85,11 +104,11 @@ export function useTeacherStudentSelectionFromUrl(options: {
             p.delete(TEACHER_STUDENT_QUERY_PARAM);
             return p;
           },
-          { replace: true },
+          { replace: true, preventScrollReset: true },
         );
       } else {
         setSelectedStudent((prev) => (prev !== sid ? sid : prev));
-        if (!searchParams.has("tab")) {
+        if (!hasValidTabParam) {
           if (skipTabInject.current) {
             skipTabInject.current = false;
             return;
@@ -100,7 +119,7 @@ export function useTeacherStudentSelectionFromUrl(options: {
               p.set("tab", "students");
               return p;
             },
-            { replace: true },
+            { replace: true, preventScrollReset: true },
           );
         }
       }

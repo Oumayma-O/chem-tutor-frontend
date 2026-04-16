@@ -58,6 +58,7 @@ export interface StudentStandardScore {
 export interface StandardMasteryItem {
   standard_code: string;
   standard_title: string | null;
+  standard_description: string | null;
   framework: string;
   class_avg: number;
   at_risk_count: number;
@@ -66,7 +67,6 @@ export interface StandardMasteryItem {
 
 export interface ClassStandardsMasteryResponse {
   class_id: string;
-  unit_id: string | null;
   standards: StandardMasteryItem[];
 }
 
@@ -86,20 +86,18 @@ export interface StudentStandardsMasteryResponse {
 
 // ── Standards mastery query keys ─────────────────────────────────────────────
 
-export const classStandardsQueryKey = (classId: string, unitId?: string | null) =>
-  ["analytics", "class-standards", classId, unitId ?? null] as const;
+export const classStandardsQueryKey = (classId: string) =>
+  ["analytics", "class-standards", classId] as const;
 
-export const studentStandardsQueryKey = (studentId: string) =>
-  ["analytics", "student-standards", studentId] as const;
+export const studentStandardsQueryKey = (studentId: string, classId?: string | null) =>
+  ["analytics", "student-standards", studentId, classId ?? "all"] as const;
 
 // ── Standards mastery API calls ───────────────────────────────────────────────
 
 export async function apiGetClassStandardsMastery(
   classId: string,
-  unitId?: string | null,
 ): Promise<ClassStandardsMasteryResponse> {
-  const qs = unitId ? `?unit_id=${encodeURIComponent(unitId)}` : "";
-  return get<ClassStandardsMasteryResponse>(`/analytics/classes/${classId}/standards${qs}`);
+  return get<ClassStandardsMasteryResponse>(`/analytics/classes/${classId}/standards`);
 }
 
 export async function apiGetStudentStandardsMastery(

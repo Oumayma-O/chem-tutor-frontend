@@ -47,6 +47,11 @@ interface Params {
     levelCacheRef: React.MutableRefObject<Partial<Record<1 | 2 | 3, unknown>>>;
     setCurrentLevel: (level: 1 | 2 | 3) => void;
     loadNewProblem: (diff: "easy" | "medium" | "hard", exclude: string[], level: number) => Promise<unknown>;
+    hydrateOrGenerateForLevel: (
+      level: 1 | 2 | 3,
+      diff: "easy" | "medium" | "hard",
+      exclude: string[],
+    ) => Promise<unknown>;
     /** True when the student has viewed enough unique Level 1 examples (required before Level 2). */
     canAccessLevel2: boolean;
   };
@@ -100,14 +105,20 @@ export function useTutorProgression({
     );
 
     const interactiveForAttempt = interactiveStepsFromProblem(steps.problemSteps);
-    if (userId && currentAttemptId && interactiveForAttempt.length > 0) {
-      const step_log = stepLogForAttemptComplete(
-        steps.problemSteps,
-        steps.answers,
-        steps.structuredStepComplete,
-      );
+    // Level 1 (worked examples) has no interactive steps but still needs an attempt
+    // completion recorded so the L1 mastery band (0→20%) can be filled.
+    const isLevel1 = nav.currentLevel === 1;
+    if (userId && currentAttemptId && (interactiveForAttempt.length > 0 || isLevel1)) {
+      const step_log = isLevel1
+        ? []
+        : stepLogForAttemptComplete(
+            steps.problemSteps,
+            steps.answers,
+            steps.structuredStepComplete,
+          );
       const correctCount = step_log.filter((e) => e.is_correct).length;
-      const score = step_log.length > 0 ? correctCount / step_log.length : 0;
+      // L1 worked examples are always scored 1.0 (student viewed the example)
+      const score = isLevel1 ? 1.0 : step_log.length > 0 ? correctCount / step_log.length : 0;
       const completePromise = apiCompleteAttempt({
         attempt_id: currentAttemptId,
         user_id: userId,
@@ -193,7 +204,7 @@ export function useTutorProgression({
       setHasCompletedLevel2(true);
       persistLevel3Unlock();
       nav.setCurrentLevel(3);
-      await nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 3);
+      await nav.hydrateOrGenerateForLevel(3, backendDiff ?? "medium", nextExcludeIds);
       toast.success("Level 3 unlocked! Here's your first challenge…");
       if (userId) {
         apiGetMastery(userId, unitId, lessonIndex)
@@ -218,7 +229,7 @@ export function useTutorProgression({
     }
 
     nav.setCurrentLevel(2);
-    await nav.loadNewProblem(backendDiff ?? "medium", nextExcludeIds, 2);
+    await nav.hydrateOrGenerateForLevel(2, backendDiff ?? "medium", nextExcludeIds);
     toast.info("New faded example loaded!");
   }, [
     progressionResult,

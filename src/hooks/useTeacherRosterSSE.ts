@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { getStoredToken } from "@/lib/api/core";
 import { teacherQueryKeys } from "@/lib/teacherQueryKeys";
 import { useEventSourceConnection } from "@/hooks/useEventSourceConnection";
+import { getSseToken } from "@/lib/sseToken";
 
 const API_URL = (import.meta.env.VITE_API_URL as string)?.replace(/\/$/, "") ?? "";
 
@@ -26,8 +26,8 @@ export function useTeacherRosterSSE(options: {
   useEventSourceConnection({
     enabled: Boolean(enabled && classId && classId !== "all" && API_URL),
     reconnectKey: `${classId}:${filterUnit ?? ""}:${filterLesson ?? ""}`,
-    getUrl: () => {
-      const token = getStoredToken();
+    getUrl: async () => {
+      const token = await getSseToken();
       if (!token) return null;
       const params = new URLSearchParams({ token: token });
       if (filterUnit) params.set("unit_id", filterUnit);

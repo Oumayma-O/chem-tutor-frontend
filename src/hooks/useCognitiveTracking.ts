@@ -9,6 +9,7 @@ import {
 } from "@/types/cognitive";
 import { apiClassifyErrors, useBackendApi } from "@/lib/api";
 import { STEP_LABEL_TO_MASTERY_CATEGORY } from "@/lib/stepLabelToMasteryCategory";
+import { TEACHER_SCORE_MODERATE_MIN, TEACHER_SCORE_STRONG_MIN } from "@/lib/teacherScoreStyles";
 
 const INITIAL_SKILLS: SkillMastery[] = [
   { skillId: "reaction_concepts", skillName: "Reaction Concepts", category: "reaction_concepts", score: 0, status: "developing", lastUpdated: Date.now(), problemCount: 0 },
@@ -18,10 +19,16 @@ const INITIAL_SKILLS: SkillMastery[] = [
   { skillId: "graph_interpretation", skillName: "Graph Interpretation", category: "graph_interpretation", score: 0, status: "developing", lastUpdated: Date.now(), problemCount: 0 },
 ];
 
-/** Conceptual skills: update when blueprint is conceptual ("architect"|"detective"|"lawyer"). */
-const CONCEPTUAL_SKILL_CATEGORIES = new Set(["reaction_concepts", "graph_interpretation"]);
+const SKILL_TO_THINKING_CATEGORIES: Record<SkillMastery["category"], Array<ThinkingStep["category"]>> = {
+  reaction_concepts: ["conceptual"],
+  graph_interpretation: ["conceptual"],
+  rate_laws: ["procedural"],
+  variable_isolation: ["procedural"],
+  unit_conversion: ["computational"],
+};
 
 export function useCognitiveTracking() {
+  const backendApiEnabled = useBackendApi();
   const [thinkingSteps, setThinkingSteps] = useState<ThinkingStep[]>([]);
   const [currentAttempt] = useState<Partial<ProblemAttempt>>({});
   const [classifiedErrors, setClassifiedErrors] = useState<ClassifiedError[]>([]);
@@ -92,8 +99,7 @@ export function useCognitiveTracking() {
       }
 
       let errors: ClassifiedError[];
-      const backend = useBackendApi();
-      if (backend) {
+      if (backendApiEnabled) {
         const data = await apiClassifyErrors({
           steps: incorrectSteps.map(s => ({
             step_id: s.id,
@@ -134,7 +140,7 @@ export function useCognitiveTracking() {
       } else {
         const fallbackErrors = incorrectSteps.map((step) => ({
           stepId: step.id,
-          category: (step.category === "conceptual" ? "conceptual" : "procedural") as ClassifiedError["category"],
+          category: step.category as ClassifiedError["category"],
           severity: "slowing" as const,
           description: `Error in ${step.label}`,
           suggestedIntervention: (step.category === "conceptual" ? "concept_refresher" : "faded_example") as ClassifiedError["suggestedIntervention"],
@@ -150,7 +156,7 @@ export function useCognitiveTracking() {
       setIsAnalyzing(false);
       return [];
     }
-  }, []);
+  }, [backendApiEnabled]);
 
   const detectPatterns = useCallback((errors: ClassifiedError[]): MisconceptionPattern[] => {
     const tagCounts: Record<string, MisconceptionPattern> = {};
@@ -167,8 +173,9 @@ export function useCognitiveTracking() {
   /**
    * Update per-skill scores after a problem attempt.
    * Category alignment comes from ThinkingStep.category (blueprint-derived), not UI widget type.
-   *   Conceptual skills  (reaction_concepts, graph_interpretation) → update on conceptual steps.
-   *   Procedural skills  (rate_laws, variable_isolation, unit_conversion) → update on procedural steps.
+   *   Conceptual skills  (reaction_concepts, graph_interpretation) → conceptual steps.
+   *   Procedural skills  (rate_laws, variable_isolation) → procedural steps.
+   *   Computational skill (unit_conversion) → computational steps.
    */
   const updateSkillFromAttempt = useCallback((
     _errors: ClassifiedError[],
@@ -184,12 +191,10 @@ export function useCognitiveTracking() {
       const overallRate = totalSteps > 0 ? correctSteps.length / totalSteps : 0;
 
       for (const skill of updated) {
-        const skillIsConceptual = CONCEPTUAL_SKILL_CATEGORIES.has(skill.category);
+        const relevantCategories = SKILL_TO_THINKING_CATEGORIES[skill.category];
 
         // Find steps whose cognitive category aligns with this skill's domain.
-        const relevantSteps = steps.filter(s =>
-          skillIsConceptual ? s.category === "conceptual" : s.category === "procedural",
-        );
+        const relevantSteps = steps.filter((s) => relevantCategories.includes(s.category));
 
         let adjustment = 0;
 
@@ -210,8 +215,8 @@ export function useCognitiveTracking() {
           skill.score = Math.max(0, Math.min(100, skill.score + adjustment));
           skill.lastUpdated = Date.now();
           skill.problemCount += 1;
-          if (skill.score >= 80) skill.status = "mastered";
-          else if (skill.score >= 20) skill.status = "developing";
+          if (skill.score >= TEACHER_SCORE_STRONG_MIN) skill.status = "mastered";
+          else if (skill.score >= TEACHER_SCORE_MODERATE_MIN) skill.status = "developing";
           else skill.status = "at_risk";
         }
       }

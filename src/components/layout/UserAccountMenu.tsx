@@ -109,7 +109,7 @@ export function UserAccountMenu({ variant, managedClassCount = 0 }: UserAccountM
               </div>
 
               {!isStaffAdmin && (
-                <div className="px-4 py-2.5 flex items-center gap-4 border-b border-border">
+                <div className="px-4 py-2.5 flex items-center justify-center gap-4 border-b border-border">
                   {variant === "student" ? (
                     <>
                       <div className="flex items-center gap-1.5">

@@ -151,6 +151,22 @@ export function setPrefetchPromise(
     });
 }
 
+/** Seed the cache with an already-resolved result (e.g. hydration-first prefetch). */
+export function setResolvedResult(
+  unitId: string,
+  lessonIndex: number,
+  level: number,
+  result: GenerateResult,
+): void {
+  const k = key(unitId, lessonIndex, level);
+  if (store.has(k)) return;
+  store.set(k, {
+    promise: Promise.resolve(result),
+    result,
+    resolvedAt: Date.now(),
+  });
+}
+
 /**
  * Returns the cached promise if one exists and hasn't gone stale.
  * Callers can `await` this to attach to an in-flight or already-resolved request.

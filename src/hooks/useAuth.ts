@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, createElement, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { clearSseTokenCache } from "@/lib/sseToken";
 import {
   apiLogin,
   apiMe,
@@ -32,6 +33,17 @@ function saveProfileCache(me: MeResponse) {
 
 function clearProfileCache() {
   try { localStorage.removeItem(PROFILE_CACHE_KEY); } catch { /* ignore */ }
+}
+
+function clearTeacherSelectedClassKeys() {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("teacher_selected_class_id")) keys.push(key);
+    }
+    keys.forEach((k) => localStorage.removeItem(k));
+  } catch { /* ignore */ }
 }
 
 /** Read cached profile fields synchronously (available before apiMe resolves). */
@@ -134,7 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .catch(() => {
         clearAllUserAndCache();
         clearProfileCache();
-        try { localStorage.removeItem("teacher_selected_class_id"); } catch { /* ignore */ }
+        clearTeacherSelectedClassKeys();
+        clearSseTokenCache();
         queryClient.clear();
         setState({ user: null, role: null, profile: null, loading: false });
       });
@@ -187,7 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(() => {
     clearAllUserAndCache();
     clearProfileCache();
-    try { localStorage.removeItem("teacher_selected_class_id"); } catch { /* ignore */ }
+    clearTeacherSelectedClassKeys();
+    clearSseTokenCache();
     queryClient.clear();
     setState({ user: null, role: null, profile: null, loading: false });
   }, [queryClient]);

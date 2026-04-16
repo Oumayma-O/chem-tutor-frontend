@@ -65,6 +65,7 @@ export type NextStepAction =
 export interface SkillMastery {
   skillId: string;
   skillName: string;
+  description?: string;
   category: "reaction_concepts" | "rate_laws" | "variable_isolation" | "unit_conversion" | "graph_interpretation";
   score: number; // 0-100
   status: "mastered" | "developing" | "at_risk";

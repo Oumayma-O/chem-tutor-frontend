@@ -2,7 +2,6 @@
 export const TEACHER_DASHBOARD_TABS = [
   "directory",
   "class",
-  "analytics",
   "students",
   "standards",
   "exit-tickets",

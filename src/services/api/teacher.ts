@@ -289,6 +289,20 @@ export async function getExitTicketResults(
   return get<ExitTicketsForClass>(`/teacher/exit-tickets/${classId}?${params.toString()}`);
 }
 
+/** Fetch all paginated exit-ticket bundles for a class. */
+export async function getAllExitTicketResults(
+  classId: string,
+  filters?: { unit_id?: string; lesson_id?: string; days?: number },
+): Promise<ExitTicketsForClass["items"]> {
+  const firstPage = await getExitTicketResults(classId, 1, 50, filters);
+  const items = [...firstPage.items];
+  for (let page = 2; page <= firstPage.total_pages; page += 1) {
+    const next = await getExitTicketResults(classId, page, 50, filters);
+    items.push(...next.items);
+  }
+  return items;
+}
+
 /** Publish generated exit ticket + optional timed practice to the class (students poll live-session). */
 export async function publishClassroomLiveSession(
   classroomId: string,

@@ -3,10 +3,10 @@ import { Loader2, LayoutGrid, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClassStandardsMastery } from "@/hooks/useClassStandardsMastery";
 import type { ClassStudentRow } from "@/hooks/useTeacherDashboardData";
+import { TEACHER_SCORE_MODERATE_MIN, TEACHER_SCORE_STRONG_MIN } from "@/lib/teacherScoreStyles";
 
 interface StandardsMasteryHeatmapProps {
   classId: string | null;
-  unitId?: string | null;
   enrolledStudents: ClassStudentRow[];
 }
 
@@ -14,8 +14,8 @@ interface StandardsMasteryHeatmapProps {
 
 function masteryColor(score: number | undefined): string {
   if (score === undefined) return "bg-slate-100 border-slate-200 text-slate-400";
-  if (score >= 0.75)       return "bg-emerald-100 border-emerald-300 text-emerald-800";
-  if (score >= 0.55)       return "bg-amber-100 border-amber-300 text-amber-800";
+  if (score >= TEACHER_SCORE_STRONG_MIN / 100) return "bg-emerald-100 border-emerald-300 text-emerald-800";
+  if (score >= TEACHER_SCORE_MODERATE_MIN / 100) return "bg-amber-100 border-amber-300 text-amber-800";
   return                          "bg-red-100 border-red-300 text-red-700";
 }
 
@@ -30,14 +30,17 @@ function frameworkColor(fw: string): string {
   return                    "text-slate-500 bg-slate-50 ring-slate-200";
 }
 
+function standardKey(framework: string, standardCode: string): string {
+  return `${framework}:${standardCode}`;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function StandardsMasteryHeatmap({
   classId,
-  unitId,
   enrolledStudents,
 }: StandardsMasteryHeatmapProps) {
-  const { data, loading, error } = useClassStandardsMastery(classId, unitId);
+  const { data, loading, error } = useClassStandardsMastery(classId);
 
   // Build a name lookup from enrolled students
   const nameLookup = useMemo(() => {
@@ -68,9 +71,10 @@ export function StandardsMasteryHeatmap({
     const map: Record<string, Record<string, number>> = {};
     if (!data) return map;
     for (const std of data.standards) {
-      map[std.standard_code] = {};
+      const key = standardKey(std.framework, std.standard_code);
+      map[key] = {};
       for (const s of std.student_scores) {
-        map[std.standard_code][s.student_id] = s.mastery_score;
+        map[key][s.student_id] = s.mastery_score;
       }
     }
     return map;
@@ -102,9 +106,9 @@ export function StandardsMasteryHeatmap({
     return (
       <div className="rounded-xl border border-slate-200 bg-white px-6 py-10 text-center shadow-sm">
         <LayoutGrid className="mx-auto mb-3 h-7 w-7 text-slate-300" />
-        <p className="text-sm font-medium text-slate-600">No taught standards yet</p>
+        <p className="text-sm font-medium text-slate-600">No standards data yet</p>
         <p className="mt-1 text-sm text-slate-400">
-          Standards will appear here after you publish an exit ticket or start a timed practice session for a lesson.
+          Standards will appear here once students in this class start completing problems or exit tickets.
         </p>
       </div>
     );
@@ -147,12 +151,19 @@ export function StandardsMasteryHeatmap({
               </th>
               {standards.map((std) => (
                 <th
-                  key={std.standard_code}
+                  key={standardKey(std.framework, std.standard_code)}
                   className="border-b border-r border-slate-100 bg-slate-50/90 px-2 py-2.5 text-center"
                 >
                   <span
+                    title={
+                      std.standard_description
+                        ? `${std.standard_code}: ${std.standard_description}`
+                        : std.standard_title
+                          ? `${std.standard_code}: ${std.standard_title}`
+                          : std.standard_code
+                    }
                     className={cn(
-                      "inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ring-1 ring-inset",
+                      "inline-flex cursor-default items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold ring-1 ring-inset",
                       frameworkColor(std.framework),
                     )}
                   >
@@ -170,7 +181,7 @@ export function StandardsMasteryHeatmap({
           <tbody>
             {studentIds.map((sid, rowIdx) => {
               const studentScores = standards.map(
-                (std) => scoreLookup[std.standard_code]?.[sid],
+                (std) => scoreLookup[standardKey(std.framework, std.standard_code)]?.[sid],
               );
               const defined = studentScores.filter((s) => s !== undefined) as number[];
               const studentAvg = defined.length
@@ -190,7 +201,7 @@ export function StandardsMasteryHeatmap({
                   {/* Score cells */}
                   {studentScores.map((score, ci) => (
                     <td
-                      key={standards[ci].standard_code}
+                      key={standardKey(standards[ci].framework, standards[ci].standard_code)}
                       className="border-b border-r border-slate-100 px-2 py-1.5 text-center"
                     >
                       <span
@@ -231,7 +242,7 @@ export function StandardsMasteryHeatmap({
               </td>
               {standards.map((std) => (
                 <td
-                  key={std.standard_code}
+                  key={standardKey(std.framework, std.standard_code)}
                   className="border-t border-r border-slate-200 px-2 py-1.5 text-center"
                 >
                   <span
@@ -262,9 +273,9 @@ export function StandardsMasteryHeatmap({
       <div className="flex flex-wrap items-center gap-4 border-t border-slate-100 px-5 py-3">
         <span className="text-xs font-medium text-slate-500">Legend</span>
         {[
-          { label: "Mastered ≥ 75%", cls: "bg-emerald-100 border-emerald-300 text-emerald-800" },
-          { label: "Progressing 55–74%", cls: "bg-amber-100 border-amber-300 text-amber-800" },
-          { label: "Struggling < 55%", cls: "bg-red-100 border-red-300 text-red-700" },
+          { label: `Mastered ≥ ${TEACHER_SCORE_STRONG_MIN}%`, cls: "bg-emerald-100 border-emerald-300 text-emerald-800" },
+          { label: `Progressing ${TEACHER_SCORE_MODERATE_MIN}–${TEACHER_SCORE_STRONG_MIN - 1}%`, cls: "bg-amber-100 border-amber-300 text-amber-800" },
+          { label: `Struggling < ${TEACHER_SCORE_MODERATE_MIN}%`, cls: "bg-red-100 border-red-300 text-red-700" },
           { label: "No data", cls: "bg-slate-100 border-slate-200 text-slate-400" },
         ].map(({ label, cls }) => (
           <span key={label} className="flex items-center gap-1.5">

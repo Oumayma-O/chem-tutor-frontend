@@ -7,15 +7,14 @@ import {
 
 export function useClassStandardsMastery(
   classId: string | null | undefined,
-  unitId?: string | null,
 ): {
   data: ClassStandardsMasteryResponse | undefined;
   loading: boolean;
   error: Error | null;
 } {
   const { data, isLoading, error } = useQuery({
-    queryKey: classStandardsQueryKey(classId ?? "", unitId),
-    queryFn: () => apiGetClassStandardsMastery(classId!, unitId),
+    queryKey: classStandardsQueryKey(classId ?? ""),
+    queryFn: () => apiGetClassStandardsMastery(classId!),
     enabled: Boolean(classId),
     staleTime: 60_000,
   });

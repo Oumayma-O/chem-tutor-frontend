@@ -14,7 +14,7 @@ export function useStudentStandardsMastery(
   error: Error | null;
 } {
   const { data, isLoading, error } = useQuery({
-    queryKey: studentStandardsQueryKey(studentId ?? ""),
+    queryKey: studentStandardsQueryKey(studentId ?? "", classId),
     queryFn: () => apiGetStudentStandardsMastery(studentId!, classId),
     enabled: Boolean(studentId),
     staleTime: 60_000,

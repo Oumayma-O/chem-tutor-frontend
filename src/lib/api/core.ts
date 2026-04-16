@@ -20,6 +20,7 @@ export function clearStoredToken(): void {
 
 const STORAGE_PREFIX_COMPLETION = "chemtutor_completion_";
 const STORAGE_KEY_SIM_GUIDE = "chemtutor_sim_guide_seen";
+const STORAGE_PREFIX_EXIT_TICKET_SUBMIT = "chemtutor_exit_ticket_submit_v1:";
 
 /** Clear auth token, topic completion state, and any other Chem Tutor localStorage. */
 export function clearAllUserAndCache(): void {
@@ -28,7 +29,12 @@ export function clearAllUserAndCache(): void {
   const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key?.startsWith(STORAGE_PREFIX_COMPLETION)) keysToRemove.push(key);
+    if (
+      key?.startsWith(STORAGE_PREFIX_COMPLETION) ||
+      key?.startsWith(STORAGE_PREFIX_EXIT_TICKET_SUBMIT)
+    ) {
+      keysToRemove.push(key);
+    }
   }
   keysToRemove.forEach((k) => localStorage.removeItem(k));
 }
@@ -41,14 +47,18 @@ function authHeaders(): Record<string, string> {
 }
 
 export async function request<T>(
-  method: "GET" | "POST" | "PATCH" | "DELETE",
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T> {
   if (!API_URL) throw new Error("VITE_API_URL is not set");
+  const headers: Record<string, string> = { ...authHeaders() };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
   const res = await fetch(`${API_URL}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", ...authHeaders() },
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {

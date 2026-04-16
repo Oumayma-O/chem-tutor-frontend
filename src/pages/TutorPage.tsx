@@ -17,7 +17,7 @@ export default function TutorPage() {
   const currentLessonIdx = lessonIndex ? parseInt(lessonIndex, 10) : 0;
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const { profile, user } = useAuth();
-  const { getStatus, markCompleted, markInProgress } = useLessonCompletion(unitId || "", user?.id);
+  const { getStatus, markCompleted, markInProgress, statusLoaded, statusFromBackend } = useLessonCompletion(unitId || "", user?.id);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -104,6 +104,7 @@ export default function TutorPage() {
             onTopicComplete={() => markCompleted(currentLessonIdx)}
             onMarkInProgress={() => markInProgress(currentLessonIdx)}
             lessonCompleted={getStatus(currentLessonIdx) === "completed"}
+            lessonStatus={statusLoaded && statusFromBackend ? getStatus(currentLessonIdx) : undefined}
             interests={profile?.interests || []}
             gradeLevel={profile?.grade_level}
             requiredTools={requiredTools}
