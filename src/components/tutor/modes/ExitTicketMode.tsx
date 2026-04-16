@@ -73,6 +73,9 @@ export function ExitTicketMode({
     queryKey: ["student", "exit-ticket", fetchTicketId],
     queryFn: () => getExitTicketForStudent(fetchTicketId!),
     enabled: Boolean(fetchTicketId && !embedded),
+    // Keep cached ticket alive so review mode works after submission / session end
+    // without an extra network round-trip.
+    staleTime: 30 * 60 * 1000,
   });
 
   const ticket = embedded ?? fetchedTicket ?? null;
@@ -89,6 +92,7 @@ export function ExitTicketMode({
 
   const [timeLimit, setTimeLimit] = useState(derivedLimitSec);
   const [timeRemaining, setTimeRemaining] = useState(derivedLimitSec);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(initialReviewMode);
   const [showResults, setShowResults] = useState(false);
   const [isReviewMode, setIsReviewMode] = useState(initialReviewMode);
@@ -126,23 +130,20 @@ export function ExitTicketMode({
 
   const finalizeClassAssessment = useCallback(
     async (endReason: "submit" | "cancel" | "time") => {
-      const graded = await gradeClassQuestions(classQuestions, classAnswers);
-      const submitId = configId ?? ticket?.id;
+      if (submittedRef.current || isSubmitting) return;
 
+      const submitId = configId ?? ticket?.id;
       if (!submitId) {
         toast.error("Could not submit — missing exit ticket id.");
         return;
       }
-      if (submittedRef.current) {
-        return;
-      }
 
+      setIsSubmitting(true);
       try {
+        const graded = await gradeClassQuestions(classQuestions, classAnswers);
         const timeSpentS = Math.round((Date.now() - startedAtRef.current) / 1000);
         await submitExitTicketAttempt(submitId, {
           answers: classAnswers,
-          results: graded.perQuestion,
-          score_percent: graded.scorePercent,
           time_spent_s: timeSpentS,
         });
         submittedRef.current = true;
@@ -172,9 +173,11 @@ export function ExitTicketMode({
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Could not submit your exit ticket.";
         toast.error(`${msg} Your teacher may not see this attempt until it succeeds.`);
+      } finally {
+        setIsSubmitting(false);
       }
     },
-    [classQuestions, classAnswers, configId, ticket, timeLimit, timeRemaining, onComplete, onSubmitted],
+    [isSubmitting, classQuestions, classAnswers, configId, ticket, timeLimit, timeRemaining, onComplete, onSubmitted],
   );
 
   const handleSubmitClass = useCallback(async () => {
@@ -418,6 +421,7 @@ export function ExitTicketMode({
             classAnswers={classAnswers}
             classResults={classResults}
             isComplete={isComplete}
+            isSubmitting={isSubmitting}
             onAnswer={handleClassAnswer}
             onSubmitAll={handleSubmitClass}
           />

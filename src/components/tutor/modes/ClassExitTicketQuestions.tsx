@@ -3,7 +3,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UiExitTicketQuestion } from "@/lib/exitTicketMap";
 
@@ -12,6 +12,7 @@ export interface ClassExitTicketQuestionsProps {
   classAnswers: Record<string, string>;
   classResults: Record<string, boolean>;
   isComplete: boolean;
+  isSubmitting?: boolean;
   onAnswer: (questionId: string, value: string) => void;
   onSubmitAll: () => void | Promise<void>;
 }
@@ -22,6 +23,7 @@ export function ClassExitTicketQuestions({
   classAnswers,
   classResults,
   isComplete,
+  isSubmitting = false,
   onAnswer,
   onSubmitAll,
 }: ClassExitTicketQuestionsProps) {
@@ -140,9 +142,23 @@ export function ClassExitTicketQuestions({
         </div>
       ))}
       {!isComplete && (
-        <Button onClick={() => void onSubmitAll()} size="lg" className="w-full gap-2">
-          <CheckCircle className="h-5 w-5" />
-          Submit All Answers
+        <Button
+          onClick={() => void onSubmitAll()}
+          size="lg"
+          className="w-full gap-2"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Scoring…
+            </>
+          ) : (
+            <>
+              <CheckCircle className="h-5 w-5" />
+              Submit All Answers
+            </>
+          )}
         </Button>
       )}
     </div>

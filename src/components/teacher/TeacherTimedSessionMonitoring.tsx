@@ -100,7 +100,9 @@ export function TeacherTimedSessionMonitoring({
       <CardContent>
         {live.length === 0 && !isLoading ? (
           <p className="text-sm text-muted-foreground">
-            No live heartbeats yet. Students appear when they open practice with a joined class.
+            {activeExitTicketId
+              ? "No practice heartbeats — students submitting the exit ticket directly don't appear here. Check the submission count above."
+              : "No live heartbeats yet. Students appear when they open practice with a joined class."}
           </p>
         ) : (
           <Table>

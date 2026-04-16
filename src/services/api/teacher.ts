@@ -136,13 +136,8 @@ export interface ExitTicketResponseItem {
   time_spent_s: number;
 }
 
-/** Body for POST `/student/exit-tickets/{id}/submit` — backend should persist `results` + `score_percent`. */
 export interface SubmitExitTicketBody {
   answers: Record<string, string>;
-  /** Per-question correctness from the same grading as the student UI (`gradeClassQuestions`). */
-  results?: Record<string, boolean>;
-  /** Overall score 0–100 from that grading. */
-  score_percent?: number;
   /** Seconds from first question shown to submission. */
   time_spent_s?: number;
 }
