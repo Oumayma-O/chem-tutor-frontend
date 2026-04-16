@@ -76,6 +76,9 @@ export interface PlaylistHydrationResponse {
     is_complete: boolean;
     step_log: unknown[];
   } | null;
+  allow_answer_reveal?: boolean | null;
+  max_answer_reveals_per_lesson?: number | null;
+  min_level1_examples_for_level2?: number | null;
 }
 
 const inFlightPlaylistRequests = new Map<string, Promise<PlaylistHydrationResponse>>();
@@ -208,12 +211,14 @@ export async function apiGetPlaylist(params: {
   lesson_index: number;
   level: number;
   difficulty?: "easy" | "medium" | "hard";
+  class_id?: string;
 }): Promise<PlaylistHydrationResponse> {
   const requestKey = [
     params.unit_id,
     String(params.lesson_index),
     String(params.level),
     params.difficulty ?? "",
+    params.class_id ?? "",
   ].join("|");
   const existing = inFlightPlaylistRequests.get(requestKey);
   if (existing) return existing;
@@ -227,6 +232,7 @@ export async function apiGetPlaylist(params: {
     level: String(params.level),
   });
   if (params.difficulty) query.set("difficulty", params.difficulty);
+  if (params.class_id) query.set("class_id", params.class_id);
   const request = get<PlaylistHydrationResponse>(`/problems/playlist?${query.toString()}`)
     .then((data) => {
       recentPlaylistResults.set(requestKey, { data, expiresAt: Date.now() + PLAYLIST_TTL_MS });

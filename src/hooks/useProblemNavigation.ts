@@ -1145,12 +1145,20 @@ export function useProblemNavigation({
         }
         const { answers: a, hints: h, structuredStepComplete: s } = stepStateRef.current;
         const { thinkingSteps: ts, classifiedErrors: ce } = cognitiveStateRef.current;
-        // Deep copy to prevent reference sharing with React state that gets cleared on reset.
-        perProblemCacheRef.current[p.id] = {
-          answers: { ...a },
-          hints: { ...h },
-          structuredStepComplete: { ...s },
-        };
+        // Guard: do not overwrite existing per-problem cache with empty state.
+        // This prevents the race where resetProblemState clears answers, then
+        // handleLevelChange calls saveCurrentStateToCache and overwrites the
+        // previously saved answers with {}.
+        const hasNewData = Object.keys(a).length > 0 || Object.keys(h).length > 0;
+        const existing = perProblemCacheRef.current[p.id];
+        const hasExistingData = existing && Object.keys(existing.answers ?? {}).length > 0;
+        if (hasNewData || !hasExistingData) {
+          perProblemCacheRef.current[p.id] = {
+            answers: { ...a },
+            hints: { ...h },
+            structuredStepComplete: { ...s },
+          };
+        }
         levelCacheRef.current[lvl] = {
           problem: p,
           answers: a,

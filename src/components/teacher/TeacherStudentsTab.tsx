@@ -1,6 +1,7 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { PredictiveInsights, SkillRadarChart } from "@/components/tutor/progress";
 import { skillMapFromCategoryBreakdown, studentAttemptsToPredictiveShape } from "@/lib/predictiveFromMastery";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
@@ -21,10 +22,14 @@ import {
   CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  MoreVertical,
+  Ban,
+  UserX,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { TabsContent } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,6 +49,8 @@ import {
 import {
   getStudentAnalytics,
   getAllExitTicketResults,
+  blockStudent,
+  removeStudentFromClass,
   type ExitTicketConfig,
   type ExitTicketResponseItem,
 } from "@/services/api/teacher";
@@ -99,6 +106,7 @@ export function TeacherStudentsTab({
   analyticsMode,
   onAnalyticsModeChange,
 }: TeacherStudentsTabProps) {
+  const queryClient = useQueryClient();
   const { units } = useUnits();
   const selectedChapterForFilter = analyticsChapter !== "all" ? units.find((u) => u.id === analyticsChapter) : undefined;
   const lessonTitles = selectedChapterForFilter?.lesson_titles ?? [];
@@ -205,7 +213,7 @@ export function TeacherStudentsTab({
                 type="button"
                 onClick={() => onSelectStudent(student.id)}
                 className={cn(
-                  "w-full p-3 rounded-lg border text-left transition-all",
+                  "group w-full p-3 rounded-lg border text-left transition-all",
                   isActive
                     ? "border-primary bg-primary/5 shadow-sm"
                     : "border-border bg-card hover:border-primary/30",
@@ -226,6 +234,35 @@ export function TeacherStudentsTab({
                     >
                       {student.mastery}%
                     </Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="p-1 rounded hover:bg-slate-100 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-4 w-4 text-slate-400" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!confirm(`Remove ${student.name} from this class?`)) return;
+                            removeStudentFromClass(selectedClassId, student.id)
+                              .then(() => {
+                                toast.success(`${student.name} removed from class.`);
+                                queryClient.invalidateQueries({ queryKey: teacherQueryKeys.roster(selectedClassId) });
+                              })
+                              .catch(() => toast.error("Failed to remove student."));
+                          }}
+                        >
+                          <UserX className="h-3.5 w-3.5 mr-2" />
+                          Remove from class
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
                 {student.weakTopics.length > 0 && (
