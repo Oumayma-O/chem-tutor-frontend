@@ -26,10 +26,13 @@ const REHYPE_PLUGINS: any[] = [[rehypeKatex, KATEX_OPTIONS]];
 
 // ─── Inline renderer ───────────────────────────────────────────────────────────
 
-/** Prevent react-markdown from emitting block <p> so MathText is safe inline. */
+/** Prevent react-markdown from emitting block elements so MathText is safe inside <p>. */
 const inlineComponents: Components = {
   p: ({ children }) => <span>{children}</span>,
   blockquote: ({ children }) => <span>{children}</span>,
+  ul: ({ children }) => <span>{children}</span>,
+  ol: ({ children }) => <span>{children}</span>,
+  li: ({ children }) => <span className="before:content-['•'] before:mr-1">{children}</span>,
 };
 
 interface MathTextProps {
