@@ -84,6 +84,7 @@ export function useTutorProgression({
   const [progressionResult, setProgressionResult] = useState<ProgressionResult | null>(null);
   const completeAttemptPromiseRef = useRef<Promise<unknown> | null>(null);
   const completionInFlightProblemIdRef = useRef<string | null>(null);
+  const masteryReconcileSeqRef = useRef(0);
 
   const applyMasteryDecision = useCallback((decision: { mastery?: unknown; recommended_next_difficulty?: string }) => {
     if (decision.mastery) {
@@ -97,10 +98,13 @@ export function useTutorProgression({
     if (decision.recommended_next_difficulty) {
       setRecommendedDifficulty(decision.recommended_next_difficulty as "easy" | "medium" | "hard");
     }
-    // Reconcile with server source-of-truth to avoid any stale/race UI state after completion.
+    // Reconcile with server source-of-truth. Use a sequence number so a stale GET response
+    // from an earlier completion cannot overwrite a newer completion's mastery update.
     if (userId) {
+      const seq = ++masteryReconcileSeqRef.current;
       apiGetMastery(userId, unitId, lessonIndex)
         .then((state) => {
+          if (seq !== masteryReconcileSeqRef.current) return;
           applyMasterySnapshotToLessonUi(state, {
             setBackendCategoryScores,
             setMasteryScore,
