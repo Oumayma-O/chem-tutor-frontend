@@ -55,3 +55,8 @@ export const teacherQueryKeys = {
   practiceAnalytics: (classId: string, sessionId: string) =>
     ["teacher", "practice-analytics", classId, sessionId] as const,
 };
+
+export const adminQueryKeys = {
+  aggregateAnalytics: (district: string, school: string) =>
+    ["admin", "aggregate-analytics", district, school] as const,
+};

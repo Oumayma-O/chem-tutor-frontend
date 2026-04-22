@@ -30,6 +30,11 @@ interface TeacherClassOverviewTabProps {
   developingStudents: ClassStudentRow[];
   atRiskStudents: ClassStudentRow[];
   onStudentClick: (studentId: string) => void;
+  avgL1Score?: number;
+  avgL2Score?: number;
+  avgL3Score?: number;
+  atRiskL2Count?: number;
+  atRiskL3Count?: number;
 }
 
 export function TeacherClassOverviewTab({
@@ -44,6 +49,11 @@ export function TeacherClassOverviewTab({
   developingStudents,
   atRiskStudents,
   onStudentClick,
+  avgL1Score,
+  avgL2Score,
+  avgL3Score,
+  atRiskL2Count,
+  atRiskL3Count,
 }: TeacherClassOverviewTabProps) {
   const classInsightSkillMap = useMemo(() => {
     const cb = classStats?.category_breakdown;
@@ -134,14 +144,54 @@ export function TeacherClassOverviewTab({
               <AlertTriangle className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <p className="text-xs font-medium text-muted-foreground">At Risk (&lt;50%)</p>
-              <p className="text-2xl font-bold tabular-nums text-red-600">
-                {atRiskStudents.length}
-              </p>
+              <p className="text-xs font-medium text-muted-foreground">At Risk</p>
+              {atRiskL2Count != null ? (
+                <>
+                  <p className="text-xl font-bold text-red-600">
+                    {atRiskL2Count + (atRiskL3Count ?? 0)}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    L2: {atRiskL2Count} · L3: {atRiskL3Count ?? 0}
+                  </p>
+                  <p className="text-[9px] text-slate-400">
+                    L2 &lt;30% after 3 attempts · L3 &lt;40%
+                  </p>
+                </>
+              ) : (
+                <p className="text-2xl font-bold tabular-nums text-red-600">{atRiskStudents.length}</p>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {avgL1Score != null && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Level Mastery Breakdown</CardTitle>
+            <CardDescription>Avg progress within each learning level · this chapter</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {[
+              { label: "L1 — Foundation (Examples)", score: avgL1Score, color: "bg-sky-400", rule: null },
+              { label: "L2 — Guided Practice", score: avgL2Score ?? 0, color: "bg-violet-500", rule: "At risk < 30% (≥3 attempts)" },
+              { label: "L3 — Independent", score: avgL3Score ?? 0, color: "bg-emerald-500", rule: "At risk < 40%" },
+            ].map(({ label, score, color, rule }) => (
+              <div key={label}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="font-medium">{label}</span>
+                  <span className="tabular-nums text-muted-foreground">{Math.round(score * 100)}%</span>
+                </div>
+                <div className="h-2 bg-secondary rounded-full overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all", color)}
+                       style={{ width: `${score * 100}%` }} />
+                </div>
+                {rule && <p className="text-[10px] text-slate-400 mt-0.5">{rule}</p>}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>

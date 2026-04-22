@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTeacherDashboardData } from "@/hooks/useTeacherDashboardData";
 import { useTeacherStudentSelectionFromUrl } from "@/hooks/useTeacherStudentSelectionFromUrl";
 import { useTeacherLiveSSE } from "@/hooks/useTeacherDashboardSSE";
@@ -24,6 +24,7 @@ import { TeacherExitTicketsTab } from "@/components/teacher/TeacherExitTicketsTa
 import { TeacherSettingsTab } from "@/components/teacher/TeacherSettingsTab";
 import TeachersDirectoryTab from "@/components/teacher/TeachersDirectoryTab";
 import { updateClassSettings } from "@/services/api/teacher";
+import { apiPostClassAnalytics } from "@/lib/api/analytics";
 import { parseTeacherDashboardTab } from "@/lib/teacherDashboardTabs";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -247,6 +248,17 @@ export function TeacherDashboardPage({
     await deleteTeacherClass(classId);
   };
 
+  const { data: classAnalytics } = useQuery({
+    queryKey: teacherQueryKeys.classAnalytics(effectiveClassroomId, chapterFilter !== "all" ? chapterFilter : null),
+    queryFn: () => apiPostClassAnalytics({
+      class_id: effectiveClassroomId,
+      unit_id: chapterFilter,
+      include_ai_insights: false,
+    }),
+    enabled: effectiveClassroomId !== "all" && chapterFilter !== "all",
+    staleTime: 60_000,
+  });
+
   const queryClient = useQueryClient();
   const classesQueryKey = user ? teacherQueryKeys.classes(user.id) : teacherQueryKeys.classesRoot();
 
@@ -375,6 +387,11 @@ export function TeacherDashboardPage({
             developingStudents={developingStudents}
             atRiskStudents={atRiskStudents}
             onStudentClick={setSelectedStudentWithUrl}
+            avgL1Score={classAnalytics?.avg_l1_score}
+            avgL2Score={classAnalytics?.avg_l2_score}
+            avgL3Score={classAnalytics?.avg_l3_score}
+            atRiskL2Count={classAnalytics?.at_risk_l2_count}
+            atRiskL3Count={classAnalytics?.at_risk_l3_count}
           />
 
           <TeacherStudentsTab

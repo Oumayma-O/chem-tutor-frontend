@@ -126,7 +126,7 @@ export default function StaffDirectoryPage() {
     if (grouping === "district") {
       setFilterDistrict(name);
       setFilterSchool("");
-    } else if (grouping === "school") {
+    } else if (grouping === "school" && filterDistrict) {
       setFilterSchool(name);
     }
   }
@@ -333,7 +333,6 @@ export default function StaffDirectoryPage() {
               isSuperAdmin={isSuperAdmin}
               filterDistrict={filterDistrict}
               filterSchool={filterSchool}
-              adminSchool={profile?.school ?? undefined}
               onDrillDown={handleDrillDown}
             />
           </TabsContent>

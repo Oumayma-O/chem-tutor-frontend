@@ -25,6 +25,9 @@ export interface StudentMasterySummary {
   error_counts: Record<string, number>;
   top_misconceptions: string[];
   is_at_risk: boolean;
+  l1_score?: number;
+  l2_score?: number;
+  l3_score?: number;
 }
 
 export interface ClassAnalyticsResponse {
@@ -33,6 +36,11 @@ export interface ClassAnalyticsResponse {
   student_count: number;
   avg_mastery: number;
   at_risk_count: number;
+  avg_l1_score?: number;
+  avg_l2_score?: number;
+  avg_l3_score?: number;
+  at_risk_l2_count?: number;
+  at_risk_l3_count?: number;
   error_frequency: Record<string, number>;
   top_misconceptions: string[];
   /** Backend may serialize as `topic_breakdown` in some versions — prefer this name first when reading. */

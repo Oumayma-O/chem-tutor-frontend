@@ -290,6 +290,11 @@ export interface AggregateGroupRow {
   class_count: number;
   avg_mastery: number;      // 0.0–1.0
   at_risk_count: number;
+  avg_l1_score?: number;
+  avg_l2_score?: number;
+  avg_l3_score?: number;
+  at_risk_l2_count?: number;
+  at_risk_l3_count?: number;
   problems_solved: number;
   hours_active: number;
 }
@@ -310,6 +315,11 @@ export interface AggregateAnalyticsResponse {
   total_hours_active: number;
   overall_avg_mastery: number;   // 0.0–1.0
   overall_at_risk_count: number;
+  overall_avg_l1_score?: number;
+  overall_avg_l2_score?: number;
+  overall_avg_l3_score?: number;
+  overall_at_risk_l2_count?: number;
+  overall_at_risk_l3_count?: number;
   weakest_units: UnitMasteryRow[];
   /** Present on current API; may be missing from cached/stale responses. */
   mastery_distribution?: Record<string, number>;  // "0-50","50-70","70-85","85-100"

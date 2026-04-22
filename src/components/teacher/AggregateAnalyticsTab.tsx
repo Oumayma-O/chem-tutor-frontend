@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import type { TooltipProps } from "recharts";
 import {
   TrendingUp,
   AlertTriangle,
@@ -32,6 +33,7 @@ import {
   masteryPercentBarColorHsl,
   scorePercentBadgeClassName,
 } from "@/lib/teacherScoreStyles";
+import { adminQueryKeys } from "@/lib/teacherQueryKeys";
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
@@ -39,7 +41,6 @@ interface AggregateAnalyticsTabProps {
   isSuperAdmin: boolean;
   filterDistrict: string;
   filterSchool: string;
-  adminSchool?: string;
   onDrillDown: (name: string, groupId: string | null, grouping: string) => void;
 }
 
@@ -98,9 +99,12 @@ function AggregateSkeleton() {
 
 // ── Comparison bar tooltip ─────────────────────────────────────────────────────
 
-function MasteryTooltip({ active, payload, label, overallPct }: any) {
+type ChartDataRow = AggregateGroupRow & { avg_mastery_pct: number; delta: number };
+type DistDataRow = { label: string; count: number; pct: number; fill: string };
+
+function MasteryTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
-  const row: AggregateGroupRow & { avg_mastery_pct: number; delta: number } = payload[0]?.payload;
+  const row = payload[0]?.payload as ChartDataRow;
   const delta = row?.delta ?? 0;
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-lg text-xs space-y-1">
@@ -115,16 +119,23 @@ function MasteryTooltip({ active, payload, label, overallPct }: any) {
       </p>
       <p className="text-slate-500">Students: {row?.student_count ?? 0}</p>
       <p className="text-slate-500">Classes: {row?.class_count ?? 0}</p>
-      <p className="text-slate-500">At-risk: {row?.at_risk_count ?? 0}</p>
+      {row?.at_risk_l2_count != null ? (
+        <>
+          <p className="text-slate-500">At-risk L2: {row.at_risk_l2_count}</p>
+          <p className="text-slate-500">At-risk L3: {row.at_risk_l3_count ?? 0}</p>
+        </>
+      ) : (
+        <p className="text-slate-500">At-risk: {row?.at_risk_count ?? 0}</p>
+      )}
     </div>
   );
 }
 
 // ── Distribution tooltip ───────────────────────────────────────────────────────
 
-function DistTooltip({ active, payload, label }: any) {
+function DistTooltip({ active, payload, label }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
-  const d = payload[0]?.payload;
+  const d = payload[0]?.payload as DistDataRow;
   return (
     <div className="rounded-lg border border-slate-200 bg-white px-3 py-2.5 shadow-lg text-xs">
       <p className="font-semibold text-slate-800">{label}</p>
@@ -144,7 +155,7 @@ export default function AggregateAnalyticsTab({
   onDrillDown,
 }: AggregateAnalyticsTabProps) {
   const { data, isLoading, isError } = useQuery<AggregateAnalyticsResponse>({
-    queryKey: ["aggregate-analytics", filterDistrict, filterSchool],
+    queryKey: adminQueryKeys.aggregateAnalytics(filterDistrict, filterSchool),
     queryFn: () =>
       getAggregateAnalytics({
         district: filterDistrict || undefined,
@@ -213,10 +224,20 @@ export default function AggregateAnalyticsTab({
     ? "Click a bar to open class dashboard"
     : `Click a bar to view ${data.grouping === "district" ? "schools" : "classes"}`;
 
-  // Top / bottom performers (chartData already sorted DESC)
-  const top3    = chartData.slice(0, Math.min(3, chartData.length));
-  const bottom3 = [...chartData].slice(-Math.min(3, chartData.length)).reverse();
-  const showPerformers = chartData.length >= 2;
+  const chartTitle = !isSuperAdmin
+    ? "Classes in Your School"
+    : data.grouping === "class" && filterSchool
+      ? `Classes in ${filterSchool}`
+      : data.grouping === "school" && filterDistrict
+        ? `Schools in ${filterDistrict}`
+        : "Performance by District";
+
+  // Top / bottom performers (chartData already sorted DESC).
+  // Cap at half the list so the same entry never appears in both panels.
+  const half        = Math.min(3, Math.floor(chartData.length / 2));
+  const top3        = chartData.slice(0, half);
+  const bottom3     = [...chartData].slice(-half).reverse();
+  const showPerformers = half >= 1;
 
   return (
     <div className="space-y-6">
@@ -231,8 +252,12 @@ export default function AggregateAnalyticsTab({
           iconColor="text-amber-600"
         />
         <ImpactCard
-          label="At-Risk Students"
-          value={`${atRiskPct}%`}
+          label={data.overall_at_risk_l2_count != null
+            ? `At-Risk  L2: ${data.overall_at_risk_l2_count} · L3: ${data.overall_at_risk_l3_count ?? 0}`
+            : "At-Risk Students"}
+          value={data.overall_at_risk_l2_count != null
+            ? `${data.overall_at_risk_l2_count + (data.overall_at_risk_l3_count ?? 0)}`
+            : `${atRiskPct}%`}
           icon={AlertTriangle}
           iconBg="bg-rose-100"
           iconColor="text-rose-600"
@@ -246,16 +271,25 @@ export default function AggregateAnalyticsTab({
         />
       </div>
 
+      {data.overall_avg_l1_score != null && (
+        <div className="grid grid-cols-3 gap-4">
+          <ImpactCard label="Avg L1 — Foundation" value={`${Math.round((data.overall_avg_l1_score ?? 0) * 100)}%`} icon={BookOpen} iconBg="bg-sky-100" iconColor="text-sky-600" />
+          <ImpactCard label="Avg L2 — Practice"   value={`${Math.round((data.overall_avg_l2_score ?? 0) * 100)}%`} icon={BookOpen} iconBg="bg-violet-100" iconColor="text-violet-600" />
+          <ImpactCard label="Avg L3 — Independent" value={`${Math.round((data.overall_avg_l3_score ?? 0) * 100)}%`} icon={BookOpen} iconBg="bg-emerald-100" iconColor="text-emerald-600" />
+        </div>
+      )}
+      {data.overall_avg_l1_score != null && (
+        <p className="text-[10px] text-slate-400 -mt-4">
+          At-risk thresholds — L2: mastery &lt; 30% with ≥3 attempts · L3: mastery &lt; 40% after unlock
+        </p>
+      )}
+
       {/* ── Comparison bar chart ──────────────────────────────────── */}
       <Card className="shadow-sm">
         <CardHeader className="pb-1">
           <CardTitle className="text-sm font-semibold text-slate-800 flex items-center gap-2">
             <BarChart2 className="h-4 w-4 text-primary" />
-            {data.grouping === "class" && filterSchool
-              ? `Classes in ${filterSchool}`
-              : data.grouping === "school" && filterDistrict
-                ? `Schools in ${filterDistrict}`
-                : "Performance by District"}
+            {chartTitle}
           </CardTitle>
           <p className="text-[11px] text-slate-400 mt-0.5">{drillHint}</p>
         </CardHeader>
@@ -279,7 +313,7 @@ export default function AggregateAnalyticsTab({
                 tick={{ fontSize: 11, fill: "#64748b" }}
                 width={40}
               />
-              <Tooltip content={<MasteryTooltip overallPct={overallPct} />} />
+              <Tooltip content={<MasteryTooltip />} />
               <Bar
                 dataKey="avg_mastery_pct"
                 radius={[4, 4, 0, 0]}
@@ -288,9 +322,9 @@ export default function AggregateAnalyticsTab({
                   onDrillDown(entry.name, entry.group_id ?? null, data.grouping)
                 }
               >
-                {chartData.map((entry, i) => (
+                {chartData.map((entry) => (
                   <Cell
-                    key={i}
+                    key={entry.name}
                     fill={masteryPercentBarColorHsl(entry.avg_mastery_pct)}
                   />
                 ))}
@@ -375,8 +409,8 @@ export default function AggregateAnalyticsTab({
               />
               <Tooltip content={<DistTooltip />} />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {distData.map((entry, i) => (
-                  <Cell key={i} fill={entry.fill} />
+                {distData.map((entry) => (
+                  <Cell key={entry.label} fill={entry.fill} />
                 ))}
               </Bar>
             </BarChart>
