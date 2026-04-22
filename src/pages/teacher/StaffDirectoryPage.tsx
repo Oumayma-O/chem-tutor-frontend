@@ -13,6 +13,7 @@ import {
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import TeachersDirectoryTab from "@/components/teacher/TeachersDirectoryTab";
+import AggregateAnalyticsTab from "@/components/teacher/AggregateAnalyticsTab";
 import { US_DISTRICTS } from "@/lib/locationConfig";
 import {
   Users2,
@@ -32,6 +34,8 @@ import {
   Users,
   SlidersHorizontal,
   X,
+  List,
+  BarChart2,
 } from "lucide-react";
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
@@ -112,6 +116,19 @@ export default function StaffDirectoryPage() {
 
   function handleSelectClass(cls: { id: string; name: string; code: string }) {
     navigate(`/class/${cls.id}`, { state: { name: cls.name, code: cls.code } });
+  }
+
+  function handleDrillDown(name: string, groupId: string | null, grouping: string) {
+    if (groupId) {
+      navigate(`/class/${groupId}`);
+      return;
+    }
+    if (grouping === "district") {
+      setFilterDistrict(name);
+      setFilterSchool("");
+    } else if (grouping === "school") {
+      setFilterSchool(name);
+    }
   }
 
   return (
@@ -289,13 +306,38 @@ export default function StaffDirectoryPage() {
           </div>
         )}
 
-        {/* ── Directory ─────────────────────────────────────────── */}
-        <TeachersDirectoryTab
-          onSelectClass={handleSelectClass}
-          isSuperAdmin={isSuperAdmin}
-          filterDistrict={filterDistrict || null}
-          filterSchool={filterSchool || null}
-        />
+        {/* ── Directory / Combined tabs ──────────────────────────── */}
+        <Tabs defaultValue="directory" className="space-y-4">
+          <TabsList className="grid w-full max-w-xs grid-cols-2">
+            <TabsTrigger value="directory" className="gap-1.5 text-xs">
+              <List className="w-3.5 h-3.5" />
+              Directory
+            </TabsTrigger>
+            <TabsTrigger value="combined" className="gap-1.5 text-xs">
+              <BarChart2 className="w-3.5 h-3.5" />
+              Combined
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="directory">
+            <TeachersDirectoryTab
+              onSelectClass={handleSelectClass}
+              isSuperAdmin={isSuperAdmin}
+              filterDistrict={filterDistrict || null}
+              filterSchool={filterSchool || null}
+            />
+          </TabsContent>
+
+          <TabsContent value="combined">
+            <AggregateAnalyticsTab
+              isSuperAdmin={isSuperAdmin}
+              filterDistrict={filterDistrict}
+              filterSchool={filterSchool}
+              adminSchool={profile?.school ?? undefined}
+              onDrillDown={handleDrillDown}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
     </DashboardShell>
   );

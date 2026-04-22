@@ -280,3 +280,50 @@ export async function getEngagementAnalytics(params: {
   const base = isSuperAdmin ? "/superadmin" : "/admin";
   return get<EngagementAnalytics>(`${base}/analytics/engagement?${sp.toString()}`);
 }
+
+// ── Aggregate analytics (Combined tab) ────────────────────────────────────────
+
+export interface AggregateGroupRow {
+  name: string;
+  group_id: string | null;  // classroom UUID at class level; null for district/school
+  student_count: number;
+  class_count: number;
+  avg_mastery: number;      // 0.0–1.0
+  at_risk_count: number;
+  problems_solved: number;
+  hours_active: number;
+}
+
+export interface UnitMasteryRow {
+  unit_id: string;
+  unit_title: string | null;
+  avg_mastery: number;      // 0.0–1.0
+  student_count: number;
+}
+
+export interface AggregateAnalyticsResponse {
+  grouping: "district" | "school" | "class";
+  groups: AggregateGroupRow[];
+  total_students: number;
+  total_classes: number;
+  total_problems_solved: number;
+  total_hours_active: number;
+  overall_avg_mastery: number;   // 0.0–1.0
+  overall_at_risk_count: number;
+  weakest_units: UnitMasteryRow[];
+  /** Present on current API; may be missing from cached/stale responses. */
+  mastery_distribution?: Record<string, number>;  // "0-50","50-70","70-85","85-100"
+}
+
+export async function getAggregateAnalytics(params: {
+  district?: string;
+  school?: string;
+}): Promise<AggregateAnalyticsResponse> {
+  const sp = new URLSearchParams();
+  if (params.district) sp.set("district", params.district);
+  if (params.school) sp.set("school", params.school);
+  const q = sp.toString();
+  return get<AggregateAnalyticsResponse>(
+    `/admin/analytics/aggregate${q ? `?${q}` : ""}`,
+  );
+}
