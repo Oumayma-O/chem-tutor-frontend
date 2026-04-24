@@ -1,6 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { format, formatDistanceToNow } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PredictiveInsights, SkillRadarChart } from "@/components/tutor/progress";
 import { skillMapFromCategoryBreakdown, studentAttemptsToPredictiveShape } from "@/lib/predictiveFromMastery";
 import { ChapterSelector } from "@/components/teacher/ChapterSelector";
@@ -22,8 +22,6 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
-  Ban,
-  UserX,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,9 +46,20 @@ import {
 import {
   getStudentAnalytics,
   getAllExitTicketResults,
+  removeStudentFromClass,
   type ExitTicketConfig,
   type ExitTicketResponseItem,
 } from "@/services/api/teacher";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   computeStudentActivityAggregates,
   deriveStrengthsAndWeakTopics,
@@ -106,6 +115,19 @@ export function TeacherStudentsTab({
   const { units } = useUnits();
   const selectedChapterForFilter = analyticsChapter !== "all" ? units.find((u) => u.id === analyticsChapter) : undefined;
   const lessonTitles = selectedChapterForFilter?.lesson_titles ?? [];
+
+  const queryClient = useQueryClient();
+  const [deleteTarget, setDeleteTarget] = useState<ClassStudentRow | null>(null);
+
+  const removeMutation = useMutation({
+    mutationFn: ({ studentId }: { studentId: string }) =>
+      removeStudentFromClass(selectedClassId, studentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.roster(selectedClassId) });
+      if (deleteTarget?.id === selectedStudent) onClearStudent();
+      setDeleteTarget(null);
+    },
+  });
 
   return (
     <TabsContent value="students" className="space-y-6">
@@ -204,10 +226,8 @@ export function TeacherStudentsTab({
           {enrolledStudents.map((student) => {
             const isActive = selectedStudent === student.id;
             return (
-              <button
+              <div
                 key={student.id}
-                type="button"
-                onClick={() => onSelectStudent(student.id)}
                 className={cn(
                   "w-full p-3 rounded-lg border text-left transition-all",
                   isActive
@@ -215,7 +235,10 @@ export function TeacherStudentsTab({
                     : "border-border bg-card hover:border-primary/30",
                 )}
               >
-                <div className="flex items-center justify-between">
+                <div
+                  className="flex items-center justify-between cursor-pointer"
+                  onClick={() => onSelectStudent(student.id)}
+                >
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-muted-foreground" />
                     <span className="font-medium text-foreground text-sm">{student.name}</span>
@@ -230,10 +253,35 @@ export function TeacherStudentsTab({
                     >
                       {student.mastery}%
                     </Badge>
+                    {selectedClassId !== "all" && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget(student); }}
+                          >
+                            Remove from class
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
                   </div>
                 </div>
                 {student.weakTopics.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
+                  <div
+                    className="flex flex-wrap gap-1 mt-2 cursor-pointer"
+                    onClick={() => onSelectStudent(student.id)}
+                  >
                     {student.weakTopics.map((t) => (
                       <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-destructive/10 text-destructive">
                         {t.replace(/_/g, " ")}
@@ -242,12 +290,15 @@ export function TeacherStudentsTab({
                   </div>
                 )}
                 {student.lastActive > 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                  <p
+                    className="text-[10px] text-muted-foreground mt-1.5 cursor-pointer"
+                    onClick={() => onSelectStudent(student.id)}
+                  >
                     Last active{" "}
                     {formatDistanceToNow(new Date(student.lastActive), { addSuffix: true })}
                   </p>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -273,6 +324,26 @@ export function TeacherStudentsTab({
           )}
         </div>
       </div>
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove student?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.name} will be removed from this class. Their progress data is kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && removeMutation.mutate({ studentId: deleteTarget.id })}
+            >
+              {removeMutation.isPending ? "Removing…" : "Remove"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TabsContent>
   );
 }
