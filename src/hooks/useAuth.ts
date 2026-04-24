@@ -8,6 +8,7 @@ import {
   apiUpdateProfile,
   clearAllUserAndCache,
   getStoredToken,
+  meDisplayName,
   setStoredToken,
   type MeResponse,
 } from "@/lib/api";
@@ -90,6 +91,8 @@ interface AuthContextValue extends AuthState {
   ) => Promise<SignInResult>;
   signOut: () => void;
   refreshProfile: () => Promise<void>;
+  /** Apply a `/auth/me` or account-update response so UI (header, menu) updates without a second fetch. */
+  syncFromMeResponse: (me: MeResponse) => void;
   updateProfile: (data: { grade?: string; course?: string; interests?: string[] }) => Promise<void>;
   isStudent: boolean;
   isTeacher: boolean;
@@ -100,7 +103,7 @@ interface AuthContextValue extends AuthState {
 
 function meToProfile(me: MeResponse): ProfileState {
   return {
-    display_name: me.name,
+    display_name: meDisplayName(me),
     grade_level: me.grade_level,
     grade: me.grade ?? null,
     course: me.course ?? null,
@@ -211,6 +214,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     applyMe(me);
   }, [applyMe]);
 
+  const syncFromMeResponse = useCallback((me: MeResponse) => {
+    applyMe(me);
+  }, [applyMe]);
+
   const updateProfileFn = useCallback(async (data: { grade?: string; course?: string; interests?: string[] }) => {
     const me = await apiUpdateProfile(data);
     applyMe(me);
@@ -222,6 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signOut,
     refreshProfile,
+    syncFromMeResponse,
     updateProfile: updateProfileFn,
     isStudent: state.role === "student",
     isTeacher: state.role === "teacher",

@@ -18,7 +18,9 @@ export interface MeResponse {
   user_id: string;
   email: string;
   role: string;
-  name: string;
+  /** Primary display name from API (some deployments use `username` instead). */
+  name?: string | null;
+  username?: string | null;
   grade_level: string | null;
   grade: string | null;
   course: string | null;
@@ -28,6 +30,13 @@ export interface MeResponse {
   classroom_code: string | null;
   district: string | null;
   school: string | null;
+}
+
+/** Prefer `name`; fall back to `username` when `/auth/me` returns only that field. */
+export function meDisplayName(me: MeResponse): string {
+  const fromName = me.name?.trim();
+  if (fromName) return fromName;
+  return me.username?.trim() ?? "";
 }
 
 export async function apiRegister(body: {
@@ -69,6 +78,7 @@ export async function apiUpdateProfile(body: {
 
 export async function apiUpdateAccount(body: {
   email?: string;
+  name?: string;
   current_password?: string;
   new_password?: string;
 }): Promise<MeResponse> {

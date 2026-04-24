@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
-import { apiUpdateAccount } from "@/lib/api/auth";
+import { apiUpdateAccount, type MeResponse } from "@/lib/api/auth";
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Mail, Lock, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Mail, Lock, User, CheckCircle2, AlertCircle } from "lucide-react";
 
 // ── Inline feedback pill ───────────────────────────────────────────────────
 
@@ -34,17 +34,79 @@ function Feedback({ type, message }: { type: "success" | "error"; message: strin
   );
 }
 
+// ── Display name (staff) ───────────────────────────────────────────────────
+
+function UsernameSection({ currentName }: { currentName: string | undefined }) {
+  const baseline = (currentName ?? "").trim();
+  const [name, setName] = useState(() => (currentName ?? "").trim());
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const { syncFromMeResponse } = useAuth();
+
+  useEffect(() => {
+    setName((currentName ?? "").trim());
+  }, [currentName]);
+
+  const mutation = useMutation({
+    mutationFn: () => apiUpdateAccount({ name: (name ?? "").trim() }),
+    onSuccess: (me: MeResponse) => {
+      syncFromMeResponse(me);
+      setFeedback({ type: "success", msg: "Username updated successfully." });
+    },
+    onError: (e: Error) =>
+      setFeedback({ type: "error", msg: e.message || "Failed to update username." }),
+  });
+
+  const trimmed = (name ?? "").trim();
+  const isDirty = trimmed !== baseline;
+  const tooLong = trimmed.length > 120;
+  const isValid = trimmed.length > 0 && !tooLong;
+
+  return (
+    <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="display-name" className="text-sm font-medium text-slate-700">
+          Username
+        </Label>
+        <Input
+          id="display-name"
+          type="text"
+          value={name ?? ""}
+          onChange={(e) => {
+            setName(e.target.value);
+            setFeedback(null);
+          }}
+          className={`max-w-sm ${tooLong ? "border-red-300 focus-visible:ring-red-400" : ""}`}
+          autoComplete="nickname"
+        />
+        <p className="text-[11px] text-muted-foreground">
+          This name appears in the app for you and other staff. Use 1–120 characters.
+        </p>
+        {tooLong && <p className="text-[11px] text-red-500">Maximum 120 characters.</p>}
+      </div>
+      {feedback && <Feedback type={feedback.type} message={feedback.msg} />}
+      <Button
+        size="sm"
+        onClick={() => mutation.mutate()}
+        disabled={!isDirty || !isValid || mutation.isPending}
+        className="min-w-[100px]"
+      >
+        {mutation.isPending ? "Saving…" : "Update username"}
+      </Button>
+    </div>
+  );
+}
+
 // ── Email section ──────────────────────────────────────────────────────────
 
 function EmailSection({ currentEmail }: { currentEmail: string }) {
   const [email, setEmail] = useState(currentEmail);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
-  const { refreshProfile } = useAuth();
+  const { syncFromMeResponse } = useAuth();
 
   const mutation = useMutation({
     mutationFn: () => apiUpdateAccount({ email }),
-    onSuccess: async () => {
-      await refreshProfile();
+    onSuccess: (me: MeResponse) => {
+      syncFromMeResponse(me);
       setFeedback({ type: "success", msg: "Email updated successfully." });
     },
     onError: (e: Error) =>
@@ -92,11 +154,13 @@ function PasswordSection() {
   const [newPw, setNewPw] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; msg: string } | null>(null);
+  const { syncFromMeResponse } = useAuth();
 
   const mutation = useMutation({
     mutationFn: () =>
       apiUpdateAccount({ current_password: currentPw, new_password: newPw }),
-    onSuccess: () => {
+    onSuccess: (me: MeResponse) => {
+      syncFromMeResponse(me);
       setFeedback({ type: "success", msg: "Password changed successfully." });
       setCurrentPw(""); setNewPw(""); setConfirmPw("");
     },
@@ -170,7 +234,8 @@ function PasswordSection() {
 
 export default function AccountSettingsPage() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user, profile, isTeacher, isAdmin } = useAuth();
+  const canEditStaffUsername = isTeacher || isAdmin;
 
   return (
     <DashboardShell>
@@ -188,11 +253,35 @@ export default function AccountSettingsPage() {
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Account Settings</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage your login credentials.
+            {canEditStaffUsername
+              ? "Manage your display name, email, and password."
+              : "Manage your login credentials."}
           </p>
         </div>
 
         <div className="space-y-5">
+          {canEditStaffUsername && profile && (
+            <Card>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center shrink-0">
+                    <User className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-base">Username</CardTitle>
+                    <CardDescription className="text-xs mt-0.5">
+                      How your name appears to colleagues and in the dashboard.
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <Separator />
+              <CardContent className="pt-5">
+                <UsernameSection currentName={profile.display_name ?? ""} />
+              </CardContent>
+            </Card>
+          )}
+
           {/* Account Info */}
           <Card>
             <CardHeader className="pb-4">
