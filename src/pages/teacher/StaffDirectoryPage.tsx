@@ -120,7 +120,7 @@ export default function StaffDirectoryPage() {
 
   function handleDrillDown(name: string, groupId: string | null, grouping: string) {
     if (groupId) {
-      navigate(`/class/${groupId}`);
+      navigate(`/class/${groupId}?readOnly=true`);
       return;
     }
     if (grouping === "district") {

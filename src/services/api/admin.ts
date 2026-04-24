@@ -295,6 +295,9 @@ export interface AggregateGroupRow {
   avg_l3_score?: number;
   at_risk_l2_count?: number;
   at_risk_l3_count?: number;
+  high_risk_count?: number;
+  moderate_risk_count?: number;
+  adopted_count?: number;
   problems_solved: number;
   hours_active: number;
 }
@@ -320,6 +323,9 @@ export interface AggregateAnalyticsResponse {
   overall_avg_l3_score?: number;
   overall_at_risk_l2_count?: number;
   overall_at_risk_l3_count?: number;
+  overall_high_risk?: number;
+  overall_moderate_risk?: number;
+  adoption_rate?: number;
   weakest_units: UnitMasteryRow[];
   /** Present on current API; may be missing from cached/stale responses. */
   mastery_distribution?: Record<string, number>;  // "0-50","50-70","70-85","85-100"
